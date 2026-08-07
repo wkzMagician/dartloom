@@ -1,0 +1,82 @@
+name: Dartloom Flutter Release
+on:
+  workflow_call:
+    permissions:
+      contents: write
+    inputs:
+      build_android:
+        required: true
+        type: boolean
+      build_windows:
+        required: true
+        type: boolean
+      build_linux:
+        required: true
+        type: boolean
+jobs:
+  android:
+    if: ${{ inputs.build_android }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: build/app/outputs/**
+  windows:
+    if: ${{ inputs.build_windows }}
+    runs-on: windows-latest
+    env:
+      DART_DATA_HOME: ${{ runner.temp }}\dart-data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: choco install innosetup -y
+      - shell: pwsh
+        run: |
+          dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+          $dartloom = "$env:DART_DATA_HOME\install\bin\dartloom.bat"
+          & $dartloom package windows exe
+          & $dartloom package windows zip
+          & $dartloom package windows msix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+  linux:
+    if: ${{ inputs.build_linux }}
+    runs-on: ubuntu-latest
+    env:
+      DART_DATA_HOME: ${{ runner.temp }}/dart-data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: |
+          dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+          export PATH="$DART_DATA_HOME/install/bin:$PATH"
+          dartloom package linux deb
+          dartloom package linux rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+  release:
+    needs: [android, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: '**/*'

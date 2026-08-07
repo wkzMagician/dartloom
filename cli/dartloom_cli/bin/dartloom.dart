@@ -11,6 +11,7 @@ import 'package:dartloom_cli/src/commands/check_command.dart';
 import 'package:dartloom_cli/src/commands/command_support.dart';
 import 'package:dartloom_cli/src/commands/doctor_command.dart';
 import 'package:dartloom_cli/src/commands/new_command.dart';
+import 'package:dartloom_cli/src/commands/package_command.dart';
 import 'package:dartloom_cli/src/commands/release_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
@@ -24,6 +25,7 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('cap')
     ..addCommand('check')
     ..addCommand('build')
+    ..addCommand('package')
     ..addCommand('release')
     ..addCommand('doctor');
   parser.commands['new']!
@@ -82,6 +84,16 @@ Future<void> main(List<String> arguments) async {
         await CheckCommand(runner).run(Directory.current);
       case 'build':
         await BuildCommand(runner).run(Directory.current, command.rest);
+      case 'package':
+        if (command.rest.length != 2) {
+          throw CommandFailure(
+              'Usage: dartloom package <windows|linux> <format>');
+        }
+        await PackageCommand(runner).run(
+          Directory.current,
+          command.rest.first,
+          command.rest.last,
+        );
       case 'release':
         if (command.rest.length != 1) {
           throw CommandFailure('Usage: dartloom release <version>');
@@ -122,6 +134,7 @@ Commands:
   cap [command]    Manage capabilities interactively or by subcommand.
   check            Format, analyze, and test the current app.
   build [target]   Build enabled targets into dist/.
+  package          Create an OS installer or system package.
   release <ver>    Commit, tag, and push a release.
   doctor           Check development prerequisites.
 
@@ -130,6 +143,15 @@ Capability commands:
   cap list         List enabled and available capabilities.
   cap add <name>   Enable a capability.
   cap remove <n>   Disable a capability.
+
+Package targets:
+  package windows exe   Windows Setup.exe (requires Inno Setup).
+  package windows zip   Portable Windows ZIP.
+  package windows msix  Windows MSIX (requires the msix dev dependency).
+  package linux deb     Debian/Ubuntu package (Linux host required).
+  package linux rpm     Red Hat/Fedora/Rocky/Alma package (Linux host required).
+
+Not yet supported: macOS DMG/PKG, iOS IPA, Android installer formats, and web installers.
 
 ${parser.usage}''');
 }

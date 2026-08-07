@@ -92,7 +92,7 @@ class NewCommand {
         .writeAsString(_ciWorkflow);
     await File(
             '${project.path}$separator.github${separator}workflows${separator}release.yml')
-        .writeAsString(_releaseWorkflow);
+        .writeAsString(releaseWorkflow(config));
     await File(
             '${project.path}${separator}lib${separator}capabilities${separator}capabilities.dart')
         .writeAsString(capabilityGlue(config.capabilities));
@@ -161,17 +161,21 @@ const _ciWorkflow = '''name: CI
 on: [push, pull_request]
 jobs:
   check:
-    uses: dartloom/dartloom/.github/workflows/flutter_ci.yml@main
+    uses: wkzMagician/dartloom/.github/workflows/flutter_ci.yml@main
 ''';
 
-const _releaseWorkflow = '''name: Release
+String releaseWorkflow(DartloomConfig config) => '''name: Release
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
 jobs:
   release:
-    uses: dartloom/dartloom/.github/workflows/flutter_release.yml@main
+    uses: wkzMagician/dartloom/.github/workflows/flutter_release.yml@main
     permissions:
       contents: write
+    with:
+      build_android: ${config.platforms.contains(TargetPlatform.android)}
+      build_windows: ${config.platforms.contains(TargetPlatform.windows)}
+      build_linux: ${config.platforms.contains(TargetPlatform.linux)}
 ''';

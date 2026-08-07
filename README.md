@@ -30,6 +30,28 @@ to move, Space to toggle capabilities, then select **保存并应用变更** wit
 All additions and removals are applied as one batch before dependencies and
 checks are run.
 
+## Installers and Linux packages
+
+From a generated application directory, Dartloom can create these release assets:
+
+```powershell
+dartloom package windows exe  # Setup.exe; requires Inno Setup on Windows
+dartloom package windows zip  # portable ZIP
+dartloom package windows msix # adds the `msix` dev dependency if needed
+dartloom package linux deb    # Debian/Ubuntu; Linux host or CI runner
+dartloom package linux rpm    # Red Hat/Fedora/Rocky/Alma; Linux host or CI runner
+```
+
+Windows EXE installers and portable ZIPs are suitable for GitHub Releases.
+For public MSIX distribution, configure a trusted code-signing certificate;
+unsigned MSIX is only appropriate for local testing. macOS DMG/PKG, iOS IPA,
+Android installer formats, and web installers are not supported yet.
+
+Prerequisites are intentionally platform-native: install Inno Setup (`iscc`) to
+make a Windows EXE installer; install `dpkg-deb` for DEB; and install
+`rpmbuild` (usually the `rpm-build` package) for RPM. Use GitHub's Windows and
+Ubuntu runners to build the corresponding release assets in CI.
+
 ## Development
 
 ```powershell
