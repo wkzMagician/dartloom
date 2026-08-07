@@ -42,6 +42,8 @@ class CapTui {
   ) async {
     final oldEcho = stdin.echoMode;
     final oldLineMode = stdin.lineMode;
+    var echoChanged = false;
+    var lineModeChanged = false;
     var cursor = 0;
     var escapeState = 0;
     var windowsPrefix = false;
@@ -49,7 +51,9 @@ class CapTui {
 
     try {
       stdin.echoMode = false;
+      echoChanged = true;
       stdin.lineMode = false;
+      lineModeChanged = true;
       stdout.write('\x1B[?25l');
       _render(config, selection, cursor);
       final subscription = stdin.listen((bytes) {
@@ -88,9 +92,38 @@ class CapTui {
       await subscription.cancel();
       return result;
     } finally {
-      stdin.echoMode = oldEcho;
-      stdin.lineMode = oldLineMode;
+      _restoreTerminalMode(
+        oldEcho: oldEcho,
+        oldLineMode: oldLineMode,
+        echoChanged: echoChanged,
+        lineModeChanged: lineModeChanged,
+      );
       stdout.write('\x1B[?25h\n');
+    }
+  }
+
+  /// Some Windows terminals close their input handle before Dart's final mode
+  /// restore. The selection has already completed, so restoration must not turn
+  /// a successful save or cancel into an error.
+  void _restoreTerminalMode({
+    required bool oldEcho,
+    required bool oldLineMode,
+    required bool echoChanged,
+    required bool lineModeChanged,
+  }) {
+    if (lineModeChanged) {
+      try {
+        stdin.lineMode = oldLineMode;
+      } on StdinException {
+        // The host owns a closed or replaced input handle now.
+      }
+    }
+    if (echoChanged) {
+      try {
+        stdin.echoMode = oldEcho;
+      } on StdinException {
+        // See the comment above; no action is possible for an invalid handle.
+      }
     }
   }
 
@@ -115,7 +148,8 @@ class CapTui {
     }
     return switch (byte) {
       27 => const _KeyAction(escapeState: 1),
-      224 => const _KeyAction(windowsPrefix: true),
+      // Windows console hosts use either 0 or 224 before the scan code.
+      0 || 224 => const _KeyAction(windowsPrefix: true),
       72 => const _KeyAction(move: -1),
       80 => const _KeyAction(move: 1),
       32 || 13 || 10 => const _KeyAction(activate: true),
