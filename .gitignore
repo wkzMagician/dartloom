@@ -1,0 +1,10 @@
+# Local smoke-test project generated during development
+dartloom_integration/
+
+# Dart and Flutter tool output
+.dart_tool/
+**/.dart_tool/
+**/build/
+**/dist/
+**/.packages
+**/pubspec.lock

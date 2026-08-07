@@ -1,0 +1,4 @@
+name: dartloom
+packages:
+  - cli/**
+  - packages/**

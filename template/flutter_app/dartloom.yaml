@@ -1,0 +1,20 @@
+schema_version: 1
+app:
+  name: example_app
+  organization: com.example
+  description: Dartloom application
+platforms:
+  android: true
+  ios: false
+  windows: true
+  macos: true
+  linux: false
+  web: false
+capabilities:
+  settings: true
+  storage: true
+  logging: true
+  autostart: false
+  sync: false
+release:
+  github: true

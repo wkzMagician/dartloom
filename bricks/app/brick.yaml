@@ -1,0 +1,10 @@
+name: dartloom_app
+description: Dartloom Flutter application managed-file template.
+version: 0.1.0
+vars:
+  app_name:
+    type: string
+    description: Flutter package name
+  organization:
+    type: string
+    default: com.example
