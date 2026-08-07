@@ -5,6 +5,7 @@ import 'package:dartloom_cli/src/commands/capability_manager.dart';
 import 'package:dartloom_cli/src/commands/doctor_command.dart';
 import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
+import 'package:dartloom_cli/src/commands/self_upgrade_command.dart';
 import 'package:dartloom_cli/src/commands/upgrade_command.dart';
 import 'package:dartloom_cli/src/config/config_loader.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
@@ -28,6 +29,12 @@ class FakeRunner implements ProcessRunner {
               'name: ${arguments.last}\r\ndependencies:\r\n  flutter:\r\n    sdk: flutter\r\n');
     }
     return const ProcessResultData(0, '', '');
+  }
+
+  @override
+  Future<void> startDetached(String executable, List<String> arguments,
+      {required String workingDirectory}) async {
+    calls.add('$executable ${arguments.join(' ')}');
   }
 }
 
@@ -205,6 +212,12 @@ void main() {
     );
     expect(await agents.readAsString(), 'keep');
     expect(runner.calls, isEmpty);
+  });
+
+  test('self-upgrade schedules a detached install', () async {
+    final runner = FakeRunner();
+    await SelfUpgradeCommand(runner).run(Directory.current);
+    expect(runner.calls.single, contains('dart install --overwrite'));
   });
 
   test('doctor succeeds when required checks are available', () async {

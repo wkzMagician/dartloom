@@ -10,6 +10,9 @@ class ProcessResultData {
 abstract interface class ProcessRunner {
   Future<ProcessResultData> run(String executable, List<String> arguments,
       {required String workingDirectory});
+
+  Future<void> startDetached(String executable, List<String> arguments,
+      {required String workingDirectory});
 }
 
 class SystemProcessRunner implements ProcessRunner {
@@ -21,5 +24,17 @@ class SystemProcessRunner implements ProcessRunner {
         workingDirectory: workingDirectory, runInShell: Platform.isWindows);
     return ProcessResultData(
         result.exitCode, '${result.stdout}', '${result.stderr}');
+  }
+
+  @override
+  Future<void> startDetached(String executable, List<String> arguments,
+      {required String workingDirectory}) async {
+    await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      runInShell: Platform.isWindows,
+      mode: ProcessStartMode.detached,
+    );
   }
 }

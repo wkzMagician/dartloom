@@ -14,6 +14,12 @@ Then run `dartloom --help`.
 
 On Windows, add `%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately found.
 
+Update Dartloom itself at any time with:
+
+```powershell
+dartloom update
+```
+
 ## Capabilities
 
 Use the terminal capability manager from inside a generated app:
@@ -58,14 +64,14 @@ Update the CLI first, then overwrite the Dartloom-managed files in an app:
 
 ```powershell
 dart install --overwrite https://github.com/wkzMagician/dartloom.git
-dartloom upgrade
+dartloom project update
 ```
 
-`dartloom upgrade` overwrites `AGENTS.md`, Dartloom workflow wrappers, and the
+`dartloom project update` overwrites `AGENTS.md`, Dartloom workflow wrappers, and the
 capability glue file. It then upgrades enabled Dartloom capability packages and
 runs checks. It never modifies `lib/features/` or application-specific code.
-Use `dartloom upgrade --dry-run` to list files first, or
-`dartloom upgrade --no-capabilities` to leave package versions unchanged.
+Use `dartloom project update --dry-run` to list files first, or
+`dartloom project update --no-capabilities` to leave package versions unchanged.
 
 ## Development
 

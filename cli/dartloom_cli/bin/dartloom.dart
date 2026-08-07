@@ -14,6 +14,7 @@ import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/package_command.dart';
 import 'package:dartloom_cli/src/commands/release_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
+import 'package:dartloom_cli/src/commands/self_upgrade_command.dart';
 import 'package:dartloom_cli/src/commands/upgrade_command.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
 import 'package:dartloom_cli/src/process/process_runner.dart';
@@ -28,7 +29,8 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('build')
     ..addCommand('package')
     ..addCommand('release')
-    ..addCommand('upgrade')
+    ..addCommand('update')
+    ..addCommand('project')
     ..addCommand('doctor');
   parser.commands['new']!
     ..addOption('org', defaultsTo: 'com.example')
@@ -38,7 +40,8 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('add')
     ..addCommand('list')
     ..addCommand('remove');
-  parser.commands['upgrade']!
+  parser.commands['project']!.addCommand('update');
+  parser.commands['project']!.commands['update']!
     ..addFlag('dry-run', negatable: false)
     ..addFlag('capabilities', defaultsTo: true);
   try {
@@ -105,15 +108,25 @@ Future<void> main(List<String> arguments) async {
         }
         await ReleaseCommand(runner)
             .run(Directory.current, command.rest.single);
-      case 'upgrade':
+      case 'update':
         if (command.rest.isNotEmpty) {
+          throw CommandFailure('Usage: dartloom update');
+        }
+        await SelfUpgradeCommand(runner).run(Directory.current);
+      case 'project':
+        final subcommand = command.command;
+        if (subcommand == null || subcommand.name != 'update') {
           throw CommandFailure(
-              'Usage: dartloom upgrade [--dry-run] [--no-capabilities]');
+              'Usage: dartloom project update [--dry-run] [--no-capabilities]');
+        }
+        if (subcommand.rest.isNotEmpty) {
+          throw CommandFailure(
+              'Usage: dartloom project update [--dry-run] [--no-capabilities]');
         }
         await UpgradeCommand(runner).run(
           Directory.current,
-          dryRun: command['dry-run'] as bool,
-          upgradeCapabilities: command['capabilities'] as bool,
+          dryRun: subcommand['dry-run'] as bool,
+          upgradeCapabilities: subcommand['capabilities'] as bool,
         );
       case 'doctor':
         if (!await DoctorCommand(runner).run(Directory.current)) exitCode = 1;
@@ -151,7 +164,8 @@ Commands:
   build [target]   Build enabled targets into dist/.
   package          Create an OS installer or system package.
   release <ver>    Commit, tag, and push a release.
-  upgrade          Overwrite Dartloom-managed files with current templates.
+  update           Update the Dartloom CLI from GitHub.
+  project update   Update Dartloom-managed files in the current app.
   doctor           Check development prerequisites.
 
 Capability commands:
@@ -169,9 +183,9 @@ Package targets:
 
 Not yet supported: macOS DMG/PKG, iOS IPA, Android installer formats, and web installers.
 
-Upgrade options:
-  upgrade --dry-run          List managed files that would be overwritten.
-  upgrade --no-capabilities  Do not upgrade Dartloom capability packages.
+Project update options:
+  project update --dry-run          List managed files that would be overwritten.
+  project update --no-capabilities  Do not upgrade Dartloom capability packages.
 
 ${parser.usage}''');
 }
