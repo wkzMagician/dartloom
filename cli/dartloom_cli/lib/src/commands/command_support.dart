@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
 
 class CommandFailure implements Exception {
@@ -45,11 +46,17 @@ const dartloomRepositoryUrl = 'https://github.com/wkzMagician/dartloom.git';
 const dartloomPackageVersion = '^0.1.0';
 
 String capabilityDependency(String packageName,
-    {Directory? packagesDirectory}) {
-  if (packagesDirectory != null) {
-    return '  $packageName:\n    path: ${packagesDirectory.path.replaceAll('\\', '/')}/$packageName\n';
+    {required CapabilitySource source, Directory? packagesDirectory}) {
+  final localPackage = packagesDirectory == null
+      ? null
+      : Directory(
+          '${packagesDirectory.path}${Platform.pathSeparator}$packageName');
+  if (source == CapabilitySource.github &&
+      localPackage != null &&
+      localPackage.existsSync()) {
+    return '  $packageName:\n    path: ${localPackage.path.replaceAll('\\', '/')}\n';
   }
-  if (Platform.environment['DARTLOOM_CAPABILITY_SOURCE'] != 'git') {
+  if (source == CapabilitySource.pub) {
     return '  $packageName: $dartloomPackageVersion\n';
   }
   return '  $packageName:\n    git:\n      url: $dartloomRepositoryUrl\n      path: packages/$packageName\n';

@@ -46,7 +46,7 @@ class CapabilityManager {
       if (!content.contains('$packageName:')) {
         content = content.replaceFirst(
           RegExp(r'dependencies:\r?\n'),
-          'dependencies:\n${capabilityDependency(packageName, packagesDirectory: localPackagesDirectory(project))}',
+          'dependencies:\n${capabilityDependency(packageName, source: updated.capabilitySource, packagesDirectory: localPackagesDirectory(project))}',
         );
       }
     }
@@ -70,10 +70,43 @@ class CapabilityManager {
     return change;
   }
 
+  /// Switches all enabled capability dependencies between GitHub and pub.dev.
+  Future<void> setSource(Directory project, CapabilitySource source) async {
+    final current = await _loader.load(project);
+    final updated = current.copyWith(capabilitySource: source);
+    final pubspec =
+        File('${project.path}${Platform.pathSeparator}pubspec.yaml');
+    var content = await pubspec.readAsString();
+    for (final capability in Capability.values) {
+      content = content.replaceFirst(_dependencyPattern(capability), '');
+    }
+    final dependencies = [
+      for (final capability in Capability.values)
+        if (updated.capabilities.contains(capability))
+          capabilityDependency(
+            CapabilityRegistry.all[capability]!.packageName,
+            source: source,
+            packagesDirectory: localPackagesDirectory(project),
+          ),
+    ].join();
+    if (dependencies.isNotEmpty) {
+      content = content.replaceFirst(
+        RegExp(r'dependencies:\r?\n'),
+        'dependencies:\n$dependencies',
+      );
+    }
+    await _loader.save(project, updated);
+    await pubspec.writeAsString(content);
+    await runRequired(
+        runner, executableFor('flutter'), ['pub', 'get'], project);
+    await runRequired(runner, executableFor('dart'), ['format', '.'], project);
+    await CheckCommand(runner).run(project);
+  }
+
   RegExp _dependencyPattern(Capability capability) {
     final packageName = CapabilityRegistry.all[capability]!.packageName;
     return RegExp(
-      '^  ${RegExp.escape(packageName)}:\\r?\\n(?: {4,}.*\\r?\\n)*',
+      '^  ${RegExp.escape(packageName)}:(?: [^\\r\\n]+)?\\r?\\n(?: {4,}.*\\r?\\n)*',
       multiLine: true,
     );
   }

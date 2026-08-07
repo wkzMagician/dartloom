@@ -51,13 +51,14 @@ dependencies and checks are run. Available capability names include
 
 Each capability is an independent pub.dev package (`dartloom_settings`,
 `dartloom_storage`, and so on). Generated apps only depend on selected
-capabilities; users do not install those packages manually. The shared pub cache
-means multiple apps reuse downloaded versions. Before those packages are
-published, Git-based development can opt into Git dependencies:
+capabilities; users do not install those packages manually. The source is
+explicitly recorded in each app's `dartloom.yaml`:
 
 ```powershell
-$env:DARTLOOM_CAPABILITY_SOURCE = 'git'
-dartloom new demo
+dartloom new demo --source=github # development; uses repository dependencies
+cd demo
+dartloom source                    # show the current source
+dartloom source pub                # release; uses pub.dev dependencies
 ```
 
 `localization` wires Flutter locale delegates for English and Chinese into the
@@ -128,9 +129,9 @@ Run the CLI from the repository root while developing:
 dart run cli/dartloom_cli/bin/dartloom.dart new demo --platforms=android,windows --capabilities=settings,storage,logging
 ```
 
-Before publication, set `DARTLOOM_CAPABILITY_SOURCE=git` when creating a
-project outside this repository. The generated app owns business code in
-`lib/features`; reusable infrastructure belongs in `packages`.
+Before publication, use `--source=github` for a new project or
+`dartloom source github` for an existing project. The generated app owns
+business code in `lib/features`; reusable infrastructure belongs in `packages`.
 
 ## Publishing plan
 

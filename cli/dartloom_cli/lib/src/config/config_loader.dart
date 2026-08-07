@@ -44,8 +44,22 @@ class ConfigLoader {
           description: app['description'] as String? ?? ''),
       platforms: enabled(root['platforms'], TargetPlatform.values),
       capabilities: enabled(root['capabilities'], Capability.values),
+      capabilitySource: _capabilitySource(root['sources']),
       githubRelease: (root['release'] as YamlMap?)?['github'] != false,
     );
+  }
+
+  CapabilitySource _capabilitySource(Object? sources) {
+    final raw = (sources as YamlMap?)?['capabilities'];
+    if (raw == null) return CapabilitySource.github;
+    if (raw is! String) {
+      throw ConfigException('sources.capabilities must be github or pub.');
+    }
+    try {
+      return CapabilitySource.values.byName(raw);
+    } on ArgumentError {
+      throw ConfigException('sources.capabilities must be github or pub.');
+    }
   }
 
   Future<void> save(Directory project, DartloomConfig config) =>

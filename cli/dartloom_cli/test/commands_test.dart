@@ -236,9 +236,46 @@ void main() {
 
   test('published capability dependencies use hosted versions by default', () {
     expect(
-      capabilityDependency('dartloom_settings'),
+      capabilityDependency(
+        'dartloom_settings',
+        source: CapabilitySource.pub,
+      ),
       '  dartloom_settings: ^0.1.0\n',
     );
+  });
+
+  test('switching source rewrites enabled capability dependencies', () async {
+    final project =
+        await Directory.systemTemp.createTemp('dartloom_source_switch_test');
+    addTearDown(() => project.delete(recursive: true));
+    final loader = const ConfigLoader();
+    await loader.save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+            name: 'demo', organization: 'com.example', description: ''),
+        platforms: {TargetPlatform.windows},
+        capabilities: {Capability.localization},
+        capabilitySource: CapabilitySource.pub,
+      ),
+    );
+    await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+        .writeAsString(
+      'name: demo\ndependencies:\n  dartloom_localization: ^0.1.0\n  flutter:\n    sdk: flutter\n',
+    );
+    final runner = FakeRunner();
+    await CapabilityManager(runner).setSource(
+      project,
+      CapabilitySource.github,
+    );
+    final pubspec =
+        await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+            .readAsString();
+    expect(
+        pubspec, contains('url: https://github.com/wkzMagician/dartloom.git'));
+    expect(pubspec, isNot(contains('dartloom_localization: ^0.1.0')));
+    expect(
+        (await loader.load(project)).capabilitySource, CapabilitySource.github);
   });
 
   test('doctor succeeds when required checks are available', () async {

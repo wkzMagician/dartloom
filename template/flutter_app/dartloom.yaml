@@ -18,5 +18,7 @@ capabilities:
   sync: false
   localization: false
   resident: false
+sources:
+  capabilities: github
 release:
   github: true

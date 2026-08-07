@@ -162,6 +162,7 @@ class CapTui {
     stdout.write('\x1B[2J\x1B[H');
     stdout.writeln('Dartloom Capability Manager');
     stdout.writeln('Project: ${config.app.name}');
+    stdout.writeln('Source: ${config.capabilitySource.name}');
     stdout.writeln('↑/↓ move   Space toggle/select   q or Esc cancel\n');
     for (var index = 0; index < Capability.values.length; index++) {
       final capability = Capability.values[index];

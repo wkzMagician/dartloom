@@ -11,7 +11,8 @@ class CapListCommand {
 
   Future<void> run(Directory project) async {
     final config = await _loader.load(project);
-    stdout.writeln('Dartloom Capabilities\n');
+    stdout.writeln(
+        'Dartloom Capabilities (source: ${config.capabilitySource.name})\n');
     for (final capability in Capability.values) {
       final metadata = CapabilityRegistry.all[capability]!;
       final enabled =

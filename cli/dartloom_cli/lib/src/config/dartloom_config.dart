@@ -1,5 +1,8 @@
 enum TargetPlatform { android, ios, windows, macos, linux, web }
 
+/// Where an application's Dartloom capability dependencies are resolved.
+enum CapabilitySource { github, pub }
+
 enum Capability {
   settings,
   storage,
@@ -33,18 +36,25 @@ class DartloomConfig {
     required this.app,
     required this.platforms,
     required this.capabilities,
+    this.capabilitySource = CapabilitySource.github,
     this.githubRelease = true,
   });
 
   final AppConfig app;
   final Set<TargetPlatform> platforms;
   final Set<Capability> capabilities;
+  final CapabilitySource capabilitySource;
   final bool githubRelease;
 
-  DartloomConfig copyWith({Set<Capability>? capabilities}) => DartloomConfig(
+  DartloomConfig copyWith({
+    Set<Capability>? capabilities,
+    CapabilitySource? capabilitySource,
+  }) =>
+      DartloomConfig(
         app: app,
         platforms: platforms,
         capabilities: capabilities ?? this.capabilities,
+        capabilitySource: capabilitySource ?? this.capabilitySource,
         githubRelease: githubRelease,
       );
 
@@ -65,6 +75,9 @@ ${flags(platforms, TargetPlatform.values)}
 
 capabilities:
 ${flags(capabilities, Capability.values)}
+
+sources:
+  capabilities: ${capabilitySource.name}
 
 release:
   github: $githubRelease

@@ -13,6 +13,7 @@ void main() {
           name: 'demo', organization: 'com.example', description: 'Demo'),
       platforms: {TargetPlatform.android, TargetPlatform.windows},
       capabilities: {Capability.logging, Capability.storage},
+      capabilitySource: CapabilitySource.pub,
     );
     final loader = const ConfigLoader();
     await loader.save(directory, config);
@@ -20,6 +21,7 @@ void main() {
     expect(loaded.app.name, 'demo');
     expect(loaded.platforms, config.platforms);
     expect(loaded.capabilities, config.capabilities);
+    expect(loaded.capabilitySource, CapabilitySource.pub);
   });
 
   test('rejects unsupported schema version', () async {

@@ -19,7 +19,8 @@ class NewCommand {
       required String name,
       required String organization,
       required Set<TargetPlatform> platforms,
-      required Set<Capability> capabilities}) async {
+      required Set<Capability> capabilities,
+      CapabilitySource capabilitySource = CapabilitySource.github}) async {
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
       throw CommandFailure(
           'Invalid app name "$name". Use lowercase letters, digits, and underscores.');
@@ -46,7 +47,8 @@ class NewCommand {
             organization: organization,
             description: '$name application'),
         platforms: platforms,
-        capabilities: capabilities);
+        capabilities: capabilities,
+        capabilitySource: capabilitySource);
     await _loader.save(project, config);
     await _writeManagedFiles(project, config);
     await runRequired(
@@ -97,16 +99,16 @@ class NewCommand {
     await File(
             '${project.path}${separator}lib${separator}capabilities${separator}capabilities.dart')
         .writeAsString(capabilityGlue(config.capabilities));
-    await _addPackageDependencies(project, config.capabilities);
+    await _addPackageDependencies(project, config);
   }
 
   Future<void> _addPackageDependencies(
-      Directory project, Set<Capability> capabilities) async {
+      Directory project, DartloomConfig config) async {
     final pubspec =
         File('${project.path}${Platform.pathSeparator}pubspec.yaml');
     var content = await pubspec.readAsString();
     final repoPackages = localPackagesDirectory(project.parent);
-    for (final capability in capabilities) {
+    for (final capability in config.capabilities) {
       final metadata = CapabilityRegistry.all[capability]!;
       final packagePath = repoPackages == null
           ? null
@@ -115,7 +117,7 @@ class NewCommand {
           !content.contains('${metadata.packageName}:')) {
         content = content.replaceFirst(
           RegExp(r'dependencies:\r?\n'),
-          'dependencies:\n${capabilityDependency(metadata.packageName, packagesDirectory: repoPackages)}',
+          'dependencies:\n${capabilityDependency(metadata.packageName, source: config.capabilitySource, packagesDirectory: repoPackages)}',
         );
       }
     }

@@ -15,6 +15,7 @@ import 'package:dartloom/src/commands/package_command.dart';
 import 'package:dartloom/src/commands/release_command.dart';
 import 'package:dartloom/src/commands/remove_command.dart';
 import 'package:dartloom/src/commands/self_upgrade_command.dart';
+import 'package:dartloom/src/commands/source_command.dart';
 import 'package:dartloom/src/commands/upgrade_command.dart';
 import 'package:dartloom/src/config/dartloom_config.dart';
 import 'package:dartloom/src/process/process_runner.dart';
@@ -30,12 +31,14 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('package')
     ..addCommand('release')
     ..addCommand('update')
+    ..addCommand('source')
     ..addCommand('project')
     ..addCommand('doctor');
   parser.commands['new']!
     ..addOption('org', defaultsTo: 'com.example')
     ..addOption('platforms', defaultsTo: 'android,windows,macos')
-    ..addOption('capabilities', defaultsTo: 'settings,storage,logging');
+    ..addOption('capabilities', defaultsTo: 'settings,storage,logging')
+    ..addOption('source', defaultsTo: 'github');
   parser.commands['cap']!
     ..addCommand('add')
     ..addCommand('list')
@@ -62,6 +65,7 @@ Future<void> main(List<String> arguments) async {
           organization: command['org'] as String,
           platforms: _platforms(command['platforms'] as String),
           capabilities: _capabilities(command['capabilities'] as String),
+          capabilitySource: _source(command['source'] as String),
         );
       case 'cap':
         final subcommand = command.command;
@@ -113,6 +117,14 @@ Future<void> main(List<String> arguments) async {
           throw CommandFailure('Usage: dartloom update');
         }
         await SelfUpgradeCommand(runner).run(Directory.current);
+      case 'source':
+        if (command.rest.length > 1) {
+          throw CommandFailure('Usage: dartloom source [github|pub]');
+        }
+        await SourceCommand(runner).run(
+          Directory.current,
+          command.rest.isEmpty ? null : _source(command.rest.single),
+        );
       case 'project':
         final subcommand = command.command;
         if (subcommand == null || subcommand.name != 'update') {
@@ -150,6 +162,13 @@ Set<Capability> _capabilities(String raw) => raw
     .where((item) => item.isNotEmpty)
     .map((item) => CapabilityRegistry.parse(item.trim()))
     .toSet();
+CapabilitySource _source(String raw) {
+  try {
+    return CapabilitySource.values.byName(raw.toLowerCase());
+  } on ArgumentError {
+    throw CommandFailure('Source must be github or pub.');
+  }
+}
 
 void _usage(ArgParser parser, {bool error = false}) {
   (error ? stderr : stdout)
@@ -165,6 +184,7 @@ Commands:
   package          Create an OS installer or system package.
   release <ver>    Commit, tag, and push a release.
   update           Update the Dartloom CLI.
+  source [name]    Show or set capability source: github or pub.
   project update   Update Dartloom-managed files in the current app.
   doctor           Check development prerequisites.
 
@@ -173,6 +193,11 @@ Capability commands:
   cap list         List enabled and available capabilities.
   cap add <name>   Enable a capability.
   cap remove <n>   Disable a capability.
+
+Dependency source:
+  source           Show this project's capability source.
+  source github    Resolve enabled capabilities from GitHub (development).
+  source pub       Resolve enabled capabilities from pub.dev (release).
 
 Package targets:
   package windows exe   Windows Setup.exe (requires Inno Setup).
