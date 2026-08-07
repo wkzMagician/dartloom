@@ -4,9 +4,9 @@ import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
+import '../templates/managed_templates.dart';
 import 'check_command.dart';
 import 'command_support.dart';
-import 'new_command.dart' show capabilityGlue;
 
 class CapabilityChange {
   const CapabilityChange({required this.added, required this.removed});

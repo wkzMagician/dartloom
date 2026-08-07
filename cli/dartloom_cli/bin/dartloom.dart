@@ -14,6 +14,7 @@ import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/package_command.dart';
 import 'package:dartloom_cli/src/commands/release_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
+import 'package:dartloom_cli/src/commands/upgrade_command.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
 import 'package:dartloom_cli/src/process/process_runner.dart';
 
@@ -27,6 +28,7 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('build')
     ..addCommand('package')
     ..addCommand('release')
+    ..addCommand('upgrade')
     ..addCommand('doctor');
   parser.commands['new']!
     ..addOption('org', defaultsTo: 'com.example')
@@ -36,6 +38,9 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('add')
     ..addCommand('list')
     ..addCommand('remove');
+  parser.commands['upgrade']!
+    ..addFlag('dry-run', negatable: false)
+    ..addFlag('capabilities', defaultsTo: true);
   try {
     final results = parser.parse(arguments);
     if (results['help'] == true || results.command == null) {
@@ -100,6 +105,16 @@ Future<void> main(List<String> arguments) async {
         }
         await ReleaseCommand(runner)
             .run(Directory.current, command.rest.single);
+      case 'upgrade':
+        if (command.rest.isNotEmpty) {
+          throw CommandFailure(
+              'Usage: dartloom upgrade [--dry-run] [--no-capabilities]');
+        }
+        await UpgradeCommand(runner).run(
+          Directory.current,
+          dryRun: command['dry-run'] as bool,
+          upgradeCapabilities: command['capabilities'] as bool,
+        );
       case 'doctor':
         if (!await DoctorCommand(runner).run(Directory.current)) exitCode = 1;
     }
@@ -136,6 +151,7 @@ Commands:
   build [target]   Build enabled targets into dist/.
   package          Create an OS installer or system package.
   release <ver>    Commit, tag, and push a release.
+  upgrade          Overwrite Dartloom-managed files with current templates.
   doctor           Check development prerequisites.
 
 Capability commands:
@@ -152,6 +168,10 @@ Package targets:
   package linux rpm     Red Hat/Fedora/Rocky/Alma package (Linux host required).
 
 Not yet supported: macOS DMG/PKG, iOS IPA, Android installer formats, and web installers.
+
+Upgrade options:
+  upgrade --dry-run          List managed files that would be overwritten.
+  upgrade --no-capabilities  Do not upgrade Dartloom capability packages.
 
 ${parser.usage}''');
 }

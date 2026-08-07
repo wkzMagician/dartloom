@@ -52,6 +52,21 @@ make a Windows EXE installer; install `dpkg-deb` for DEB; and install
 `rpmbuild` (usually the `rpm-build` package) for RPM. Use GitHub's Windows and
 Ubuntu runners to build the corresponding release assets in CI.
 
+## Updating a generated app
+
+Update the CLI first, then overwrite the Dartloom-managed files in an app:
+
+```powershell
+dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+dartloom upgrade
+```
+
+`dartloom upgrade` overwrites `AGENTS.md`, Dartloom workflow wrappers, and the
+capability glue file. It then upgrades enabled Dartloom capability packages and
+runs checks. It never modifies `lib/features/` or application-specific code.
+Use `dartloom upgrade --dry-run` to list files first, or
+`dartloom upgrade --no-capabilities` to leave package versions unchanged.
+
 ## Development
 
 ```powershell

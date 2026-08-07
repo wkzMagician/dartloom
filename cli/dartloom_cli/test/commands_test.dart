@@ -5,6 +5,7 @@ import 'package:dartloom_cli/src/commands/capability_manager.dart';
 import 'package:dartloom_cli/src/commands/doctor_command.dart';
 import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
+import 'package:dartloom_cli/src/commands/upgrade_command.dart';
 import 'package:dartloom_cli/src/config/config_loader.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
 import 'package:dartloom_cli/src/process/process_runner.dart';
@@ -144,6 +145,66 @@ void main() {
             .readAsString();
     expect(pubspec, contains('dartloom_logging'));
     expect(pubspec, isNot(contains('dartloom_settings')));
+  });
+
+  test('upgrade overwrites managed files but preserves feature files',
+      () async {
+    final project =
+        await Directory.systemTemp.createTemp('dartloom_upgrade_test');
+    addTearDown(() => project.delete(recursive: true));
+    final loader = const ConfigLoader();
+    await loader.save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+            name: 'demo', organization: 'com.example', description: ''),
+        platforms: {TargetPlatform.windows},
+        capabilities: {Capability.settings},
+      ),
+    );
+    await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+        .writeAsString('name: demo\ndependencies:\n');
+    final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
+    await agents.writeAsString('outdated');
+    final feature = File(
+        '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}features${Platform.pathSeparator}note.dart');
+    await feature.parent.create(recursive: true);
+    await feature.writeAsString('const note = "keep";');
+    final runner = FakeRunner();
+    await UpgradeCommand(runner).run(
+      project,
+      dryRun: false,
+      upgradeCapabilities: false,
+    );
+    expect(await agents.readAsString(),
+        contains('This project is managed by Dartloom.'));
+    expect(await feature.readAsString(), 'const note = "keep";');
+    expect(runner.calls.length, 3);
+  });
+
+  test('upgrade dry run does not change files', () async {
+    final project =
+        await Directory.systemTemp.createTemp('dartloom_upgrade_dry_test');
+    addTearDown(() => project.delete(recursive: true));
+    await const ConfigLoader().save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+            name: 'demo', organization: 'com.example', description: ''),
+        platforms: {TargetPlatform.windows},
+        capabilities: {},
+      ),
+    );
+    final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
+    await agents.writeAsString('keep');
+    final runner = FakeRunner();
+    await UpgradeCommand(runner).run(
+      project,
+      dryRun: true,
+      upgradeCapabilities: true,
+    );
+    expect(await agents.readAsString(), 'keep');
+    expect(runner.calls, isEmpty);
   });
 
   test('doctor succeeds when required checks are available', () async {
