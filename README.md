@@ -7,7 +7,7 @@ Dartloom is a convention-first toolkit for creating, checking, building, and rel
 Requires Dart 3.10 or later:
 
 ```powershell
-dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+dart install https://github.com/wkzMagician/dartloom.git
 ```
 
 Then run `dartloom --help`.
@@ -57,7 +57,7 @@ Ubuntu runners to build the corresponding release assets in CI.
 Update the CLI first, then overwrite the Dartloom-managed files in an app:
 
 ```powershell
-dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+dart install --overwrite https://github.com/wkzMagician/dartloom.git
 dartloom upgrade
 ```
 
