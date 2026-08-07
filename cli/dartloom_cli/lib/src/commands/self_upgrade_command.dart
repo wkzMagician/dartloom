@@ -19,14 +19,17 @@ class SelfUpgradeCommand {
           '-WindowStyle',
           'Hidden',
           '-Command',
-          'Start-Sleep -Milliseconds 750; dart install --overwrite $dartloomGitUrl',
+          'Start-Sleep -Milliseconds 750; dart install --overwrite $dartloomGitUrl --git-path cli/dartloom_cli',
         ],
         workingDirectory: workingDirectory.path,
       );
     } else {
       await runner.startDetached(
         'sh',
-        ['-c', 'sleep 1; dart install --overwrite $dartloomGitUrl'],
+        [
+          '-c',
+          'sleep 1; dart install --overwrite $dartloomGitUrl --git-path cli/dartloom_cli'
+        ],
         workingDirectory: workingDirectory.path,
       );
     }
