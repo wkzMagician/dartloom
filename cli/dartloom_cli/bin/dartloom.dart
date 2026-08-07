@@ -172,7 +172,7 @@ CapabilitySource _source(String raw) {
 
 void _usage(ArgParser parser, {bool error = false}) {
   (error ? stderr : stdout)
-      .writeln('''Dartloom — Flutter application lifecycle tooling
+      .writeln('''Dartloom — Flutter capability and lifecycle tooling
 
 Usage: dartloom <command> [arguments]
 
@@ -192,7 +192,12 @@ Capability commands:
   cap              Open the terminal capability manager.
   cap list         List enabled and available capabilities.
   cap add <name>   Enable a capability.
-  cap remove <n>   Disable a capability.
+  cap remove <name> Disable a capability and its instances.
+
+Capability configuration:
+  Every capability can have named instances and a selected implementation.
+  storage uses the generic instance names text, json, and database.
+  Values such as \${WEBDAV_PASSWORD} require --dart-define at app build time.
 
 Dependency source:
   source           Show this project's capability source.

@@ -5,8 +5,13 @@ void main() {
   test('stores and removes typed values', () async {
     final store = MemorySettingsStore();
     await store.write('theme', 'dark');
-    expect(await store.read<String>('theme'), 'dark');
+    expect(await store.read('theme'), 'dark');
     await store.remove('theme');
-    expect(await store.read<String>('theme'), isNull);
+    expect(await store.read('theme'), isNull);
+  });
+
+  test('rejects values outside the portable settings types', () async {
+    final store = MemorySettingsStore();
+    expect(() => store.write('bad', <String, Object?>{}), throwsArgumentError);
   });
 }

@@ -1,0 +1,15 @@
+name: dartloom_logging_logger
+description: Console and file logger adapter for the Dartloom logging contract.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [flutter, logging, dartloom]
+environment:
+  sdk: ^3.5.0
+dependencies:
+  dartloom_logging: ^0.2.0
+  logger: ^2.4.0
+dev_dependencies:
+  lints: ^5.1.1
+  test: ^1.25.8

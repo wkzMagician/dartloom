@@ -1,7 +1,5 @@
 # dartloom_sync
 
-Synchronization capability contracts for Dartloom applications. It includes
-source, engine, status, and result abstractions, plus no-operation defaults for
-bootstrap and tests.
+Provider-neutral local/remote object, state, conflict, merge, and `SyncEngine` contracts. ETag algorithms and WebDAV transport are separate adapters.
 
-Apps normally select it through `dartloom cap`.
+Applications normally select implementations through `dartloom cap`.

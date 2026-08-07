@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
+import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
 import '../templates/managed_templates.dart';
 import 'check_command.dart';
@@ -20,13 +21,20 @@ class UpgradeCommand {
     required bool dryRun,
     required bool upgradeCapabilities,
   }) async {
-    final config = await _loader.load(project);
+    final schemaVersion = await _loader.schemaVersion(project);
+    final config = await _loader.loadForMigration(project);
     final files = <String, String>{
       'AGENTS.md': agentInstructions,
       '.github/workflows/ci.yml': ciWorkflow,
       '.github/workflows/release.yml': releaseWorkflow(config),
-      'lib/capabilities/capabilities.dart': capabilityGlue(config.capabilities),
+      'lib/capabilities/capabilities.dart': capabilityGlue(config),
+      'lib/app/bootstrap.dart': bootstrap,
       'lib/app/app.dart': appShell(config),
+      if (config.enabledCapabilities.contains(Capability.localization)) ...{
+        'l10n.yaml': l10nYaml,
+        'lib/l10n/app_en.arb': appEnArb,
+        'lib/l10n/app_zh.arb': appZhArb,
+      },
     };
     stdout.writeln('Dartloom Upgrade${dryRun ? ' (dry run)' : ''}\n');
     for (final entry in files.entries) {
@@ -40,11 +48,36 @@ class UpgradeCommand {
         stdout.writeln('Updated ${entry.key}');
       }
     }
+    if (schemaVersion == 1) {
+      stdout.writeln(
+        dryRun
+            ? 'Would migrate dartloom.yaml from schema 1 to schema 2'
+            : 'Migrated dartloom.yaml from schema 1 to schema 2',
+      );
+    }
     if (dryRun) return;
 
+    await _loader.save(project, config);
+    final pubspec =
+        File('${project.path}${Platform.pathSeparator}pubspec.yaml');
+    var pubspecContent = rewriteDartloomDependencies(
+      await pubspec.readAsString(),
+      config,
+      packagesDirectory: localPackagesDirectory(project),
+    );
+    if (config.enabledCapabilities.contains(Capability.localization) &&
+        !RegExp(r'^  generate: true$', multiLine: true)
+            .hasMatch(pubspecContent)) {
+      pubspecContent = pubspecContent.replaceFirst(
+        RegExp(r'^flutter:\r?$', multiLine: true),
+        'flutter:\n  generate: true',
+      );
+    }
+    await pubspec.writeAsString(pubspecContent);
+
     if (upgradeCapabilities && config.capabilities.isNotEmpty) {
-      final packages = config.capabilities
-          .map((capability) => CapabilityRegistry.all[capability]!.packageName)
+      final packages = CapabilityRegistry.packagesFor(config)
+          .map((package) => package.name)
           .toList();
       await runRequired(
         runner,
@@ -53,6 +86,15 @@ class UpgradeCommand {
         project,
       );
     }
+    if (config.enabledCapabilities.contains(Capability.localization)) {
+      await runRequired(
+        runner,
+        executableFor('flutter'),
+        ['gen-l10n'],
+        project,
+      );
+    }
+    await runRequired(runner, executableFor('dart'), ['format', '.'], project);
     await CheckCommand(runner).run(project);
   }
 }

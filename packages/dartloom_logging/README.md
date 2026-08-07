@@ -1,6 +1,5 @@
 # dartloom_logging
 
-Application logging contracts for Dartloom applications. It provides `AppLogger`
-and an inspectable `MemoryLogger` for tests.
+Stable `AppLogger` contract with an in-memory test logger. Production output is provided by adapter packages.
 
-Apps normally select it through `dartloom cap`.
+Applications normally select implementations through `dartloom cap`.

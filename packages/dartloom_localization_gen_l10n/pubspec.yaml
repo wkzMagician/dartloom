@@ -1,0 +1,20 @@
+name: dartloom_localization_gen_l10n
+description: Flutter gen-l10n adapter for the Dartloom localization contract.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [flutter, localization, dartloom]
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_localization: ^0.2.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1

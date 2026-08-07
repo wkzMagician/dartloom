@@ -1,16 +1,5 @@
 # dartloom_localization
 
-Flutter localization defaults for Dartloom applications. It supplies English
-and Chinese supported locales plus Flutter's Material, Widgets, and Cupertino
-localization delegates.
+Stable Flutter `LocalizationService` contract. Application messages and delegates are provided by the gen-l10n adapter.
 
-Add it with `dartloom cap add localization`, then use its lists in `MaterialApp`:
-
-```dart
-MaterialApp(
-  localizationsDelegates: DartloomLocalizations.localizationsDelegates,
-  supportedLocales: DartloomLocalizations.supportedLocales,
-)
-```
-
-For application messages, use Flutter's ARB-based localization generation.
+Applications normally select implementations through `dartloom cap`.

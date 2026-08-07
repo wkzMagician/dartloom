@@ -70,7 +70,7 @@ void main() {
       await File(
         '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}capabilities.dart',
       ).readAsString(),
-      contains('DartloomLocalizations'),
+      contains('GenL10nLocalizationService'),
     );
     expect(
       await File(
@@ -90,7 +90,7 @@ void main() {
           app: const AppConfig(
               name: 'demo', organization: 'com.example', description: ''),
           platforms: {TargetPlatform.windows},
-          capabilities: {Capability.autostart},
+          capabilities: _caps({Capability.autostart}),
         ));
     final runner = FakeRunner();
     await AddCommand(runner).run(project, 'autostart');
@@ -112,7 +112,7 @@ void main() {
           description: '',
         ),
         platforms: {TargetPlatform.windows},
-        capabilities: {Capability.autostart},
+        capabilities: _caps({Capability.autostart}),
       ),
     );
     await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
@@ -143,7 +143,7 @@ void main() {
         app: const AppConfig(
             name: 'demo', organization: 'com.example', description: ''),
         platforms: {TargetPlatform.windows},
-        capabilities: {Capability.settings, Capability.storage},
+        capabilities: _caps({Capability.settings, Capability.storage}),
       ),
     );
     await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
@@ -156,10 +156,10 @@ void main() {
     final runner = FakeRunner();
     final change = await CapabilityManager(runner).apply(
       project,
-      {Capability.storage, Capability.logging},
+      _caps({Capability.storage, Capability.logging}),
     );
-    expect(change.added, {Capability.logging});
-    expect(change.removed, {Capability.settings});
+    expect(change.added, {'logging.default'});
+    expect(change.removed, {'settings.default'});
     expect(runner.calls.length, 5);
     final pubspec =
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
@@ -180,7 +180,7 @@ void main() {
         app: const AppConfig(
             name: 'demo', organization: 'com.example', description: ''),
         platforms: {TargetPlatform.windows},
-        capabilities: {Capability.settings},
+        capabilities: _caps({Capability.settings}),
       ),
     );
     await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
@@ -200,7 +200,7 @@ void main() {
     expect(await agents.readAsString(),
         contains('This project is managed by Dartloom.'));
     expect(await feature.readAsString(), 'const note = "keep";');
-    expect(runner.calls.length, 3);
+    expect(runner.calls.length, 4);
   });
 
   test('upgrade dry run does not change files', () async {
@@ -235,13 +235,16 @@ void main() {
   });
 
   test('published capability dependencies use hosted versions by default', () {
-    expect(
-      capabilityDependency(
-        'dartloom_settings',
-        source: CapabilitySource.pub,
-      ),
-      '  dartloom_settings: ^0.1.0\n',
+    final config = DartloomConfig(
+      app: const AppConfig(
+          name: 'demo', organization: 'dev.test', description: ''),
+      platforms: {TargetPlatform.windows},
+      capabilities: _caps({Capability.settings}),
+      capabilitySource: CapabilitySource.pub,
     );
+    final value = rewriteDartloomDependencies('dependencies:\n', config);
+    expect(value, contains('dartloom_settings: ^0.2.0'));
+    expect(value, isNot(contains('dependency_overrides:')));
   });
 
   test('switching source rewrites enabled capability dependencies', () async {
@@ -255,7 +258,7 @@ void main() {
         app: const AppConfig(
             name: 'demo', organization: 'com.example', description: ''),
         platforms: {TargetPlatform.windows},
-        capabilities: {Capability.localization},
+        capabilities: _caps({Capability.localization}),
         capabilitySource: CapabilitySource.pub,
       ),
     );
@@ -296,3 +299,11 @@ void main() {
     expect(await DoctorCommand(FakeRunner()).run(project), isTrue);
   });
 }
+
+Map<Capability, Map<String, CapabilityInstanceConfig>> _caps(
+  Set<Capability> values,
+) =>
+    {
+      for (final value in values)
+        value: {...CapabilityDefaults.forCapability(value)},
+    };

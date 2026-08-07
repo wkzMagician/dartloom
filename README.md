@@ -1,141 +1,130 @@
 # Dartloom
 
-Dartloom is a convention-first toolkit for creating, checking, building, and
-releasing Flutter applications.
+Dartloom is a configuration-driven capability framework and CLI for Flutter
+applications. Feature code depends on stable contracts; `dartloom.yaml` selects
+the production adapters installed and registered at startup.
 
 ## Install
 
-The public package name is `dartloom`. It is prepared for pub.dev publication,
-but is not published yet. After the first pub.dev release, installation will be:
+Before the CLI is published to pub.dev:
 
-```powershell
+```bash
+dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+```
+
+After publication:
+
+```bash
 dart install dartloom
 ```
 
-Until then, install the development build from Git:
+Update the installed CLI with `dartloom update`.
 
-```powershell
-dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
-```
+## Create and configure an application
 
-Then run `dartloom --help`. On Windows, add
-`%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately
-found.
-
-Update Dartloom itself with `dartloom update`. Before the package is available
-on pub.dev, a Git-installed development build must opt into Git updates:
-
-```powershell
-$env:DARTLOOM_UPDATE_SOURCE = 'git'
-dartloom update
-```
-
-## Capabilities
-
-Use the terminal capability manager from inside a generated app:
-
-```powershell
+```bash
+dartloom new my_app --platforms=android,windows
+cd my_app
 dartloom cap
 dartloom cap list
-dartloom cap add autostart
-dartloom cap remove autostart
 dartloom cap add localization
-dartloom cap add resident
+dartloom cap remove localization
 ```
 
-`dartloom cap` opens a keyboard-driven terminal UI. Use the up/down arrow keys
-to move, Space to toggle capabilities, then select **Save and apply changes**
-with Space. All additions and removals are applied as one batch before
-dependencies and checks are run. Available capability names include
-`localization` and `resident`.
+`dartloom cap` is a keyboard-driven terminal editor. Use Up/Down to move,
+Space to enable or disable, Enter to edit implementations and options, and the
+Save row to apply the complete dependency change once.
 
-Each capability is an independent pub.dev package (`dartloom_settings`,
-`dartloom_storage`, and so on). Generated apps only depend on selected
-capabilities; users do not install those packages manually. The source is
-explicitly recorded in each app's `dartloom.yaml`:
+Generated feature code obtains configured services from the runtime registry:
 
-```powershell
-dartloom new demo --source=github # development; uses repository dependencies
-cd demo
-dartloom source                    # show the current source
-dartloom source pub                # release; uses pub.dev dependencies
+```dart
+final settings = Dartloom.get<SettingsStore>();
+final json = Dartloom.get<JsonStore>(name: 'json');
 ```
 
-`localization` wires Flutter locale delegates for English and Chinese into the
-generated app shell; app messages can then use Flutter's standard ARB workflow.
-`resident` is a desktop
-capability for Windows, macOS, and Linux. It exposes a controller that hides a
-window when the user closes it and restores/quits it from the system tray or
-menu bar. It uses `tray_manager` and `window_manager`; Linux tray support may
-require an AppIndicator package supplied by the target distribution.
+Application-owned adapters use a factory ID in `dartloom.yaml` and are supplied
+to `initializeDartloom(customFactories: {...})`. Feature code should never
+import adapter packages directly.
 
-## Installers and Linux packages
+## Capability catalog
 
-From a generated application directory, Dartloom can create these release assets:
+| Capability | Stable contract | Official implementation |
+| --- | --- | --- |
+| settings | portable settings values | shared_preferences, secure_storage |
+| storage.text | UTF-8 text CRUD | atomic files |
+| storage.json | JSON value CRUD | atomic JSON file |
+| storage.database | collection/id document CRUD | Drift/SQLite |
+| logging | application logger | logger |
+| autostart | enable/disable startup | launch_at_startup |
+| localization | locales and delegates | Flutter gen-l10n |
+| resident | close-to-tray lifecycle | tray_manager + window_manager |
+| sync | object sync and conflicts | ETag engine + WebDAV backend |
 
-```powershell
-dartloom package windows exe  # Setup.exe; requires Inno Setup on Windows
-dartloom package windows zip  # portable ZIP
-dartloom package windows msix # adds the `msix` dev dependency if needed
-dartloom package linux deb    # Debian/Ubuntu; Linux host or CI runner
-dartloom package linux rpm    # Red Hat/Fedora/Rocky/Alma; Linux host or CI runner
+Sync only reads storage instances explicitly listed in its configuration. It
+uses conditional ETag writes, persists tombstones and common bases, preserves
+conflicts by default, and accepts an application-specific merge factory.
+
+## Configuration and secrets
+
+Schema version 2 stores named instances and adapter options. Dartloom-owned
+storage categories are intentionally generic: `text`, `json`, and `database`.
+Business-specific names such as “notes” do not appear in the framework catalog.
+
+```yaml
+capabilities:
+  storage:
+    instances:
+      json:
+        implementation: json_file
+        options:
+          path: dartloom/data.json
+  sync:
+    instances:
+      default:
+        implementation: etag_object
+        stores: [storage.json]
+        backend:
+          implementation: webdav
+          options:
+            base_url: "${WEBDAV_URL}"
+            username: "${WEBDAV_USERNAME}"
+            password: "${WEBDAV_PASSWORD}"
 ```
 
-Windows EXE installers and portable ZIPs are suitable for GitHub Releases.
-For public MSIX distribution, configure a trusted code-signing certificate;
-unsigned MSIX is only appropriate for local testing. macOS DMG/PKG, iOS IPA,
-Android installer formats, and web installers are not supported yet.
+`${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
+into generated Dart source. Run `dartloom project update` once to migrate a
+schema version 1 project. Managed files are overwritten directly.
 
-Prerequisites are platform-native: install Inno Setup (`iscc`) for Windows EXE;
-install `dpkg-deb` for DEB; and install `rpmbuild` (usually `rpm-build`) for
-RPM. GitHub's Windows and Ubuntu runners can build the corresponding release
-assets in CI.
+## GitHub development and pub.dev release
 
-## Updating a generated app
-
-Update the CLI first, then overwrite Dartloom-managed files in an app:
-
-```powershell
-# After pub.dev publication:
-dartloom update
-
-# For the current Git development build:
-$env:DARTLOOM_UPDATE_SOURCE = 'git'
-dartloom update
-
-dartloom project update
+```bash
+dartloom source github  # hosted constraints plus Git/path overrides
+dartloom source pub     # hosted pub.dev dependencies, no overrides
 ```
 
-`dartloom project update` overwrites `AGENTS.md`, the Dartloom app shell,
-workflow wrappers, and the capability glue file. It then upgrades enabled Dartloom capability
-packages and runs checks. It never modifies `lib/features/` or
-application-specific code. Use `dartloom project update --dry-run` to list
-files first, or `dartloom project update --no-capabilities` to leave package
-versions unchanged.
+GitHub mode works before the packages are published. For pub.dev, publish
+contracts first, then runtime/adapters, and finally the CLI. Every package has
+hosted internal constraints and supports `dart pub publish --dry-run`; this
+repository does not publish automatically.
 
-## Development
+## Build and installers
 
-```powershell
-cd cli/dartloom_cli
-dart pub get
-dart analyze
-dart test
-dart pub publish --dry-run
+```bash
+dartloom build windows
+dartloom package windows exe
+dartloom package windows zip
+dartloom package windows msix
+dartloom package linux deb
+dartloom package linux rpm
 ```
 
-Run the CLI from the repository root while developing:
+Windows Setup.exe uses Inno Setup. Linux DEB/RPM packaging must run on Linux.
+macOS DMG/PKG, iOS IPA, Android installer packaging, and web installers are not
+currently supported. This installer limitation is separate from capability
+platform support.
 
-```powershell
-dart run cli/dartloom_cli/bin/dartloom.dart new demo --platforms=android,windows --capabilities=settings,storage,logging
-```
+## Repository development
 
-Before publication, use `--source=github` for a new project or
-`dartloom source github` for an existing project. The generated app owns
-business code in `lib/features`; reusable infrastructure belongs in `packages`.
-
-## Publishing plan
-
-No package is published by this repository yet. The release order will be the
-seven capability packages first, followed by `dartloom`. Each package has its
-own `README.md`, `CHANGELOG.md`, `LICENSE`, repository metadata, tests, and
-`dart pub publish --dry-run` validation target.
+The repository root is orchestration-only; it is not an installable Dart
+package. The CLI is `cli/dartloom_cli`, contracts and adapters are under
+`packages`, and generated apps depend only on selected packages.

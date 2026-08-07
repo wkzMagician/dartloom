@@ -1,6 +1,6 @@
 name: dartloom_localization
-description: Flutter localization delegates and supported locale defaults for Dartloom apps.
-version: 0.1.0
+description: Stable Flutter localization capability contract for Dartloom applications.
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -14,8 +14,6 @@ environment:
   flutter: '>=3.24.0'
 dependencies:
   flutter:
-    sdk: flutter
-  flutter_localizations:
     sdk: flutter
 dev_dependencies:
   flutter_test:

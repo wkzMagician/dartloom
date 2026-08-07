@@ -1,6 +1,6 @@
 name: dartloom
 description: Convention-first CLI for creating and maintaining Flutter applications.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -13,6 +13,7 @@ environment:
   sdk: ^3.5.0
 dependencies:
   args: ^2.6.0
+  dart_console: ^4.1.4
   path: ^1.9.1
   yaml: ^3.1.3
 dev_dependencies:

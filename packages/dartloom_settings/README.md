@@ -1,7 +1,5 @@
 # dartloom_settings
 
-Settings capability contracts for Dartloom applications. It provides the
-`SettingsStore` interface and `MemorySettingsStore` for tests and bootstrap.
+Stable `SettingsStore` contract for portable primitive values. Includes `MemorySettingsStore` for tests; production adapters are separate packages.
 
-Apps normally add this package with `dartloom cap`; direct use is also
-supported when a project needs the settings contract.
+Applications normally select implementations through `dartloom cap`.

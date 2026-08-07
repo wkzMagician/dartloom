@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
@@ -41,18 +40,37 @@ class NewCommand {
           name
         ],
         parent);
+    final configuredCapabilities =
+        <Capability, Map<String, CapabilityInstanceConfig>>{
+      for (final capability in capabilities)
+        capability: {...CapabilityDefaults.forCapability(capability)},
+    };
+    if (capabilities.contains(Capability.sync)) {
+      configuredCapabilities.putIfAbsent(
+        Capability.storage,
+        () => {...CapabilityDefaults.forCapability(Capability.storage)},
+      );
+    }
     final config = DartloomConfig(
         app: AppConfig(
             name: name,
             organization: organization,
             description: '$name application'),
         platforms: platforms,
-        capabilities: capabilities,
+        capabilities: configuredCapabilities,
         capabilitySource: capabilitySource);
     await _loader.save(project, config);
     await _writeManagedFiles(project, config);
     await runRequired(
         runner, executableFor('flutter'), ['pub', 'get'], project);
+    if (config.enabledCapabilities.contains(Capability.localization)) {
+      await runRequired(
+        runner,
+        executableFor('flutter'),
+        ['gen-l10n'],
+        project,
+      );
+    }
     await runRequired(runner, executableFor('dart'), ['format', '.'], project);
     await CheckCommand(runner).run(project);
   }
@@ -75,8 +93,7 @@ class NewCommand {
             "import 'app/bootstrap.dart';\n\nvoid main() => bootstrap();\n");
     await File(
             '${project.path}${separator}lib${separator}app${separator}bootstrap.dart')
-        .writeAsString(
-            "import 'package:flutter/widgets.dart';\n\nimport 'app.dart';\n\nvoid bootstrap() {\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(const DartloomApp());\n}\n");
+        .writeAsString(bootstrap);
     await File(
             '${project.path}${separator}lib${separator}app${separator}app.dart')
         .writeAsString(appShell(config));
@@ -98,7 +115,19 @@ class NewCommand {
         .writeAsString(releaseWorkflow(config));
     await File(
             '${project.path}${separator}lib${separator}capabilities${separator}capabilities.dart')
-        .writeAsString(capabilityGlue(config.capabilities));
+        .writeAsString(capabilityGlue(config));
+    if (config.enabledCapabilities.contains(Capability.localization)) {
+      await Directory('${project.path}${separator}lib${separator}l10n')
+          .create(recursive: true);
+      await File('${project.path}${separator}l10n.yaml')
+          .writeAsString(l10nYaml);
+      await File(
+        '${project.path}${separator}lib${separator}l10n${separator}app_en.arb',
+      ).writeAsString(appEnArb);
+      await File(
+        '${project.path}${separator}lib${separator}l10n${separator}app_zh.arb',
+      ).writeAsString(appZhArb);
+    }
     await _addPackageDependencies(project, config);
   }
 
@@ -107,19 +136,17 @@ class NewCommand {
     final pubspec =
         File('${project.path}${Platform.pathSeparator}pubspec.yaml');
     var content = await pubspec.readAsString();
-    final repoPackages = localPackagesDirectory(project.parent);
-    for (final capability in config.capabilities) {
-      final metadata = CapabilityRegistry.all[capability]!;
-      final packagePath = repoPackages == null
-          ? null
-          : '${repoPackages.path}${Platform.pathSeparator}${metadata.packageName}';
-      if ((packagePath == null || await Directory(packagePath).exists()) &&
-          !content.contains('${metadata.packageName}:')) {
-        content = content.replaceFirst(
-          RegExp(r'dependencies:\r?\n'),
-          'dependencies:\n${capabilityDependency(metadata.packageName, source: config.capabilitySource, packagesDirectory: repoPackages)}',
-        );
-      }
+    content = rewriteDartloomDependencies(
+      content,
+      config,
+      packagesDirectory: localPackagesDirectory(project),
+    );
+    if (config.enabledCapabilities.contains(Capability.localization) &&
+        !RegExp(r'^  generate: true$', multiLine: true).hasMatch(content)) {
+      content = content.replaceFirst(
+        RegExp(r'^flutter:\r?$', multiLine: true),
+        'flutter:\n  generate: true',
+      );
     }
     await pubspec.writeAsString(content);
   }

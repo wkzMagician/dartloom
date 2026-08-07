@@ -1,24 +1,36 @@
-schema_version: 1
+schema_version: 2
+
 app:
   name: example_app
   organization: com.example
   description: Dartloom application
+
 platforms:
   android: true
   ios: false
   windows: true
-  macos: true
+  macos: false
   linux: false
   web: false
+
 capabilities:
-  settings: true
-  storage: true
-  logging: true
-  autostart: false
-  sync: false
-  localization: false
-  resident: false
+  settings:
+    instances:
+      default:
+        implementation: shared_preferences
+  storage:
+    instances:
+      json:
+        implementation: json_file
+        options:
+          path: dartloom/data.json
+  logging:
+    instances:
+      default:
+        implementation: logger
+
 sources:
   capabilities: github
+
 release:
   github: true

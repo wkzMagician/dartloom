@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../capabilities/capability_registry.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
 
@@ -43,21 +44,82 @@ Directory? localPackagesDirectory(Directory start) {
 }
 
 const dartloomRepositoryUrl = 'https://github.com/wkzMagician/dartloom.git';
-const dartloomPackageVersion = '^0.1.0';
+String rewriteDartloomDependencies(
+  String content,
+  DartloomConfig config, {
+  Directory? packagesDirectory,
+}) {
+  const dependencyStart = '  # dartloom:dependencies:start';
+  const dependencyEnd = '  # dartloom:dependencies:end';
+  const overrideStart = '  # dartloom:overrides:start';
+  const overrideEnd = '  # dartloom:overrides:end';
+  var result = content
+      .replaceAll(
+        RegExp(
+          '${RegExp.escape(dependencyStart)}[\\s\\S]*?${RegExp.escape(dependencyEnd)}\\r?\\n?',
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          '${RegExp.escape(overrideStart)}[\\s\\S]*?${RegExp.escape(overrideEnd)}\\r?\\n?',
+        ),
+        '',
+      );
+  for (final name in CapabilityRegistry.allPackageNames) {
+    result = result.replaceAll(
+      RegExp(
+        '^  ${RegExp.escape(name)}:(?: [^\\r\\n]+)?\\r?\\n(?: {4,}.*\\r?\\n)*',
+        multiLine: true,
+      ),
+      '',
+    );
+  }
+  final packages = CapabilityRegistry.packagesFor(config);
+  final dependencyBlock = StringBuffer()..writeln(dependencyStart);
+  for (final package in packages) {
+    dependencyBlock.writeln('  ${package.name}: ${package.version}');
+  }
+  dependencyBlock.writeln(dependencyEnd);
+  result = result.replaceFirst(
+    RegExp(r'dependencies:\r?\n'),
+    'dependencies:\n$dependencyBlock',
+  );
 
-String capabilityDependency(String packageName,
-    {required CapabilitySource source, Directory? packagesDirectory}) {
-  final localPackage = packagesDirectory == null
-      ? null
-      : Directory(
-          '${packagesDirectory.path}${Platform.pathSeparator}$packageName');
-  if (source == CapabilitySource.github &&
-      localPackage != null &&
-      localPackage.existsSync()) {
-    return '  $packageName:\n    path: ${localPackage.path.replaceAll('\\', '/')}\n';
+  if (config.capabilitySource == CapabilitySource.github) {
+    final overrideBlock = StringBuffer()..writeln(overrideStart);
+    for (final package in packages) {
+      final local = packagesDirectory == null
+          ? null
+          : Directory(
+              '${packagesDirectory.path}${Platform.pathSeparator}${package.name}',
+            );
+      overrideBlock.writeln('  ${package.name}:');
+      if (local != null && local.existsSync()) {
+        overrideBlock.writeln(
+          '    path: ${local.path.replaceAll('\\', '/')}',
+        );
+      } else {
+        overrideBlock
+          ..writeln('    git:')
+          ..writeln('      url: $dartloomRepositoryUrl')
+          ..writeln('      path: ${package.path}');
+      }
+    }
+    overrideBlock.writeln(overrideEnd);
+    if (RegExp(r'^dependency_overrides:\r?$', multiLine: true)
+        .hasMatch(result)) {
+      result = result.replaceFirst(
+        RegExp(r'dependency_overrides:\r?\n'),
+        'dependency_overrides:\n$overrideBlock',
+      );
+    } else {
+      result = '${result.trimRight()}\n\ndependency_overrides:\n$overrideBlock';
+    }
   }
-  if (source == CapabilitySource.pub) {
-    return '  $packageName: $dartloomPackageVersion\n';
-  }
-  return '  $packageName:\n    git:\n      url: $dartloomRepositoryUrl\n      path: packages/$packageName\n';
+  result = result.replaceAll(
+    RegExp(r'\ndependency_overrides:\r?\n(?=\S|$)'),
+    '\n',
+  );
+  return result.endsWith('\n') ? result : '$result\n';
 }

@@ -1,6 +1,5 @@
 # dartloom_storage
 
-Local storage capability contracts for Dartloom applications. It exposes the
-`LocalStore` interface and a memory implementation for tests and bootstrap.
+Stable `TextStore`, `JsonStore`, and `DatabaseStore` contracts. Memory implementations support tests; file and Drift implementations are separate adapter packages.
 
-Apps normally select it through `dartloom cap`.
+Applications normally select implementations through `dartloom cap`.

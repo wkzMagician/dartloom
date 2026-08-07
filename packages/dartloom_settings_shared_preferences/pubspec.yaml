@@ -1,0 +1,17 @@
+name: dartloom_settings_shared_preferences
+description: Shared Preferences adapter for the Dartloom settings contract.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [flutter, settings, dartloom]
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_settings: ^0.2.0
+  shared_preferences: ^2.3.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1

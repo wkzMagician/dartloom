@@ -1,43 +1,22 @@
-# Dartloom
+# Dartloom CLI
 
-Dartloom is a convention-first CLI for creating and maintaining Flutter
-applications. It keeps application code under your ownership while generating
-and refreshing a small set of managed files.
+Configuration-driven lifecycle tooling for Dartloom Flutter applications.
 
-## Install
-
-After the package is published to pub.dev:
-
-```sh
-dart install dartloom
+```bash
+dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+dartloom new my_app
+cd my_app
+dartloom cap
 ```
 
-For repository development before that release:
+After pub.dev publication, install with `dart install dartloom`. Use
+`dartloom update` to refresh the CLI and `dartloom project update` to migrate
+schema v1 or overwrite Dartloom-managed application glue.
 
-```sh
-dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
-```
+The interactive `dartloom cap` editor manages named capability instances,
+official/custom implementations, adapter options, sync storage selection, and
+WebDAV configuration. `${NAME}` options become required Dart defines.
 
-Use `dartloom --help` for the command reference. `dartloom cap` provides an
-interactive terminal capability selector; `dartloom project update` directly
-refreshes Dartloom-managed app files.
-
-## Capability packages
-
-Generated apps depend only on enabled capability packages, such as
-`dartloom_settings` or `dartloom_storage`. These packages are public building
-blocks, but app developers normally manage them exclusively with `dartloom cap`.
-
-## Development
-
-Run from this package directory:
-
-```sh
-dart pub get
-dart analyze
-dart test
-dart pub publish --dry-run
-```
-
-The package is MIT licensed. See the repository for release workflows and
-Windows/Linux installer support.
+Use `dartloom source github` during repository development and
+`dartloom source pub` after selected packages are available on pub.dev. Run
+`dartloom --help` for build, installer, and unsupported-platform details.
