@@ -5,11 +5,14 @@ import 'package:args/args.dart';
 import 'package:dartloom_cli/src/capabilities/capability_registry.dart';
 import 'package:dartloom_cli/src/commands/add_command.dart';
 import 'package:dartloom_cli/src/commands/build_command.dart';
+import 'package:dartloom_cli/src/commands/cap_list_command.dart';
+import 'package:dartloom_cli/src/commands/cap_tui.dart';
 import 'package:dartloom_cli/src/commands/check_command.dart';
 import 'package:dartloom_cli/src/commands/command_support.dart';
 import 'package:dartloom_cli/src/commands/doctor_command.dart';
 import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/release_command.dart';
+import 'package:dartloom_cli/src/commands/remove_command.dart';
 import 'package:dartloom_cli/src/config/dartloom_config.dart';
 import 'package:dartloom_cli/src/process/process_runner.dart';
 
@@ -18,7 +21,7 @@ Future<void> main(List<String> arguments) async {
   final parser = ArgParser()
     ..addFlag('help', abbr: 'h', negatable: false)
     ..addCommand('new')
-    ..addCommand('add')
+    ..addCommand('cap')
     ..addCommand('check')
     ..addCommand('build')
     ..addCommand('release')
@@ -27,6 +30,10 @@ Future<void> main(List<String> arguments) async {
     ..addOption('org', defaultsTo: 'com.example')
     ..addOption('platforms', defaultsTo: 'android,windows,macos')
     ..addOption('capabilities', defaultsTo: 'settings,storage,logging');
+  parser.commands['cap']!
+    ..addCommand('add')
+    ..addCommand('list')
+    ..addCommand('remove');
   try {
     final results = parser.parse(arguments);
     if (results['help'] == true || results.command == null) {
@@ -46,11 +53,31 @@ Future<void> main(List<String> arguments) async {
           platforms: _platforms(command['platforms'] as String),
           capabilities: _capabilities(command['capabilities'] as String),
         );
-      case 'add':
-        if (command.rest.length != 1) {
-          throw CommandFailure('Usage: dartloom add <capability>');
+      case 'cap':
+        final subcommand = command.command;
+        if (subcommand == null) {
+          await CapTui(runner).run(Directory.current);
+          return;
         }
-        await AddCommand(runner).run(Directory.current, command.rest.single);
+        switch (subcommand.name) {
+          case 'add':
+            if (subcommand.rest.length != 1) {
+              throw CommandFailure('Usage: dartloom cap add <capability>');
+            }
+            await AddCommand(runner)
+                .run(Directory.current, subcommand.rest.single);
+          case 'remove':
+            if (subcommand.rest.length != 1) {
+              throw CommandFailure('Usage: dartloom cap remove <capability>');
+            }
+            await RemoveCommand(runner)
+                .run(Directory.current, subcommand.rest.single);
+          case 'list':
+            if (subcommand.rest.isNotEmpty) {
+              throw CommandFailure('Usage: dartloom cap list');
+            }
+            await CapListCommand().run(Directory.current);
+        }
       case 'check':
         await CheckCommand(runner).run(Directory.current);
       case 'build':
@@ -92,11 +119,17 @@ Usage: dartloom <command> [arguments]
 
 Commands:
   new <name>       Create a managed Flutter application.
-  add <capability> Enable a capability in the current app.
+  cap [command]    Manage capabilities interactively or by subcommand.
   check            Format, analyze, and test the current app.
   build [target]   Build enabled targets into dist/.
   release <ver>    Commit, tag, and push a release.
   doctor           Check development prerequisites.
+
+Capability commands:
+  cap              Open the terminal capability manager.
+  cap list         List enabled and available capabilities.
+  cap add <name>   Enable a capability.
+  cap remove <n>   Disable a capability.
 
 ${parser.usage}''');
 }

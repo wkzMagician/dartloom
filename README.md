@@ -14,6 +14,17 @@ Then run `dartloom --help`.
 
 On Windows, add `%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately found.
 
+## Capabilities
+
+Use the terminal capability manager from inside a generated app:
+
+```powershell
+dartloom cap
+dartloom cap list
+dartloom cap add autostart
+dartloom cap remove autostart
+```
+
 ## Development
 
 ```powershell
