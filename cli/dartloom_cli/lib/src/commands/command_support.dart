@@ -40,3 +40,13 @@ Directory? localPackagesDirectory(Directory start) {
     current = parent;
   }
 }
+
+const dartloomRepositoryUrl = 'https://github.com/wkzMagician/dartloom.git';
+
+String capabilityDependency(String packageName,
+    {Directory? packagesDirectory}) {
+  if (packagesDirectory != null) {
+    return '  $packageName:\n    path: ${packagesDirectory.path.replaceAll('\\', '/')}/$packageName\n';
+  }
+  return '  $packageName:\n    git:\n      url: $dartloomRepositoryUrl\n      path: packages/$packageName\n';
+}

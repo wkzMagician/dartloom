@@ -105,16 +105,16 @@ class NewCommand {
         File('${project.path}${Platform.pathSeparator}pubspec.yaml');
     var content = await pubspec.readAsString();
     final repoPackages = localPackagesDirectory(project.parent);
-    if (repoPackages == null) return;
     for (final capability in capabilities) {
       final metadata = CapabilityRegistry.all[capability]!;
-      final packagePath =
-          '${repoPackages.path}${Platform.pathSeparator}${metadata.packageName}';
-      if (await Directory(packagePath).exists() &&
+      final packagePath = repoPackages == null
+          ? null
+          : '${repoPackages.path}${Platform.pathSeparator}${metadata.packageName}';
+      if ((packagePath == null || await Directory(packagePath).exists()) &&
           !content.contains('${metadata.packageName}:')) {
         content = content.replaceFirst(
           RegExp(r'dependencies:\r?\n'),
-          'dependencies:\n  ${metadata.packageName}:\n    path: ${packagePath.replaceAll('\\', '/')}\n',
+          'dependencies:\n${capabilityDependency(metadata.packageName, packagesDirectory: repoPackages)}',
         );
       }
     }

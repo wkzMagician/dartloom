@@ -29,16 +29,9 @@ class AddCommand {
     var text = await pubspec.readAsString();
     if (!text.contains('${metadata.packageName}:')) {
       final packages = localPackagesDirectory(project);
-      if (packages == null) {
-        throw CommandFailure(
-            'Cannot locate Dartloom capability packages. Set DARTLOOM_PACKAGES_PATH.');
-      }
-      final localPath =
-          '${packages.path}${Platform.pathSeparator}${metadata.packageName}'
-              .replaceAll('\\', '/');
       text = text.replaceFirst(
         RegExp(r'dependencies:\r?\n'),
-        'dependencies:\n  ${metadata.packageName}:\n    path: $localPath\n',
+        'dependencies:\n${capabilityDependency(metadata.packageName, packagesDirectory: packages)}',
       );
       await pubspec.writeAsString(text);
     }

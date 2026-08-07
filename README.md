@@ -12,6 +12,8 @@ dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom
 
 Then run `dartloom --help`.
 
+On Windows, add `%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately found.
+
 ## Development
 
 ```powershell
