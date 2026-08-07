@@ -3,44 +3,28 @@ import 'dart:io';
 import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../process/process_runner.dart';
-import 'check_command.dart';
-import 'command_support.dart';
-import 'new_command.dart' show capabilityGlue;
+import 'capability_manager.dart';
 
 class AddCommand {
   AddCommand(this.runner, {ConfigLoader? loader})
-      : _loader = loader ?? const ConfigLoader();
+      : _loader = loader ?? const ConfigLoader(),
+        _manager = CapabilityManager(runner, loader: loader);
+
   final ProcessRunner runner;
   final ConfigLoader _loader;
+  final CapabilityManager _manager;
 
   Future<void> run(Directory project, String rawCapability) async {
     final capability = CapabilityRegistry.parse(rawCapability);
-    final config = await _loader.load(project);
-    if (config.capabilities.contains(capability)) {
+    final current = await _loader.load(project);
+    final change = await _manager.apply(project, {
+      ...current.capabilities,
+      capability,
+    });
+    if (change.isEmpty) {
       stdout.writeln('${capability.name} is already enabled. Nothing to do.');
       return;
     }
-    final updated =
-        config.copyWith(capabilities: {...config.capabilities, capability});
-    await _loader.save(project, updated);
-    final metadata = CapabilityRegistry.all[capability]!;
-    final pubspec =
-        File('${project.path}${Platform.pathSeparator}pubspec.yaml');
-    var text = await pubspec.readAsString();
-    if (!text.contains('${metadata.packageName}:')) {
-      final packages = localPackagesDirectory(project);
-      text = text.replaceFirst(
-        RegExp(r'dependencies:\r?\n'),
-        'dependencies:\n${capabilityDependency(metadata.packageName, packagesDirectory: packages)}',
-      );
-      await pubspec.writeAsString(text);
-    }
-    await File(
-            '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}capabilities.dart')
-        .writeAsString(capabilityGlue(updated.capabilities));
-    await runRequired(
-        runner, executableFor('flutter'), ['pub', 'get'], project);
-    await runRequired(runner, executableFor('dart'), ['format', '.'], project);
-    await CheckCommand(runner).run(project);
+    stdout.writeln('Enabled ${capability.name}.');
   }
 }

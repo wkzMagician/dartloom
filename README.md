@@ -25,6 +25,11 @@ dartloom cap add autostart
 dartloom cap remove autostart
 ```
 
+`dartloom cap` opens a keyboard-driven terminal UI. Use the up/down arrow keys
+to move, Space to toggle capabilities, then select **保存并应用变更** with Space.
+All additions and removals are applied as one batch before dependencies and
+checks are run.
+
 ## Development
 
 ```powershell

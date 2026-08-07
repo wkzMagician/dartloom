@@ -1,53 +1,183 @@
+import 'dart:async';
 import 'dart:io';
 
 import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
-import 'add_command.dart';
-import 'remove_command.dart';
+import 'capability_manager.dart';
 
-/// A portable line-based terminal UI. It deliberately avoids terminal-specific
-/// escape sequences so it works in PowerShell, cmd, and CI-adjacent terminals.
+/// Keyboard-driven terminal UI for selecting capabilities as one batch.
 class CapTui {
   CapTui(this.runner, {ConfigLoader? loader})
-      : _loader = loader ?? const ConfigLoader();
+      : _loader = loader ?? const ConfigLoader(),
+        _manager = CapabilityManager(runner, loader: loader);
+
   final ProcessRunner runner;
   final ConfigLoader _loader;
+  final CapabilityManager _manager;
 
   Future<void> run(Directory project) async {
-    while (true) {
-      final config = await _loader.load(project);
-      _render(config);
-      stdout.write('\nEnter a number to toggle it, or q to quit: ');
-      final response = stdin.readLineSync()?.trim().toLowerCase();
-      if (response == null || response == 'q' || response == 'quit') return;
-      final index = int.tryParse(response);
-      if (index == null || index < 1 || index > Capability.values.length) {
-        stdout.writeln('Enter a capability number or q.');
-        continue;
-      }
-      final capability = Capability.values[index - 1];
-      if (config.capabilities.contains(capability)) {
-        await RemoveCommand(runner, loader: _loader)
-            .run(project, capability.name);
-      } else {
-        await AddCommand(runner, loader: _loader).run(project, capability.name);
-      }
+    if (!stdin.hasTerminal || !stdout.hasTerminal) {
+      throw StateError(
+          'dartloom cap requires an interactive terminal. Use cap add, list, or remove instead.');
+    }
+    final config = await _loader.load(project);
+    final selection = {...config.capabilities};
+    final result = await _select(config, selection);
+    if (!result.save) {
+      stdout.writeln('\nCancelled. No capability changes were made.');
+      return;
+    }
+
+    final change = await _manager.apply(project, result.selection);
+    stdout.writeln('\nCapability changes applied:');
+    stdout.writeln('  Added:   ${_names(change.added)}');
+    stdout.writeln('  Removed: ${_names(change.removed)}');
+  }
+
+  Future<_SelectionResult> _select(
+    DartloomConfig config,
+    Set<Capability> selection,
+  ) async {
+    final oldEcho = stdin.echoMode;
+    final oldLineMode = stdin.lineMode;
+    var cursor = 0;
+    var escapeState = 0;
+    var windowsPrefix = false;
+    final completion = Completer<_SelectionResult>();
+
+    try {
+      stdin.echoMode = false;
+      stdin.lineMode = false;
+      stdout.write('\x1B[?25l');
+      _render(config, selection, cursor);
+      final subscription = stdin.listen((bytes) {
+        for (final byte in bytes) {
+          if (completion.isCompleted) return;
+          final action = _handleByte(byte, escapeState, windowsPrefix);
+          escapeState = action.escapeState;
+          windowsPrefix = action.windowsPrefix;
+          if (action.move != 0) {
+            cursor = (cursor + action.move) % _rowCount;
+            if (cursor < 0) cursor += _rowCount;
+            _render(config, selection, cursor);
+            continue;
+          }
+          if (action.cancel) {
+            completion.complete(_SelectionResult.cancel());
+            return;
+          }
+          if (!action.activate) continue;
+          if (cursor < Capability.values.length) {
+            final capability = Capability.values[cursor];
+            if (selection.contains(capability)) {
+              selection.remove(capability);
+            } else {
+              selection.add(capability);
+            }
+            _render(config, selection, cursor);
+          } else if (cursor == Capability.values.length) {
+            completion.complete(_SelectionResult.save(selection));
+          } else {
+            completion.complete(_SelectionResult.cancel());
+          }
+        }
+      });
+      final result = await completion.future;
+      await subscription.cancel();
+      return result;
+    } finally {
+      stdin.echoMode = oldEcho;
+      stdin.lineMode = oldLineMode;
+      stdout.write('\x1B[?25h\n');
     }
   }
 
-  void _render(DartloomConfig config) {
-    stdout.writeln('\nDartloom Capability Manager');
-    stdout.writeln('Project: ${config.app.name}\n');
+  _KeyAction _handleByte(int byte, int escapeState, bool windowsPrefix) {
+    if (windowsPrefix) {
+      return switch (byte) {
+        72 => const _KeyAction(move: -1),
+        80 => const _KeyAction(move: 1),
+        _ => const _KeyAction(),
+      };
+    }
+    if (escapeState == 1) {
+      if (byte == 91) return const _KeyAction(escapeState: 2);
+      return const _KeyAction(cancel: true);
+    }
+    if (escapeState == 2) {
+      return switch (byte) {
+        65 => const _KeyAction(move: -1),
+        66 => const _KeyAction(move: 1),
+        _ => const _KeyAction(),
+      };
+    }
+    return switch (byte) {
+      27 => const _KeyAction(escapeState: 1),
+      224 => const _KeyAction(windowsPrefix: true),
+      72 => const _KeyAction(move: -1),
+      80 => const _KeyAction(move: 1),
+      32 || 13 || 10 => const _KeyAction(activate: true),
+      113 || 81 => const _KeyAction(cancel: true),
+      _ => const _KeyAction(),
+    };
+  }
+
+  void _render(DartloomConfig config, Set<Capability> selection, int cursor) {
+    stdout.write('\x1B[2J\x1B[H');
+    stdout.writeln('Dartloom Capability Manager');
+    stdout.writeln('Project: ${config.app.name}');
+    stdout.writeln('↑/↓ move   Space toggle/select   q or Esc cancel\n');
     for (var index = 0; index < Capability.values.length; index++) {
       final capability = Capability.values[index];
-      final enabled = config.capabilities.contains(capability) ? 'x' : ' ';
+      final selected = selection.contains(capability) ? 'x' : ' ';
+      final prefix = cursor == index ? '›' : ' ';
       final platforms = CapabilityRegistry.all[capability]!.platforms
           .map((item) => item.name)
           .join(', ');
-      stdout
-          .writeln('${index + 1}. [$enabled] ${capability.name} ($platforms)');
+      stdout.writeln(
+          '$prefix [$selected] ${capability.name.padRight(12)} $platforms');
     }
+    _menuRow('保存并应用变更', Capability.values.length, cursor);
+    _menuRow('取消', Capability.values.length + 1, cursor);
   }
+
+  void _menuRow(String label, int index, int cursor) {
+    final prefix = cursor == index ? '›' : ' ';
+    stdout.writeln('$prefix $label');
+  }
+
+  int get _rowCount => Capability.values.length + 2;
+
+  String _names(Set<Capability> capabilities) => capabilities.isEmpty
+      ? 'none'
+      : capabilities.map((item) => item.name).join(', ');
+}
+
+class _SelectionResult {
+  const _SelectionResult._({required this.save, required this.selection});
+  factory _SelectionResult.save(Set<Capability> selection) =>
+      _SelectionResult._(save: true, selection: {...selection});
+  factory _SelectionResult.cancel() =>
+      const _SelectionResult._(save: false, selection: {});
+
+  final bool save;
+  final Set<Capability> selection;
+}
+
+class _KeyAction {
+  const _KeyAction({
+    this.move = 0,
+    this.activate = false,
+    this.cancel = false,
+    this.escapeState = 0,
+    this.windowsPrefix = false,
+  });
+
+  final int move;
+  final bool activate;
+  final bool cancel;
+  final int escapeState;
+  final bool windowsPrefix;
 }

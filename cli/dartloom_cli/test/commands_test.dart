@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dartloom_cli/src/commands/add_command.dart';
+import 'package:dartloom_cli/src/commands/capability_manager.dart';
 import 'package:dartloom_cli/src/commands/doctor_command.dart';
 import 'package:dartloom_cli/src/commands/new_command.dart';
 import 'package:dartloom_cli/src/commands/remove_command.dart';
@@ -106,6 +107,43 @@ void main() {
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
             .readAsString(),
         isNot(contains('dartloom_autostart')));
+  });
+
+  test('capability manager applies multiple changes in one check cycle',
+      () async {
+    final project =
+        await Directory.systemTemp.createTemp('dartloom_batch_test');
+    addTearDown(() => project.delete(recursive: true));
+    final loader = const ConfigLoader();
+    await loader.save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+            name: 'demo', organization: 'com.example', description: ''),
+        platforms: {TargetPlatform.windows},
+        capabilities: {Capability.settings, Capability.storage},
+      ),
+    );
+    await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+        .writeAsString(
+      'name: demo\ndependencies:\n  dartloom_settings:\n    path: ../dartloom_settings\n  dartloom_storage:\n    path: ../dartloom_storage\n  flutter:\n    sdk: flutter\n',
+    );
+    await Directory(
+            '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities')
+        .create(recursive: true);
+    final runner = FakeRunner();
+    final change = await CapabilityManager(runner).apply(
+      project,
+      {Capability.storage, Capability.logging},
+    );
+    expect(change.added, {Capability.logging});
+    expect(change.removed, {Capability.settings});
+    expect(runner.calls.length, 5);
+    final pubspec =
+        await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+            .readAsString();
+    expect(pubspec, contains('dartloom_logging'));
+    expect(pubspec, isNot(contains('dartloom_settings')));
   });
 
   test('doctor succeeds when required checks are available', () async {
