@@ -1,6 +1,14 @@
-name: dartloom_cli
-description: Dartloom project lifecycle command line interface.
+name: dartloom
+description: Convention-first CLI for creating and maintaining Flutter applications.
 version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics:
+  - flutter
+  - cli
+  - scaffolding
+  - app-development
 environment:
   sdk: ^3.5.0
 dependencies:

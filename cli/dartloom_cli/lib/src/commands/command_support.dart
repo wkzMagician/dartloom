@@ -42,11 +42,15 @@ Directory? localPackagesDirectory(Directory start) {
 }
 
 const dartloomRepositoryUrl = 'https://github.com/wkzMagician/dartloom.git';
+const dartloomPackageVersion = '^0.1.0';
 
 String capabilityDependency(String packageName,
     {Directory? packagesDirectory}) {
   if (packagesDirectory != null) {
     return '  $packageName:\n    path: ${packagesDirectory.path.replaceAll('\\', '/')}/$packageName\n';
+  }
+  if (Platform.environment['DARTLOOM_CAPABILITY_SOURCE'] != 'git') {
+    return '  $packageName: $dartloomPackageVersion\n';
   }
   return '  $packageName:\n    git:\n      url: $dartloomRepositoryUrl\n      path: packages/$packageName\n';
 }

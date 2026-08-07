@@ -1,22 +1,32 @@
 # Dartloom
 
-Dartloom is a convention-first toolkit for creating, checking, building, and releasing Flutter applications.
+Dartloom is a convention-first toolkit for creating, checking, building, and
+releasing Flutter applications.
 
 ## Install
 
-Requires Dart 3.10 or later:
+The public package name is `dartloom`. It is prepared for pub.dev publication,
+but is not published yet. After the first pub.dev release, installation will be:
+
+```powershell
+dart install dartloom
+```
+
+Until then, install the development build from Git:
 
 ```powershell
 dart install https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
 ```
 
-Then run `dartloom --help`.
+Then run `dartloom --help`. On Windows, add
+`%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately
+found.
 
-On Windows, add `%LOCALAPPDATA%\Dart\install\bin` to `PATH` if the command is not immediately found.
-
-Update Dartloom itself at any time with:
+Update Dartloom itself with `dartloom update`. Before the package is available
+on pub.dev, a Git-installed development build must opt into Git updates:
 
 ```powershell
+$env:DARTLOOM_UPDATE_SOURCE = 'git'
 dartloom update
 ```
 
@@ -32,9 +42,20 @@ dartloom cap remove autostart
 ```
 
 `dartloom cap` opens a keyboard-driven terminal UI. Use the up/down arrow keys
-to move, Space to toggle capabilities, then select **保存并应用变更** with Space.
-All additions and removals are applied as one batch before dependencies and
-checks are run.
+to move, Space to toggle capabilities, then select **Save and apply changes**
+with Space. All additions and removals are applied as one batch before
+dependencies and checks are run.
+
+Each capability is an independent pub.dev package (`dartloom_settings`,
+`dartloom_storage`, and so on). Generated apps only depend on selected
+capabilities; users do not install those packages manually. The shared pub cache
+means multiple apps reuse downloaded versions. Before those packages are
+published, Git-based development can opt into Git dependencies:
+
+```powershell
+$env:DARTLOOM_CAPABILITY_SOURCE = 'git'
+dartloom new demo
+```
 
 ## Installers and Linux packages
 
@@ -53,33 +74,41 @@ For public MSIX distribution, configure a trusted code-signing certificate;
 unsigned MSIX is only appropriate for local testing. macOS DMG/PKG, iOS IPA,
 Android installer formats, and web installers are not supported yet.
 
-Prerequisites are intentionally platform-native: install Inno Setup (`iscc`) to
-make a Windows EXE installer; install `dpkg-deb` for DEB; and install
-`rpmbuild` (usually the `rpm-build` package) for RPM. Use GitHub's Windows and
-Ubuntu runners to build the corresponding release assets in CI.
+Prerequisites are platform-native: install Inno Setup (`iscc`) for Windows EXE;
+install `dpkg-deb` for DEB; and install `rpmbuild` (usually `rpm-build`) for
+RPM. GitHub's Windows and Ubuntu runners can build the corresponding release
+assets in CI.
 
 ## Updating a generated app
 
-Update the CLI first, then overwrite the Dartloom-managed files in an app:
+Update the CLI first, then overwrite Dartloom-managed files in an app:
 
 ```powershell
-dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+# After pub.dev publication:
+dartloom update
+
+# For the current Git development build:
+$env:DARTLOOM_UPDATE_SOURCE = 'git'
+dartloom update
+
 dartloom project update
 ```
 
-`dartloom project update` overwrites `AGENTS.md`, Dartloom workflow wrappers, and the
-capability glue file. It then upgrades enabled Dartloom capability packages and
-runs checks. It never modifies `lib/features/` or application-specific code.
-Use `dartloom project update --dry-run` to list files first, or
-`dartloom project update --no-capabilities` to leave package versions unchanged.
+`dartloom project update` overwrites `AGENTS.md`, Dartloom workflow wrappers,
+and the capability glue file. It then upgrades enabled Dartloom capability
+packages and runs checks. It never modifies `lib/features/` or
+application-specific code. Use `dartloom project update --dry-run` to list
+files first, or `dartloom project update --no-capabilities` to leave package
+versions unchanged.
 
 ## Development
 
 ```powershell
 cd cli/dartloom_cli
 dart pub get
+dart analyze
 dart test
-dart run bin/dartloom.dart --help
+dart pub publish --dry-run
 ```
 
 Run the CLI from the repository root while developing:
@@ -88,4 +117,13 @@ Run the CLI from the repository root while developing:
 dart run cli/dartloom_cli/bin/dartloom.dart new demo --platforms=android,windows --capabilities=settings,storage,logging
 ```
 
-The generated app owns business code in `lib/features`; reusable infrastructure belongs in `packages`.
+Before publication, set `DARTLOOM_CAPABILITY_SOURCE=git` when creating a
+project outside this repository. The generated app owns business code in
+`lib/features`; reusable infrastructure belongs in `packages`.
+
+## Publishing plan
+
+No package is published by this repository yet. The release order will be the
+five capability packages first, followed by `dartloom`. Each package has its
+own `README.md`, `CHANGELOG.md`, `LICENSE`, repository metadata, tests, and
+`dart pub publish --dry-run` validation target.

@@ -2,22 +2,22 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
-import 'package:dartloom_cli/src/capabilities/capability_registry.dart';
-import 'package:dartloom_cli/src/commands/add_command.dart';
-import 'package:dartloom_cli/src/commands/build_command.dart';
-import 'package:dartloom_cli/src/commands/cap_list_command.dart';
-import 'package:dartloom_cli/src/commands/cap_tui.dart';
-import 'package:dartloom_cli/src/commands/check_command.dart';
-import 'package:dartloom_cli/src/commands/command_support.dart';
-import 'package:dartloom_cli/src/commands/doctor_command.dart';
-import 'package:dartloom_cli/src/commands/new_command.dart';
-import 'package:dartloom_cli/src/commands/package_command.dart';
-import 'package:dartloom_cli/src/commands/release_command.dart';
-import 'package:dartloom_cli/src/commands/remove_command.dart';
-import 'package:dartloom_cli/src/commands/self_upgrade_command.dart';
-import 'package:dartloom_cli/src/commands/upgrade_command.dart';
-import 'package:dartloom_cli/src/config/dartloom_config.dart';
-import 'package:dartloom_cli/src/process/process_runner.dart';
+import 'package:dartloom/src/capabilities/capability_registry.dart';
+import 'package:dartloom/src/commands/add_command.dart';
+import 'package:dartloom/src/commands/build_command.dart';
+import 'package:dartloom/src/commands/cap_list_command.dart';
+import 'package:dartloom/src/commands/cap_tui.dart';
+import 'package:dartloom/src/commands/check_command.dart';
+import 'package:dartloom/src/commands/command_support.dart';
+import 'package:dartloom/src/commands/doctor_command.dart';
+import 'package:dartloom/src/commands/new_command.dart';
+import 'package:dartloom/src/commands/package_command.dart';
+import 'package:dartloom/src/commands/release_command.dart';
+import 'package:dartloom/src/commands/remove_command.dart';
+import 'package:dartloom/src/commands/self_upgrade_command.dart';
+import 'package:dartloom/src/commands/upgrade_command.dart';
+import 'package:dartloom/src/config/dartloom_config.dart';
+import 'package:dartloom/src/process/process_runner.dart';
 
 Future<void> main(List<String> arguments) async {
   final runner = const SystemProcessRunner();
@@ -164,7 +164,7 @@ Commands:
   build [target]   Build enabled targets into dist/.
   package          Create an OS installer or system package.
   release <ver>    Commit, tag, and push a release.
-  update           Update the Dartloom CLI from GitHub.
+  update           Update the Dartloom CLI.
   project update   Update Dartloom-managed files in the current app.
   doctor           Check development prerequisites.
 

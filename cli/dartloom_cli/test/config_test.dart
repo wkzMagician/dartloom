@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:dartloom_cli/dartloom_cli.dart';
+import 'package:dartloom/dartloom.dart';
 import 'package:test/test.dart';
 
 void main() {

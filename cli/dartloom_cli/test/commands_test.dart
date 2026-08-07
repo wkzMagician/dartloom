@@ -1,15 +1,16 @@
 import 'dart:io';
 
-import 'package:dartloom_cli/src/commands/add_command.dart';
-import 'package:dartloom_cli/src/commands/capability_manager.dart';
-import 'package:dartloom_cli/src/commands/doctor_command.dart';
-import 'package:dartloom_cli/src/commands/new_command.dart';
-import 'package:dartloom_cli/src/commands/remove_command.dart';
-import 'package:dartloom_cli/src/commands/self_upgrade_command.dart';
-import 'package:dartloom_cli/src/commands/upgrade_command.dart';
-import 'package:dartloom_cli/src/config/config_loader.dart';
-import 'package:dartloom_cli/src/config/dartloom_config.dart';
-import 'package:dartloom_cli/src/process/process_runner.dart';
+import 'package:dartloom/src/commands/add_command.dart';
+import 'package:dartloom/src/commands/capability_manager.dart';
+import 'package:dartloom/src/commands/command_support.dart';
+import 'package:dartloom/src/commands/doctor_command.dart';
+import 'package:dartloom/src/commands/new_command.dart';
+import 'package:dartloom/src/commands/remove_command.dart';
+import 'package:dartloom/src/commands/self_upgrade_command.dart';
+import 'package:dartloom/src/commands/upgrade_command.dart';
+import 'package:dartloom/src/config/config_loader.dart';
+import 'package:dartloom/src/config/dartloom_config.dart';
+import 'package:dartloom/src/process/process_runner.dart';
 import 'package:test/test.dart';
 
 class FakeRunner implements ProcessRunner {
@@ -217,7 +218,14 @@ void main() {
   test('self-upgrade schedules a detached install', () async {
     final runner = FakeRunner();
     await SelfUpgradeCommand(runner).run(Directory.current);
-    expect(runner.calls.single, contains('dart install --overwrite'));
+    expect(runner.calls.single, contains('dart install --overwrite dartloom'));
+  });
+
+  test('published capability dependencies use hosted versions by default', () {
+    expect(
+      capabilityDependency('dartloom_settings'),
+      '  dartloom_settings: ^0.1.0\n',
+    );
   });
 
   test('doctor succeeds when required checks are available', () async {

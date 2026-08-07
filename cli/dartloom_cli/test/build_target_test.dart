@@ -1,6 +1,6 @@
-import 'package:dartloom_cli/src/build/build_target.dart';
-import 'package:dartloom_cli/src/config/dartloom_config.dart';
-import 'package:dartloom_cli/src/packaging/package_target.dart';
+import 'package:dartloom/src/build/build_target.dart';
+import 'package:dartloom/src/config/dartloom_config.dart';
+import 'package:dartloom/src/packaging/package_target.dart';
 import 'package:test/test.dart';
 
 void main() {
