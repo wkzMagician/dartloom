@@ -77,8 +77,7 @@ class NewCommand {
             "import 'package:flutter/widgets.dart';\n\nimport 'app.dart';\n\nvoid bootstrap() {\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(const DartloomApp());\n}\n");
     await File(
             '${project.path}${separator}lib${separator}app${separator}app.dart')
-        .writeAsString(
-            "import 'package:flutter/material.dart';\n\nclass DartloomApp extends StatelessWidget {\n  const DartloomApp({super.key});\n\n  @override\n  Widget build(BuildContext context) => MaterialApp(\n        title: '${config.app.name}',\n        home: const Scaffold(body: Center(child: Text('Dartloom app')),),\n      );\n}\n");
+        .writeAsString(appShell(config));
     await File(
             '${project.path}${separator}lib${separator}app${separator}router.dart')
         .writeAsString(

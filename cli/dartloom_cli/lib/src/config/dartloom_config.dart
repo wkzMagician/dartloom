@@ -1,6 +1,14 @@
 enum TargetPlatform { android, ios, windows, macos, linux, web }
 
-enum Capability { settings, storage, logging, autostart, sync }
+enum Capability {
+  settings,
+  storage,
+  logging,
+  autostart,
+  sync,
+  localization,
+  resident,
+}
 
 extension TargetPlatformName on TargetPlatform {
   String get configName => name;

@@ -52,6 +52,20 @@ class CapabilityRegistry {
         packageName: 'dartloom_sync',
         brick: 'capability_sync',
         platforms: _allPlatforms),
+    Capability.localization: CapabilityMetadata(
+        capability: Capability.localization,
+        packageName: 'dartloom_localization',
+        brick: 'capability_localization',
+        platforms: _allPlatforms),
+    Capability.resident: CapabilityMetadata(
+        capability: Capability.resident,
+        packageName: 'dartloom_resident',
+        brick: 'capability_resident',
+        platforms: {
+          TargetPlatform.windows,
+          TargetPlatform.macos,
+          TargetPlatform.linux,
+        }),
   };
 
   static Capability parse(String name) {

@@ -39,12 +39,15 @@ dartloom cap
 dartloom cap list
 dartloom cap add autostart
 dartloom cap remove autostart
+dartloom cap add localization
+dartloom cap add resident
 ```
 
 `dartloom cap` opens a keyboard-driven terminal UI. Use the up/down arrow keys
 to move, Space to toggle capabilities, then select **Save and apply changes**
 with Space. All additions and removals are applied as one batch before
-dependencies and checks are run.
+dependencies and checks are run. Available capability names include
+`localization` and `resident`.
 
 Each capability is an independent pub.dev package (`dartloom_settings`,
 `dartloom_storage`, and so on). Generated apps only depend on selected
@@ -56,6 +59,14 @@ published, Git-based development can opt into Git dependencies:
 $env:DARTLOOM_CAPABILITY_SOURCE = 'git'
 dartloom new demo
 ```
+
+`localization` wires Flutter locale delegates for English and Chinese into the
+generated app shell; app messages can then use Flutter's standard ARB workflow.
+`resident` is a desktop
+capability for Windows, macOS, and Linux. It exposes a controller that hides a
+window when the user closes it and restores/quits it from the system tray or
+menu bar. It uses `tray_manager` and `window_manager`; Linux tray support may
+require an AppIndicator package supplied by the target distribution.
 
 ## Installers and Linux packages
 
@@ -94,8 +105,8 @@ dartloom update
 dartloom project update
 ```
 
-`dartloom project update` overwrites `AGENTS.md`, Dartloom workflow wrappers,
-and the capability glue file. It then upgrades enabled Dartloom capability
+`dartloom project update` overwrites `AGENTS.md`, the Dartloom app shell,
+workflow wrappers, and the capability glue file. It then upgrades enabled Dartloom capability
 packages and runs checks. It never modifies `lib/features/` or
 application-specific code. Use `dartloom project update --dry-run` to list
 files first, or `dartloom project update --no-capabilities` to leave package
@@ -124,6 +135,6 @@ project outside this repository. The generated app owns business code in
 ## Publishing plan
 
 No package is published by this repository yet. The release order will be the
-five capability packages first, followed by `dartloom`. Each package has its
+seven capability packages first, followed by `dartloom`. Each package has its
 own `README.md`, `CHANGELOG.md`, `LICENSE`, repository metadata, tests, and
 `dart pub publish --dry-run` validation target.

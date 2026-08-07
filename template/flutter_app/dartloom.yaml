@@ -16,5 +16,7 @@ capabilities:
   logging: true
   autostart: false
   sync: false
+  localization: false
+  resident: false
 release:
   github: true

@@ -56,6 +56,13 @@ class CapabilityManager {
     await File(
       '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}capabilities.dart',
     ).writeAsString(capabilityGlue(updated.capabilities));
+    final appDirectory = Directory(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}app',
+    );
+    await appDirectory.create(recursive: true);
+    await File(
+      '${appDirectory.path}${Platform.pathSeparator}app.dart',
+    ).writeAsString(appShell(updated));
     await runRequired(
         runner, executableFor('flutter'), ['pub', 'get'], project);
     await runRequired(runner, executableFor('dart'), ['format', '.'], project);

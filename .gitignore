@@ -5,5 +5,7 @@ dartloom_integration/
 .dart_tool/
 **/.dart_tool/
 **/dist/
+**/build/
+**/.flutter-plugins-dependencies
 **/.packages
 **/pubspec.lock

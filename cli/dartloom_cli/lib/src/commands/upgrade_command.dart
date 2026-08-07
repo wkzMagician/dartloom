@@ -26,6 +26,7 @@ class UpgradeCommand {
       '.github/workflows/ci.yml': ciWorkflow,
       '.github/workflows/release.yml': releaseWorkflow(config),
       'lib/capabilities/capabilities.dart': capabilityGlue(config.capabilities),
+      'lib/app/app.dart': appShell(config),
     };
     stdout.writeln('Dartloom Upgrade${dryRun ? ' (dry run)' : ''}\n');
     for (final entry in files.entries) {

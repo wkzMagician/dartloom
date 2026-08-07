@@ -19,13 +19,17 @@ jobs:
           - packages/dartloom_logging
           - packages/dartloom_autostart
           - packages/dartloom_sync
+          - packages/dartloom_localization
+          - packages/dartloom_resident
     defaults:
       run:
         working-directory: ${{ matrix.package }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-      - run: dart pub get
-      - run: dart analyze
-      - run: dart test
-      - run: dart pub publish --dry-run
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter pub publish --dry-run

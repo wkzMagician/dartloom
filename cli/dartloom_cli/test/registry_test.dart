@@ -5,6 +5,8 @@ void main() {
   test('registry exposes metadata for every capability', () {
     expect(CapabilityRegistry.all.keys, containsAll(Capability.values));
     expect(CapabilityRegistry.parse('autostart'), Capability.autostart);
+    expect(CapabilityRegistry.parse('localization'), Capability.localization);
+    expect(CapabilityRegistry.parse('resident'), Capability.resident);
   });
 
   test('registry rejects invalid capability', () {

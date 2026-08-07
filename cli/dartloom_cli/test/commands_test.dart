@@ -51,7 +51,7 @@ void main() {
       name: name,
       organization: 'com.example',
       platforms: {TargetPlatform.windows},
-      capabilities: {Capability.settings},
+      capabilities: {Capability.settings, Capability.localization},
     );
     expect(
         await File('${project.path}${Platform.pathSeparator}dartloom.yaml')
@@ -61,10 +61,23 @@ void main() {
         await File('${project.path}${Platform.pathSeparator}AGENTS.md')
             .exists(),
         isTrue);
-    expect(
+    final generatedPubspec =
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
-            .readAsString(),
-        contains('dartloom_settings:'));
+            .readAsString();
+    expect(generatedPubspec, contains('dartloom_settings:'));
+    expect(generatedPubspec, contains('dartloom_localization:'));
+    expect(
+      await File(
+        '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}capabilities.dart',
+      ).readAsString(),
+      contains('DartloomLocalizations'),
+    );
+    expect(
+      await File(
+        '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}app${Platform.pathSeparator}app.dart',
+      ).readAsString(),
+      contains('localizationsDelegates: dartloomLocalizationsDelegates'),
+    );
   });
 
   test('adding an already enabled capability is idempotent', () async {
