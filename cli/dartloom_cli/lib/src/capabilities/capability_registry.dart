@@ -5,11 +5,13 @@ class ImplementationMetadata {
     required this.id,
     required this.packageName,
     this.instanceNames,
+    this.platforms,
     this.options = const {},
   });
   final String id;
   final String packageName;
   final Set<String>? instanceNames;
+  final Set<TargetPlatform>? platforms;
   final Map<String, String> options;
 }
 
@@ -107,6 +109,11 @@ abstract final class CapabilityRegistry {
         ImplementationMetadata(
           id: 'launch_at_startup',
           packageName: 'dartloom_autostart_launch_at_startup',
+          platforms: {
+            TargetPlatform.windows,
+            TargetPlatform.macos,
+            TargetPlatform.linux,
+          },
         ),
       ],
     ),
@@ -144,6 +151,11 @@ abstract final class CapabilityRegistry {
         ImplementationMetadata(
           id: 'tray',
           packageName: 'dartloom_resident_tray',
+          platforms: {
+            TargetPlatform.windows,
+            TargetPlatform.macos,
+            TargetPlatform.linux,
+          },
           options: {
             'icon_path': r'${RESIDENT_ICON_PATH}',
             'tooltip': 'Dartloom application',
@@ -205,11 +217,15 @@ abstract final class CapabilityRegistry {
   }
 
   static PackageMetadata package(String name) {
-    final version = name == 'dartloom_runtime'
-        ? '^0.1.0'
-        : all.values.any((value) => value.contractPackage == name)
+    const versions = <String, String>{
+      'dartloom_runtime': '^0.1.0',
+      'dartloom_resident': '^0.3.0',
+      'dartloom_resident_tray': '^0.2.0',
+    };
+    final version = versions[name] ??
+        (all.values.any((value) => value.contractPackage == name)
             ? '^0.2.0'
-            : '^0.1.0';
+            : '^0.1.0');
     return PackageMetadata(name, version, 'packages/$name');
   }
 

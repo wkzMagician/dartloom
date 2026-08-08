@@ -57,7 +57,7 @@ import adapter packages directly.
 | logging | application logger | logger |
 | autostart | enable/disable startup | launch_at_startup |
 | localization | locales and delegates | Flutter gen-l10n |
-| resident | close-to-tray lifecycle | tray_manager + window_manager |
+| resident | close-to-tray lifecycle, menus, and exit policy | tray_manager + window_manager |
 | sync | object sync and conflicts | ETag engine + WebDAV backend |
 
 Sync only reads storage instances explicitly listed in its configuration. It
@@ -93,7 +93,26 @@ capabilities:
 
 `${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
 into generated Dart source. Run `dartloom project update` once to migrate a
-schema version 1 project. Managed files are overwritten directly.
+schema version 1 project. It only overwrites Dartloom-owned capability glue
+(`lib/capabilities`), never application widgets or existing ARB translations,
+and always runs `flutter pub upgrade` so Git dependency locks match the
+generated contract API.
+
+Desktop-only adapters such as `resident` are registered only on supported
+desktop targets. A mixed Android/Windows application can therefore keep one
+configuration without initializing a tray adapter on Android. Configure the
+resident menu, click actions, and exit callback through the contract:
+
+```dart
+final resident = Dartloom.get<ResidentService>();
+await resident.configure(ResidentConfiguration(
+  menu: const [
+    ResidentMenuItem.action(id: 'quit', label: 'Quit completely'),
+  ],
+  leftClick: ResidentClickAction.showMenu,
+  onExitRequested: () async => true,
+));
+```
 
 ## GitHub development and pub.dev release
 

@@ -11,7 +11,9 @@ dartloom cap
 
 After pub.dev publication, install with `dart install dartloom`. Use
 `dartloom update` to refresh the CLI and `dartloom project update` to migrate
-schema v1 or overwrite Dartloom-managed application glue.
+schema v1 or refresh only Dartloom-owned capability glue. The project update
+always runs `flutter pub upgrade`, so Git locks cannot retain an older
+contract API; it never overwrites `lib/app` or existing ARB translations.
 
 The interactive `dartloom cap` editor manages named capability instances,
 official/custom implementations, adapter options, sync storage selection, and

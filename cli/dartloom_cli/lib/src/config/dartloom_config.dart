@@ -210,10 +210,53 @@ class DartloomConfig {
   ) {
     if (values.isEmpty) return;
     buffer.writeln('$indent$name:');
+    _writeMapEntries(buffer, '$indent  ', values);
+  }
+
+  static void _writeMapEntries(
+    StringBuffer buffer,
+    String indent,
+    Map<String, Object?> values,
+  ) {
     for (final entry in values.entries) {
-      buffer.writeln('$indent  ${entry.key}: ${_scalar(entry.value)}');
+      _writeKeyValue(buffer, indent, entry.key, entry.value);
     }
   }
+
+  static void _writeKeyValue(
+    StringBuffer buffer,
+    String indent,
+    String key,
+    Object? value,
+  ) {
+    if (value is Map) {
+      buffer.writeln('$indent$key:');
+      _writeMapEntries(buffer, '$indent  ', _asStringMap(value));
+    } else if (value is Iterable) {
+      buffer.writeln('$indent$key:');
+      _writeList(buffer, '$indent  ', value);
+    } else {
+      buffer.writeln('$indent$key: ${_scalar(value)}');
+    }
+  }
+
+  static void _writeList(StringBuffer buffer, String indent, Iterable values) {
+    for (final value in values) {
+      if (value is Map) {
+        buffer.writeln('$indent-');
+        _writeMapEntries(buffer, '$indent  ', _asStringMap(value));
+      } else if (value is Iterable) {
+        buffer.writeln('$indent-');
+        _writeList(buffer, '$indent  ', value);
+      } else {
+        buffer.writeln('$indent- ${_scalar(value)}');
+      }
+    }
+  }
+
+  static Map<String, Object?> _asStringMap(Map value) => {
+        for (final entry in value.entries) entry.key.toString(): entry.value,
+      };
 
   static String _scalar(Object? value) {
     if (value == null) return 'null';
@@ -225,19 +268,7 @@ class DartloomConfig {
 bool _mapEquals(Map<Object?, Object?> a, Map<Object?, Object?> b) {
   if (a.length != b.length) return false;
   for (final entry in a.entries) {
-    final other = b[entry.key];
-    if (entry.value is Map && other is Map) {
-      if (!_mapEquals(
-        (entry.value as Map).cast<Object?, Object?>(),
-        other.cast<Object?, Object?>(),
-      )) {
-        return false;
-      }
-    } else if (entry.value is List && other is List) {
-      if (!_listEquals(entry.value as List, other)) {
-        return false;
-      }
-    } else if (other != entry.value) {
+    if (!b.containsKey(entry.key) || !_valueEquals(entry.value, b[entry.key])) {
       return false;
     }
   }
@@ -247,14 +278,29 @@ bool _mapEquals(Map<Object?, Object?> a, Map<Object?, Object?> b) {
 bool _listEquals(List<Object?> a, List<Object?> b) {
   if (a.length != b.length) return false;
   for (var index = 0; index < a.length; index++) {
-    if (a[index] != b[index]) return false;
+    if (!_valueEquals(a[index], b[index])) return false;
   }
   return true;
 }
 
+bool _valueEquals(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    return _mapEquals(a.cast<Object?, Object?>(), b.cast<Object?, Object?>());
+  }
+  if (a is List && b is List) return _listEquals(a, b);
+  return a == b;
+}
+
 int _mapHash(Map<Object?, Object?> value) => Object.hashAllUnordered(
-      value.entries.map((entry) => Object.hash(entry.key, entry.value)),
+      value.entries
+          .map((entry) => Object.hash(entry.key, _valueHash(entry.value))),
     );
+
+int _valueHash(Object? value) {
+  if (value is Map) return _mapHash(value.cast<Object?, Object?>());
+  if (value is List) return Object.hashAll(value.map(_valueHash));
+  return value.hashCode;
+}
 
 abstract final class CapabilityDefaults {
   static Map<String, CapabilityInstanceConfig> forCapability(

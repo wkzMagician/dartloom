@@ -88,12 +88,8 @@ class NewCommand {
         .create(recursive: true);
     await Directory('${project.path}$separator.github${separator}workflows')
         .create(recursive: true);
-    await File('${project.path}${separator}lib${separator}main.dart')
-        .writeAsString(
-            "import 'app/bootstrap.dart';\n\nvoid main() => bootstrap();\n");
-    await File(
-            '${project.path}${separator}lib${separator}app${separator}bootstrap.dart')
-        .writeAsString(bootstrap);
+    await File('${project.path}${separator}lib${separator}main.dart').writeAsString(
+        "import 'package:flutter/widgets.dart';\n\nimport 'app/app.dart';\nimport 'capabilities/bootstrap.dart';\n\nFuture<void> main() async {\n  await bootstrapDartloom();\n  runApp(const DartloomApp());\n}\n");
     await File(
             '${project.path}${separator}lib${separator}app${separator}app.dart')
         .writeAsString(appShell(config));
@@ -116,6 +112,9 @@ class NewCommand {
     await File(
             '${project.path}${separator}lib${separator}capabilities${separator}capabilities.dart')
         .writeAsString(capabilityGlue(config));
+    await File(
+            '${project.path}${separator}lib${separator}capabilities${separator}bootstrap.dart')
+        .writeAsString(capabilityBootstrap);
     if (config.enabledCapabilities.contains(Capability.localization)) {
       await Directory('${project.path}${separator}lib${separator}l10n')
           .create(recursive: true);

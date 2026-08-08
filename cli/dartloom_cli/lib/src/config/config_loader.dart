@@ -226,8 +226,22 @@ class ConfigLoader {
     if (value == null) return const {};
     if (value is! YamlMap) throw ConfigException('options must be a map.');
     return {
-      for (final entry in value.entries) entry.key as String: entry.value
+      for (final entry in value.entries)
+        entry.key as String: _plainValue(entry.value)
     };
+  }
+
+  Object? _plainValue(Object? value) {
+    if (value is YamlMap) {
+      return {
+        for (final entry in value.entries)
+          entry.key as String: _plainValue(entry.value),
+      };
+    }
+    if (value is YamlList) {
+      return value.map(_plainValue).toList(growable: false);
+    }
+    return value;
   }
 
   List<String> _stringList(Object? value, {String name = 'stores'}) {

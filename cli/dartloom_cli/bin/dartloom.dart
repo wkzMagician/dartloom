@@ -43,10 +43,10 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('add')
     ..addCommand('list')
     ..addCommand('remove');
-  parser.commands['project']!.addCommand('update');
-  parser.commands['project']!.commands['update']!
-    ..addFlag('dry-run', negatable: false)
-    ..addFlag('capabilities', defaultsTo: true);
+  parser.commands['project']!.addCommand('update').addFlag(
+        'dry-run',
+        negatable: false,
+      );
   try {
     final results = parser.parse(arguments);
     if (results['help'] == true || results.command == null) {
@@ -128,17 +128,14 @@ Future<void> main(List<String> arguments) async {
       case 'project':
         final subcommand = command.command;
         if (subcommand == null || subcommand.name != 'update') {
-          throw CommandFailure(
-              'Usage: dartloom project update [--dry-run] [--no-capabilities]');
+          throw CommandFailure('Usage: dartloom project update [--dry-run]');
         }
         if (subcommand.rest.isNotEmpty) {
-          throw CommandFailure(
-              'Usage: dartloom project update [--dry-run] [--no-capabilities]');
+          throw CommandFailure('Usage: dartloom project update [--dry-run]');
         }
         await UpgradeCommand(runner).run(
           Directory.current,
           dryRun: subcommand['dry-run'] as bool,
-          upgradeCapabilities: subcommand['capabilities'] as bool,
         );
       case 'doctor':
         if (!await DoctorCommand(runner).run(Directory.current)) exitCode = 1;
@@ -215,7 +212,7 @@ Not yet supported: macOS DMG/PKG, iOS IPA, Android installer formats, and web in
 
 Project update options:
   project update --dry-run          List managed files that would be overwritten.
-  project update --no-capabilities  Do not upgrade Dartloom capability packages.
+  project update                    Refreshes Dartloom Git/package locks with flutter pub upgrade.
 
 ${parser.usage}''');
 }

@@ -74,14 +74,13 @@ class CapabilityManager {
       );
       await capabilities.parent.create(recursive: true);
       await capabilities.writeAsString(capabilityGlue(config));
-      final app = File(
-        '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}app${Platform.pathSeparator}app.dart',
+      final bootstrap = File(
+        '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}bootstrap.dart',
       );
-      await app.parent.create(recursive: true);
-      await app.writeAsString(appShell(config));
+      await bootstrap.writeAsString(capabilityBootstrap);
     }
     await runRequired(
-        runner, executableFor('flutter'), ['pub', 'get'], project);
+        runner, executableFor('flutter'), ['pub', 'upgrade'], project);
     if (config.enabledCapabilities.contains(Capability.localization)) {
       await runRequired(
         runner,

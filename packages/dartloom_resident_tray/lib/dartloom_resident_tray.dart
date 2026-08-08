@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartloom_resident/dartloom_resident.dart';
 import 'package:flutter/widgets.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -10,9 +12,16 @@ final class TrayResidentService
 
   final String tooltip;
   bool _initialized = false;
+  ResidentConfiguration _configuration = const ResidentConfiguration();
 
   @override
-  Future<void> initialize({required String iconPath}) async {
+  ResidentConfiguration get configuration => _configuration;
+
+  @override
+  Future<void> initialize({
+    required String iconPath,
+    ResidentConfiguration configuration = const ResidentConfiguration(),
+  }) async {
     if (_initialized) return;
     WidgetsFlutterBinding.ensureInitialized();
     await windowManager.ensureInitialized();
@@ -22,6 +31,28 @@ final class TrayResidentService
     await trayManager.setToolTip(tooltip);
     await trayManager.setIcon(iconPath);
     _initialized = true;
+    await configure(configuration);
+  }
+
+  @override
+  Future<void> configure(ResidentConfiguration configuration) async {
+    _configuration = configuration;
+    if (!_initialized) return;
+    await trayManager.setContextMenu(
+      Menu(
+        items: [
+          for (final item in configuration.menu)
+            if (item.isSeparator)
+              MenuItem.separator()
+            else
+              MenuItem(
+                key: item.id,
+                label: item.label,
+                disabled: !item.enabled,
+              ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -32,6 +63,8 @@ final class TrayResidentService
 
   @override
   Future<void> quit() async {
+    final shouldQuit = await _configuration.onExitRequested?.call() ?? true;
+    if (!shouldQuit) return;
     await windowManager.setPreventClose(false);
     await windowManager.destroy();
   }
@@ -47,6 +80,32 @@ final class TrayResidentService
 
   @override
   Future<void> onWindowClose() => windowManager.hide();
+
   @override
-  Future<void> onTrayIconMouseDown() => restore();
+  void onTrayIconMouseDown() =>
+      unawaited(_handleClick(_configuration.leftClick));
+
+  @override
+  void onTrayIconRightMouseDown() =>
+      unawaited(_handleClick(_configuration.rightClick));
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    final id = menuItem.key;
+    if (id != null) unawaited(_handleMenuSelection(id));
+  }
+
+  Future<void> _handleClick(ResidentClickAction action) => switch (action) {
+        ResidentClickAction.restore => restore(),
+        ResidentClickAction.showMenu => trayManager.popUpContextMenu(),
+        ResidentClickAction.ignore => Future<void>.value(),
+      };
+
+  Future<void> _handleMenuSelection(String id) async {
+    if (id == _configuration.exitMenuItemId) {
+      await quit();
+      return;
+    }
+    await _configuration.onMenuSelected?.call(id);
+  }
 }

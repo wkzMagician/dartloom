@@ -11,6 +11,7 @@ import 'package:dartloom/src/commands/upgrade_command.dart';
 import 'package:dartloom/src/config/config_loader.dart';
 import 'package:dartloom/src/config/dartloom_config.dart';
 import 'package:dartloom/src/process/process_runner.dart';
+import 'package:dartloom/src/templates/managed_templates.dart';
 import 'package:test/test.dart';
 
 class FakeRunner implements ProcessRunner {
@@ -168,7 +169,7 @@ void main() {
     expect(pubspec, isNot(contains('dartloom_settings')));
   });
 
-  test('upgrade overwrites managed files but preserves feature files',
+  test('upgrade refreshes capability glue without replacing application files',
       () async {
     final project =
         await Directory.systemTemp.createTemp('dartloom_upgrade_test');
@@ -185,6 +186,15 @@ void main() {
     );
     await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
         .writeAsString('name: demo\ndependencies:\n');
+    final app = File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}app${Platform.pathSeparator}app.dart',
+    );
+    await app.parent.create(recursive: true);
+    await app.writeAsString('const application = "keep";');
+    final legacyBootstrap = File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}app${Platform.pathSeparator}bootstrap.dart',
+    );
+    await legacyBootstrap.writeAsString('Future<void> bootstrap() async {}');
     final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
     await agents.writeAsString('outdated');
     final feature = File(
@@ -195,12 +205,17 @@ void main() {
     await UpgradeCommand(runner).run(
       project,
       dryRun: false,
-      upgradeCapabilities: false,
     );
     expect(await agents.readAsString(),
         contains('This project is managed by Dartloom.'));
     expect(await feature.readAsString(), 'const note = "keep";');
-    expect(runner.calls.length, 4);
+    expect(await app.readAsString(), 'const application = "keep";');
+    expect(
+      await legacyBootstrap.readAsString(),
+      'Future<void> bootstrap() async {}',
+    );
+    expect(runner.calls, contains('flutter.bat pub upgrade'));
+    expect(runner.calls.length, 5);
   });
 
   test('upgrade dry run does not change files', () async {
@@ -222,10 +237,60 @@ void main() {
     await UpgradeCommand(runner).run(
       project,
       dryRun: true,
-      upgradeCapabilities: true,
     );
     expect(await agents.readAsString(), 'keep');
     expect(runner.calls, isEmpty);
+  });
+
+  test('upgrade preserves existing localization configuration and ARB files',
+      () async {
+    final project =
+        await Directory.systemTemp.createTemp('dartloom_upgrade_l10n_test');
+    addTearDown(() => project.delete(recursive: true));
+    await const ConfigLoader().save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+            name: 'demo', organization: 'com.example', description: ''),
+        platforms: {TargetPlatform.windows},
+        capabilities: _caps({Capability.localization}),
+      ),
+    );
+    await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+        .writeAsString('name: demo\ndependencies:\n');
+    final arb = File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}l10n${Platform.pathSeparator}app_en.arb',
+    );
+    await arb.parent.create(recursive: true);
+    await arb.writeAsString('{"appTitle":"Mini Todo"}');
+    await File('${project.path}${Platform.pathSeparator}l10n.yaml')
+        .writeAsString('arb-dir: custom_l10n');
+
+    await UpgradeCommand(FakeRunner()).run(project, dryRun: false);
+
+    expect(await arb.readAsString(), '{"appTitle":"Mini Todo"}');
+    expect(
+      await File('${project.path}${Platform.pathSeparator}l10n.yaml')
+          .readAsString(),
+      'arb-dir: custom_l10n',
+    );
+  });
+
+  test('generated registrations skip resident adapters on unsupported targets',
+      () {
+    final config = DartloomConfig(
+      app: const AppConfig(
+          name: 'demo', organization: 'com.example', description: ''),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: _caps({Capability.resident}),
+    );
+    final glue = capabilityGlue(config);
+    expect(glue, contains('_dartloomSupportsCurrentPlatform'));
+    expect(
+      glue,
+      contains('const {"windows", "macos", "linux"}'),
+    );
+    expect(glue, contains('TrayResidentService'));
   });
 
   test('self-upgrade schedules a detached install', () async {

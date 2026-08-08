@@ -62,6 +62,41 @@ capabilities:
     );
   });
 
+  test('preserves nested adapter options such as resident menus', () async {
+    final directory =
+        await Directory.systemTemp.createTemp('dartloom_nested_options_test');
+    addTearDown(() => directory.delete(recursive: true));
+    final config = DartloomConfig(
+      app: const AppConfig(
+        name: 'demo',
+        organization: 'com.example',
+        description: '',
+      ),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: {
+        Capability.resident: {
+          'default': const CapabilityInstanceConfig(
+            implementation: 'tray',
+            options: {
+              'icon_path': r'${RESIDENT_ICON_PATH}',
+              'menu': [
+                {'id': 'quit', 'label': 'Quit completely'},
+                {'separator': true},
+              ],
+              'left_click': 'menu',
+            },
+          ),
+        },
+      },
+    );
+
+    const loader = ConfigLoader();
+    await loader.save(directory, config);
+    final loaded = await loader.load(directory);
+
+    expect(loaded.capabilities, config.capabilities);
+  });
+
   test('rejects unknown implementations and unsupported platforms', () async {
     final directory =
         await Directory.systemTemp.createTemp('dartloom_bad_test');

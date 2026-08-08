@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Refresh Dartloom Git/package locks during project updates.
+- Preserve application widgets and ARB translations during updates.
+- Skip unsupported capability adapters at runtime and support nested options.
+
 ## 0.2.0
 
 - Added schema v2 named capability instances and one-time v1 migration.

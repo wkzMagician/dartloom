@@ -1,6 +1,6 @@
 name: dartloom_resident
 description: Stable resident application lifecycle contract for Dartloom desktop apps.
-version: 0.2.0
+version: 0.3.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues

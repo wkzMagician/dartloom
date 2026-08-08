@@ -1,6 +1,6 @@
 name: dartloom_resident_tray
 description: System tray and close-to-tray adapter for the Dartloom resident contract.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -9,7 +9,7 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_resident: ^0.2.0
+  dartloom_resident: ^0.3.0
   flutter:
     sdk: flutter
   tray_manager: ^0.5.0

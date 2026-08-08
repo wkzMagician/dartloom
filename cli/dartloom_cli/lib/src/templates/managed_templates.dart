@@ -7,6 +7,7 @@ String capabilityGlue(DartloomConfig config) {
   final enabled = config.enabledCapabilities;
   final imports = <String>{
     "import 'package:dartloom_runtime/dartloom_runtime.dart';",
+    "import 'package:flutter/foundation.dart';",
     "import 'package:flutter/widgets.dart';",
   };
   if (enabled.contains(Capability.settings)) {
@@ -89,6 +90,20 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln()
     ..writeln('Future<void> disposeDartloom() => Dartloom.dispose();')
     ..writeln();
+  buffer
+    ..writeln('bool _dartloomSupportsCurrentPlatform(Set<String> platforms) {')
+    ..writeln(
+        "  final current = kIsWeb ? 'web' : switch (defaultTargetPlatform) {")
+    ..writeln("    TargetPlatform.android => 'android',")
+    ..writeln("    TargetPlatform.iOS => 'ios',")
+    ..writeln("    TargetPlatform.linux => 'linux',")
+    ..writeln("    TargetPlatform.macOS => 'macos',")
+    ..writeln("    TargetPlatform.windows => 'windows',")
+    ..writeln("    TargetPlatform.fuchsia => 'fuchsia',")
+    ..writeln('  };')
+    ..writeln('  return platforms.contains(current);')
+    ..writeln('}')
+    ..writeln();
   if (_requiresEnvironment(config)) {
     buffer
       ..writeln('String _requiredEnvironment(String name) {')
@@ -99,6 +114,54 @@ String capabilityGlue(DartloomConfig config) {
       ..writeln('  }')
       ..writeln('  return value;')
       ..writeln('}')
+      ..writeln();
+  }
+  if (enabled.contains(Capability.resident)) {
+    buffer
+      ..writeln(
+          'ResidentConfiguration _dartloomResidentConfiguration(Map<String, Object?> options) {')
+      ..writeln("  final rawMenu = options['menu'];")
+      ..writeln('  final menu = rawMenu is List')
+      ..writeln('      ? rawMenu.map((entry) {')
+      ..writeln('          if (entry is! Map) {')
+      ..writeln(
+          "            throw DartloomException('resident menu entries must be maps.');")
+      ..writeln('          }')
+      ..writeln("          if (entry['separator'] == true) {")
+      ..writeln('            return const ResidentMenuItem.separator();')
+      ..writeln('          }')
+      ..writeln("          final id = entry['id'];")
+      ..writeln("          final label = entry['label'];")
+      ..writeln('          if (id is! String || label is! String) {')
+      ..writeln(
+          "            throw DartloomException('resident menu items require string id and label.');")
+      ..writeln('          }')
+      ..writeln('          return ResidentMenuItem.action(')
+      ..writeln('            id: id, label: label,')
+      ..writeln("            enabled: entry['enabled'] != false,")
+      ..writeln('          );')
+      ..writeln('        }).toList(growable: false)')
+      ..writeln('      : const <ResidentMenuItem>[];')
+      ..writeln('  return ResidentConfiguration(')
+      ..writeln('    menu: menu,')
+      ..writeln(
+          "    leftClick: _dartloomResidentClickAction(options['left_click']),")
+      ..writeln(
+          "    rightClick: _dartloomResidentClickAction(options['right_click'], fallback: ResidentClickAction.showMenu),")
+      ..writeln(
+          "    exitMenuItemId: options['exit_menu_item_id'] as String? ?? 'quit',")
+      ..writeln('  );')
+      ..writeln('}')
+      ..writeln()
+      ..writeln(
+          'ResidentClickAction _dartloomResidentClickAction(Object? value, {')
+      ..writeln('  ResidentClickAction fallback = ResidentClickAction.restore,')
+      ..writeln('}) => switch (value) {')
+      ..writeln("      'menu' => ResidentClickAction.showMenu,")
+      ..writeln("      'ignore' => ResidentClickAction.ignore,")
+      ..writeln("      'restore' => ResidentClickAction.restore,")
+      ..writeln('      _ => fallback,')
+      ..writeln('    };')
       ..writeln();
   }
   if (enabled.contains(Capability.localization)) {
@@ -201,7 +264,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           "      final value = TrayResidentService(tooltip: context.options['tooltip'] as String? ?? 'Dartloom application');")
       ..writeln(
-          "      await value.initialize(iconPath: context.options['icon_path'] as String);")
+          "      await value.initialize(iconPath: context.options['icon_path'] as String, configuration: _dartloomResidentConfiguration(context.options));")
       ..writeln(
           '      return DartloomBinding<ResidentService>(value, dispose: value.dispose);')
       ..writeln('    },');
@@ -272,6 +335,7 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       final instance = entry.value;
       final type = _serviceType(capability, entry.key);
       final factory = instance.factory ?? instance.implementation;
+      final platforms = _supportedPlatforms(capability, instance);
       final options = <String, Object?>{...instance.options};
       if (capability == Capability.sync) {
         options['stores'] = instance.stores;
@@ -284,6 +348,9 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
         }
       }
       buffer
+        ..writeln(
+          "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
+        )
         ..writeln('      DartloomRegistration<$type>(')
         ..writeln("        capability: '${capability.name}',")
         ..writeln('        name: ${_dart(entry.key)},')
@@ -308,6 +375,17 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       buffer.writeln('      ),');
     }
   }
+}
+
+Set<TargetPlatform> _supportedPlatforms(
+  Capability capability,
+  CapabilityInstanceConfig instance,
+) {
+  final adapter = CapabilityRegistry.implementation(
+    capability,
+    instance.implementation,
+  );
+  return adapter?.platforms ?? CapabilityRegistry.all[capability]!.platforms;
 }
 
 String _serviceType(Capability capability, String name) => switch (capability) {
@@ -394,15 +472,15 @@ class DartloomApp extends StatelessWidget {
 }
 ''';
 
-const bootstrap = '''import 'package:flutter/widgets.dart';
+const capabilityBootstrap = '''import 'package:flutter/widgets.dart';
 
-import '../capabilities/capabilities.dart';
-import 'app.dart';
+import 'capabilities.dart';
 
-Future<void> bootstrap() async {
+/// Dartloom-owned startup fragment. Call this from the application's main
+/// method before creating its widget tree.
+Future<void> bootstrapDartloom() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDartloom();
-  runApp(const DartloomApp());
 }
 ''';
 
@@ -416,7 +494,9 @@ This project is managed by Dartloom.
 3. Register app-owned implementations through `initializeDartloom` custom
    factories. Do not bypass or replace the generated registry wiring.
 4. Business code belongs in `lib/features`; shared app glue belongs in `lib/app`.
-5. Dartloom overwrites `lib/capabilities/capabilities.dart` and other managed files.
+5. Dartloom owns `lib/capabilities/capabilities.dart` and
+   `lib/capabilities/bootstrap.dart`. Application files, including `lib/app`
+   and ARB translations, are never overwritten by `dartloom project update`.
 
 Before finishing, run `dart format .`, `flutter analyze`, and `flutter test`.
 ''';

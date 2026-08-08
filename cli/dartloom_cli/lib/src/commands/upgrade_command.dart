@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
@@ -19,7 +18,6 @@ class UpgradeCommand {
   Future<void> run(
     Directory project, {
     required bool dryRun,
-    required bool upgradeCapabilities,
   }) async {
     final schemaVersion = await _loader.schemaVersion(project);
     final config = await _loader.loadForMigration(project);
@@ -28,13 +26,7 @@ class UpgradeCommand {
       '.github/workflows/ci.yml': ciWorkflow,
       '.github/workflows/release.yml': releaseWorkflow(config),
       'lib/capabilities/capabilities.dart': capabilityGlue(config),
-      'lib/app/bootstrap.dart': bootstrap,
-      'lib/app/app.dart': appShell(config),
-      if (config.enabledCapabilities.contains(Capability.localization)) ...{
-        'l10n.yaml': l10nYaml,
-        'lib/l10n/app_en.arb': appEnArb,
-        'lib/l10n/app_zh.arb': appZhArb,
-      },
+      'lib/capabilities/bootstrap.dart': capabilityBootstrap,
     };
     stdout.writeln('Dartloom Upgrade${dryRun ? ' (dry run)' : ''}\n');
     for (final entry in files.entries) {
@@ -48,6 +40,11 @@ class UpgradeCommand {
         stdout.writeln('Updated ${entry.key}');
       }
     }
+    stdout.writeln(
+      dryRun
+          ? 'Application startup must call lib/capabilities/bootstrap.dart.'
+          : 'Ensure the application calls bootstrapDartloom() before runApp.',
+    );
     if (schemaVersion == 1) {
       stdout.writeln(
         dryRun
@@ -75,17 +72,18 @@ class UpgradeCommand {
     }
     await pubspec.writeAsString(pubspecContent);
 
-    if (upgradeCapabilities && config.capabilities.isNotEmpty) {
-      final packages = CapabilityRegistry.packagesFor(config)
-          .map((package) => package.name)
-          .toList();
-      await runRequired(
-        runner,
-        executableFor('flutter'),
-        ['pub', 'upgrade', ...packages],
-        project,
-      );
+    if (config.enabledCapabilities.contains(Capability.localization)) {
+      await _createLocalizationScaffoldingIfMissing(project, dryRun: false);
     }
+    // Git dependencies are pinned in pubspec.lock. A plain `pub get` would
+    // retain an older Dartloom contract after this command has regenerated
+    // glue for the current API, so always resolve a fresh lockfile first.
+    await runRequired(
+      runner,
+      executableFor('flutter'),
+      ['pub', 'upgrade'],
+      project,
+    );
     if (config.enabledCapabilities.contains(Capability.localization)) {
       await runRequired(
         runner,
@@ -96,5 +94,30 @@ class UpgradeCommand {
     }
     await runRequired(runner, executableFor('dart'), ['format', '.'], project);
     await CheckCommand(runner).run(project);
+  }
+
+  Future<void> _createLocalizationScaffoldingIfMissing(
+    Directory project, {
+    required bool dryRun,
+  }) async {
+    const files = <String, String>{
+      'l10n.yaml': l10nYaml,
+      'lib/l10n/app_en.arb': appEnArb,
+      'lib/l10n/app_zh.arb': appZhArb,
+    };
+    for (final entry in files.entries) {
+      final file = File(
+        '${project.path}${Platform.pathSeparator}'
+        '${entry.key.replaceAll('/', Platform.pathSeparator)}',
+      );
+      if (await file.exists()) continue;
+      if (dryRun) {
+        stdout.writeln('Would create ${entry.key} (it is missing)');
+      } else {
+        await file.parent.create(recursive: true);
+        await file.writeAsString(entry.value);
+        stdout.writeln('Created ${entry.key} (it was missing)');
+      }
+    }
   }
 }
