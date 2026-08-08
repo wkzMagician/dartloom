@@ -90,8 +90,7 @@ Name: "{autoprograms}\\${config.app.name}"; Filename: "{app}\\${config.app.name}
     if (result.exitCode != 0) {
       throw CommandFailure(
         'Windows EXE packaging requires Inno Setup. Install Inno Setup, '
-        'add the directory containing iscc.exe to PATH, reopen the terminal, '
-        'and verify with: where iscc',
+        'add the directory containing iscc.exe to PATH, and reopen the terminal.',
       );
     }
   }

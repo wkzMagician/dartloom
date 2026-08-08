@@ -140,11 +140,7 @@ dartloom package linux rpm
 ```
 
 `dartloom package windows exe` uses Inno Setup's `iscc.exe`. Install Inno Setup
-6 and add its install directory to PATH. Open a new terminal and verify it with:
-
-```powershell
-where iscc
-```
+6 and add its install directory to PATH.
 
 The portable ZIP target does not require Inno Setup. Linux DEB/RPM packaging
 must run on Linux.
