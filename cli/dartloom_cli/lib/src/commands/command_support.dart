@@ -103,6 +103,7 @@ String rewriteDartloomDependencies(
         overrideBlock
           ..writeln('    git:')
           ..writeln('      url: $dartloomRepositoryUrl')
+          ..writeln('      ref: main')
           ..writeln('      path: ${package.path}');
       }
     }

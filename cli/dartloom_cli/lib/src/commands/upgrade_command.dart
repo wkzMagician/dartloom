@@ -78,10 +78,11 @@ class UpgradeCommand {
     // Git dependencies are pinned in pubspec.lock. A plain `pub get` would
     // retain an older Dartloom contract after this command has regenerated
     // glue for the current API, so always resolve a fresh lockfile first.
+    stdout.writeln('Refreshing latest Dartloom dependencies and lockfile...');
     await runRequired(
       runner,
       executableFor('flutter'),
-      ['pub', 'upgrade'],
+      ['--no-version-check', 'pub', 'upgrade'],
       project,
     );
     if (config.enabledCapabilities.contains(Capability.localization)) {

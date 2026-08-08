@@ -214,7 +214,10 @@ void main() {
       await legacyBootstrap.readAsString(),
       'Future<void> bootstrap() async {}',
     );
-    expect(runner.calls, contains('flutter.bat pub upgrade'));
+    expect(
+      runner.calls,
+      contains('flutter.bat --no-version-check pub upgrade'),
+    );
     expect(runner.calls.length, 5);
   });
 
@@ -341,6 +344,7 @@ void main() {
             .readAsString();
     expect(
         pubspec, contains('url: https://github.com/wkzMagician/dartloom.git'));
+    expect(pubspec, contains('ref: main'));
     expect(pubspec, isNot(contains('dartloom_localization: ^0.1.0')));
     expect(
         (await loader.load(project)).capabilitySource, CapabilitySource.github);

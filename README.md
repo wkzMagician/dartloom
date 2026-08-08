@@ -96,7 +96,9 @@ into generated Dart source. Run `dartloom project update` once to migrate a
 schema version 1 project. It only overwrites Dartloom-owned capability glue
 (`lib/capabilities`), never application widgets or existing ARB translations,
 and always runs `flutter pub upgrade` so Git dependency locks match the
-generated contract API.
+generated contract API. GitHub mode explicitly tracks Dartloom's `main`
+branch; each `dartloom project update` refreshes the lockfile to its latest
+compatible commit.
 
 Desktop-only adapters such as `resident` are registered only on supported
 desktop targets. A mixed Android/Windows application can therefore keep one
