@@ -139,7 +139,15 @@ dartloom package linux deb
 dartloom package linux rpm
 ```
 
-Windows Setup.exe uses Inno Setup. Linux DEB/RPM packaging must run on Linux.
+`dartloom package windows exe` uses Inno Setup's `iscc.exe`. Install Inno Setup
+6 and add its install directory to PATH. Open a new terminal and verify it with:
+
+```powershell
+where iscc
+```
+
+The portable ZIP target does not require Inno Setup. Linux DEB/RPM packaging
+must run on Linux.
 macOS DMG/PKG, iOS IPA, Android installer packaging, and web installers are not
 currently supported. This installer limitation is separate from capability
 platform support.

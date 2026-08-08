@@ -54,6 +54,7 @@ class PackageCommand {
 
   Future<void> _packageWindowsExe(
       Directory project, DartloomConfig config) async {
+    await _ensureInnoSetup();
     await _checkAndBuild(project, ['windows']);
     final version = await _version(project);
     final release = Directory(
@@ -82,6 +83,17 @@ Name: "{autoprograms}\\${config.app.name}"; Filename: "{app}\\${config.app.name}
     await runRequired(runner, 'iscc', [script.path], project);
     stdout
         .writeln('Created ${dist.path}${Platform.pathSeparator}$baseName.exe');
+  }
+
+  Future<void> _ensureInnoSetup() async {
+    final result = await Process.run('where.exe', ['iscc'], runInShell: false);
+    if (result.exitCode != 0) {
+      throw CommandFailure(
+        'Windows EXE packaging requires Inno Setup. Install Inno Setup, '
+        'add the directory containing iscc.exe to PATH, reopen the terminal, '
+        'and verify with: where iscc',
+      );
+    }
   }
 
   Future<void> _packageWindowsMsix(

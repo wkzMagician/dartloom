@@ -202,7 +202,7 @@ Dependency source:
   source pub       Resolve enabled capabilities from pub.dev (release).
 
 Package targets:
-  package windows exe   Windows Setup.exe (requires Inno Setup).
+  package windows exe   Windows Setup.exe (requires Inno Setup/iscc.exe on PATH).
   package windows zip   Portable Windows ZIP.
   package windows msix  Windows MSIX (requires the msix dev dependency).
   package linux deb     Debian/Ubuntu package (Linux host required).
