@@ -21,10 +21,21 @@ extension TargetPlatformName on TargetPlatform {
 class AppConfig {
   const AppConfig({
     required this.name,
+    String? packageName,
     required this.organization,
     required this.description,
-  });
+  }) : _packageName = packageName;
+
+  /// Dart package name and generated executable name.
   final String name;
+
+  /// Distribution package and launcher name.
+  ///
+  /// Existing configurations default to the Debian-compatible spelling of
+  /// [name], so `mini_todo` becomes `mini-todo` without a schema migration.
+  String get packageName => _packageName ?? name.replaceAll('_', '-');
+  final String? _packageName;
+
   final String organization;
   final String description;
 }
@@ -122,6 +133,7 @@ class DartloomConfig {
       ..writeln()
       ..writeln('app:')
       ..writeln('  name: ${_scalar(app.name)}')
+      ..writeln('  package_name: ${_scalar(app.packageName)}')
       ..writeln('  organization: ${_scalar(app.organization)}')
       ..writeln('  description: ${_scalar(app.description)}')
       ..writeln()
@@ -138,6 +150,7 @@ class DartloomConfig {
         ..write('schema_version: 2\n\n')
         ..write('app:\n')
         ..write('  name: ${_scalar(app.name)}\n')
+        ..write('  package_name: ${_scalar(app.packageName)}\n')
         ..write('  organization: ${_scalar(app.organization)}\n')
         ..write('  description: ${_scalar(app.description)}\n\n')
         ..write('platforms:\n');

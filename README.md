@@ -31,6 +31,17 @@ dartloom cap add localization
 dartloom cap remove localization
 ```
 
+Hyphenated distribution names are supported. Dartloom keeps the output and
+package name separate from the Dart identifier, so `dartloom new mini-todo`
+creates the `mini-todo/` directory with Dart project name `mini_todo` and
+distribution package name `mini-todo`.
+
+```yaml
+app:
+  name: mini_todo
+  package_name: mini-todo
+```
+
 `dartloom cap` is a keyboard-driven terminal editor. Use Up/Down to move,
 Space to enable or disable, Enter to edit implementations and options, and the
 Save row to apply the complete dependency change once.

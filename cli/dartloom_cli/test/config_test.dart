@@ -10,7 +10,10 @@ void main() {
     addTearDown(() => directory.delete(recursive: true));
     final config = DartloomConfig(
       app: const AppConfig(
-          name: 'demo', organization: 'com.example', description: 'Demo'),
+          name: 'demo_app',
+          packageName: 'demo-app',
+          organization: 'com.example',
+          description: 'Demo'),
       platforms: {TargetPlatform.android, TargetPlatform.windows},
       capabilities: _caps({Capability.logging, Capability.storage}),
       capabilitySource: CapabilitySource.pub,
@@ -18,7 +21,8 @@ void main() {
     final loader = const ConfigLoader();
     await loader.save(directory, config);
     final loaded = await loader.load(directory);
-    expect(loaded.app.name, 'demo');
+    expect(loaded.app.name, 'demo_app');
+    expect(loaded.app.packageName, 'demo-app');
     expect(loaded.platforms, config.platforms);
     expect(loaded.capabilities, config.capabilities);
     expect(loaded.capabilitySource, CapabilitySource.pub);
@@ -32,6 +36,26 @@ void main() {
         .writeAsString('schema_version: 3');
     expect(() => const ConfigLoader().load(directory),
         throwsA(isA<ConfigException>()));
+  });
+
+  test('derives a package name for existing configurations', () async {
+    final directory =
+        await Directory.systemTemp.createTemp('dartloom_legacy_name_test');
+    addTearDown(() => directory.delete(recursive: true));
+    await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
+        .writeAsString('''schema_version: 2
+app:
+  name: mini_todo
+  organization: com.example
+platforms:
+  linux: true
+capabilities: {}
+''');
+
+    final loaded = await const ConfigLoader().load(directory);
+
+    expect(loaded.app.name, 'mini_todo');
+    expect(loaded.app.packageName, 'mini-todo');
   });
 
   test('migrates schema 1 defaults once for project update', () async {

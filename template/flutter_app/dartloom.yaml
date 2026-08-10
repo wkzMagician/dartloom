@@ -2,6 +2,7 @@ schema_version: 2
 
 app:
   name: example_app
+  package_name: example-app
   organization: com.example
   description: Dartloom application
 

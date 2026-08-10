@@ -60,15 +60,15 @@ class PackageCommand {
     final release = Directory(
         '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}windows${Platform.pathSeparator}x64${Platform.pathSeparator}runner${Platform.pathSeparator}Release');
     final dist = await _dist(project);
-    final baseName = '${config.app.name}-$version-windows-x64-setup';
+    final baseName = '${config.app.packageName}-$version-windows-x64-setup';
     final script = File(
         '${project.path}${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}dartloom${Platform.pathSeparator}windows.iss');
     await script.parent.create(recursive: true);
     await script.writeAsString('''[Setup]
-AppName=${config.app.name}
+AppName=${config.app.packageName}
 AppVersion=$version
-DefaultDirName={autopf}\\${config.app.name}
-DefaultGroupName=${config.app.name}
+DefaultDirName={autopf}\\${config.app.packageName}
+DefaultGroupName=${config.app.packageName}
 OutputDir=${dist.path.replaceAll('\\', '/')}
 OutputBaseFilename=$baseName
 Compression=lzma
@@ -78,7 +78,7 @@ SolidCompression=yes
 Source: "${release.path.replaceAll('\\', '/')}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\\${config.app.name}"; Filename: "{app}\\${config.app.name}.exe"
+Name: "{autoprograms}\\${config.app.packageName}"; Filename: "{app}\\${config.app.name}.exe"
 ''');
     await runRequired(runner, 'iscc', [script.path], project);
     stdout
@@ -101,7 +101,7 @@ Name: "{autoprograms}\\${config.app.name}"; Filename: "{app}\\${config.app.name}
     await _checkAndBuild(project, ['windows']);
     final version = await _version(project);
     final dist = await _dist(project);
-    final baseName = '${config.app.name}-$version-windows-x64';
+    final baseName = '${config.app.packageName}-$version-windows-x64';
     await runRequired(
       runner,
       executableFor('dart'),
@@ -139,22 +139,27 @@ Name: "{autoprograms}\\${config.app.name}"; Filename: "{app}\\${config.app.name}
       Directory project, DartloomConfig config) async {
     await _checkAndBuild(project, ['linux']);
     final version = await _version(project);
-    final stage = await _linuxStage(project, config.app.name, version);
+    final stage = await _linuxStage(
+      project,
+      binaryName: config.app.name,
+      packageName: config.app.packageName,
+      version: version,
+    );
     final dist = await _dist(project);
     final control = Directory('${stage.path}${Platform.pathSeparator}DEBIAN');
     await control.create(recursive: true);
     await File('${control.path}${Platform.pathSeparator}control')
-        .writeAsString('''Package: ${config.app.name}
+        .writeAsString('''Package: ${config.app.packageName}
 Version: $version
 Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: ${config.app.organization}
 Depends: libgtk-3-0
-Description: ${config.app.description.isEmpty ? config.app.name : config.app.description}
+Description: ${config.app.description.isEmpty ? config.app.packageName : config.app.description}
 ''');
     final output = File(
-        '${dist.path}${Platform.pathSeparator}${config.app.name}-$version-linux-amd64.deb');
+        '${dist.path}${Platform.pathSeparator}${config.app.packageName}-$version-linux-amd64.deb');
     await runRequired(runner, 'dpkg-deb',
         ['--build', '--root-owner-group', stage.path, output.path], project);
     stdout.writeln('Created ${output.path}');
@@ -164,31 +169,36 @@ Description: ${config.app.description.isEmpty ? config.app.name : config.app.des
       Directory project, DartloomConfig config) async {
     await _checkAndBuild(project, ['linux']);
     final version = await _version(project);
-    final stage = await _linuxStage(project, config.app.name, version);
+    final stage = await _linuxStage(
+      project,
+      binaryName: config.app.name,
+      packageName: config.app.packageName,
+      version: version,
+    );
     final root = Directory(
         '${project.path}${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}dartloom${Platform.pathSeparator}rpmbuild');
     final sources = Directory('${root.path}${Platform.pathSeparator}SOURCES');
     final specs = Directory('${root.path}${Platform.pathSeparator}SPECS');
     await sources.create(recursive: true);
     await specs.create(recursive: true);
-    final archiveName = '${config.app.name}-$version';
+    final archiveName = '${config.app.packageName}-$version';
     final source =
         File('${sources.path}${Platform.pathSeparator}$archiveName.tar.gz');
     final stageName = stage.path.split(Platform.pathSeparator).last;
     await runRequired(runner, 'tar',
         ['-czf', source.path, '-C', stage.parent.path, stageName], project);
-    final spec =
-        File('${specs.path}${Platform.pathSeparator}${config.app.name}.spec');
-    await spec.writeAsString('''Name: ${config.app.name}
+    final spec = File(
+        '${specs.path}${Platform.pathSeparator}${config.app.packageName}.spec');
+    await spec.writeAsString('''Name: ${config.app.packageName}
 Version: $version
 Release: 1%{?dist}
-Summary: ${config.app.description.isEmpty ? config.app.name : config.app.description}
+Summary: ${config.app.description.isEmpty ? config.app.packageName : config.app.description}
 License: Proprietary
 Requires: gtk3
 Source0: $archiveName.tar.gz
 
 %description
-${config.app.description.isEmpty ? config.app.name : config.app.description}
+${config.app.description.isEmpty ? config.app.packageName : config.app.description}
 
 %prep
 %setup -q
@@ -198,15 +208,15 @@ mkdir -p %{buildroot}
 cp -a usr %{buildroot}/
 
 %files
-/usr/lib/${config.app.name}
-/usr/bin/${config.app.name}
+/usr/lib/${config.app.packageName}
+/usr/bin/${config.app.packageName}
 ''');
     await runRequired(runner, 'rpmbuild',
         ['--define', '_topdir ${root.path}', '-bb', spec.path], project);
     final rpm = await _firstFile(root, '.rpm');
     final dist = await _dist(project);
     final output = await _packager.copyFile(
-        rpm, dist, '${config.app.name}-$version-linux-x86_64.rpm');
+        rpm, dist, '${config.app.packageName}-$version-linux-x86_64.rpm');
     stdout.writeln('Created ${output.path}');
   }
 
@@ -218,20 +228,26 @@ cp -a usr %{buildroot}/
   }
 
   Future<Directory> _linuxStage(
-      Directory project, String app, String version) async {
+    Directory project, {
+    required String binaryName,
+    required String packageName,
+    required String version,
+  }) async {
     final root = Directory(
-        '${project.path}${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}dartloom${Platform.pathSeparator}packages${Platform.pathSeparator}$app-$version');
+        '${project.path}${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}dartloom${Platform.pathSeparator}packages${Platform.pathSeparator}$packageName-$version');
     if (await root.exists()) await root.delete(recursive: true);
     final bundle = Directory(
         '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}linux${Platform.pathSeparator}x64${Platform.pathSeparator}release${Platform.pathSeparator}bundle');
     final appDirectory = Directory(
-        '${root.path}${Platform.pathSeparator}usr${Platform.pathSeparator}lib${Platform.pathSeparator}$app');
+        '${root.path}${Platform.pathSeparator}usr${Platform.pathSeparator}lib${Platform.pathSeparator}$packageName');
     await _copyDirectory(bundle, appDirectory);
     final bin = Directory(
         '${root.path}${Platform.pathSeparator}usr${Platform.pathSeparator}bin');
     await bin.create(recursive: true);
-    final launcher = File('${bin.path}${Platform.pathSeparator}$app');
-    await launcher.writeAsString('#!/bin/sh\nexec /usr/lib/$app/$app "\$@"\n');
+    final launcher = File('${bin.path}${Platform.pathSeparator}$packageName');
+    await launcher.writeAsString(
+      '#!/bin/sh\nexec /usr/lib/$packageName/$binaryName "\$@"\n',
+    );
     await runRequired(runner, 'chmod', ['755', launcher.path], project);
     return root;
   }

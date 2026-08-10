@@ -4,6 +4,8 @@
 
 - Track the Dartloom `main` branch for GitHub capability dependencies and
   refresh dependency locks during project updates.
+- Separate Dart project identifiers from distribution package and launcher
+  names, including support for `dartloom new mini-todo`.
 
 ## 0.2.1
 

@@ -151,6 +151,7 @@ class ConfigLoader {
     final platforms = root['platforms'];
     if (app is! YamlMap ||
         app['name'] is! String ||
+        (app['package_name'] != null && app['package_name'] is! String) ||
         app['organization'] is! String ||
         platforms is! YamlMap) {
       throw ConfigException('app and platforms sections are invalid.');
@@ -158,6 +159,7 @@ class ConfigLoader {
     return (
       AppConfig(
         name: app['name'] as String,
+        packageName: app['package_name'] as String?,
         organization: app['organization'] as String,
         description: app['description'] as String? ?? '',
       ),
@@ -168,6 +170,18 @@ class ConfigLoader {
   }
 
   void _validate(DartloomConfig config) {
+    if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(config.app.name)) {
+      throw ConfigException(
+        'app.name must be a valid Dart package name using lowercase letters, '
+        'digits, and underscores.',
+      );
+    }
+    if (!RegExp(r'^[a-z0-9][a-z0-9+.-]+$').hasMatch(config.app.packageName)) {
+      throw ConfigException(
+        'app.package_name must be at least two characters and contain only '
+        'lowercase letters, digits, plus, minus, and periods.',
+      );
+    }
     final storage = config.capabilities[Capability.storage] ?? const {};
     for (final name in storage.keys) {
       if (!const {'text', 'json', 'database'}.contains(name)) {

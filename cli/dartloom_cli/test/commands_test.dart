@@ -5,6 +5,7 @@ import 'package:dartloom/src/commands/capability_manager.dart';
 import 'package:dartloom/src/commands/command_support.dart';
 import 'package:dartloom/src/commands/doctor_command.dart';
 import 'package:dartloom/src/commands/new_command.dart';
+import 'package:dartloom/src/commands/package_command.dart';
 import 'package:dartloom/src/commands/remove_command.dart';
 import 'package:dartloom/src/commands/self_upgrade_command.dart';
 import 'package:dartloom/src/commands/upgrade_command.dart';
@@ -24,11 +25,25 @@ class FakeRunner implements ProcessRunner {
     if (arguments.isNotEmpty && arguments.first == 'create') {
       final project = Directory(
           '$workingDirectory${Platform.pathSeparator}${arguments.last}');
+      final projectName = arguments
+          .where((argument) => argument.startsWith('--project-name='))
+          .single
+          .substring('--project-name='.length);
       await project.create();
       await Directory('${project.path}${Platform.pathSeparator}test').create();
       await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
           .writeAsString(
-              'name: ${arguments.last}\r\ndependencies:\r\n  flutter:\r\n    sdk: flutter\r\n');
+              'name: $projectName\r\ndependencies:\r\n  flutter:\r\n    sdk: flutter\r\n');
+    }
+    if (arguments.length >= 2 &&
+        arguments.first == 'build' &&
+        arguments[1] == 'linux') {
+      final bundle = Directory(
+        '$workingDirectory${Platform.pathSeparator}build${Platform.pathSeparator}linux${Platform.pathSeparator}x64${Platform.pathSeparator}release${Platform.pathSeparator}bundle',
+      );
+      await bundle.create(recursive: true);
+      await File('${bundle.path}${Platform.pathSeparator}mini_todo')
+          .writeAsString('binary');
     }
     return const ProcessResultData(0, '', '');
   }
@@ -41,6 +56,32 @@ class FakeRunner implements ProcessRunner {
 }
 
 void main() {
+  test('new separates a hyphenated package name from the Dart project name',
+      () async {
+    final parent =
+        await Directory.systemTemp.createTemp('dartloom_hyphen_name_test');
+    addTearDown(() => parent.delete(recursive: true));
+    final runner = FakeRunner();
+
+    await NewCommand(runner).run(
+      parent: parent,
+      name: 'mini-todo',
+      organization: 'com.example',
+      platforms: {TargetPlatform.linux},
+      capabilities: {Capability.settings},
+    );
+
+    expect(
+      runner.calls.first,
+      contains('--project-name=mini_todo --platforms=linux mini-todo'),
+    );
+    final config = await const ConfigLoader().load(
+      Directory('${parent.path}${Platform.pathSeparator}mini-todo'),
+    );
+    expect(config.app.name, 'mini_todo');
+    expect(config.app.packageName, 'mini-todo');
+  });
+
   test('new writes managed files and local capability dependencies', () async {
     final root = Directory.current.parent.parent;
     final name = 'dartloom_test_${DateTime.now().microsecondsSinceEpoch}';
@@ -80,6 +121,47 @@ void main() {
       contains('localizationsDelegates: dartloomLocalizationsDelegates'),
     );
   });
+
+  test(
+    'linux package uses a hyphenated package and launcher name',
+    () async {
+      final project =
+          await Directory.systemTemp.createTemp('dartloom_linux_package_test');
+      addTearDown(() => project.delete(recursive: true));
+      await const ConfigLoader().save(
+        project,
+        DartloomConfig(
+          app: const AppConfig(
+            name: 'mini_todo',
+            packageName: 'mini-todo',
+            organization: 'com.example',
+            description: 'Mini Todo',
+          ),
+          platforms: {TargetPlatform.linux},
+          capabilities: {},
+        ),
+      );
+      await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+          .writeAsString('name: mini_todo\nversion: 1.0.0+1\n');
+      final runner = FakeRunner();
+
+      await PackageCommand(runner).run(project, 'linux', 'deb');
+
+      final stage = Directory(
+        '${project.path}${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}dartloom${Platform.pathSeparator}packages${Platform.pathSeparator}mini-todo-1.0.0',
+      );
+      final control = await File(
+        '${stage.path}${Platform.pathSeparator}DEBIAN${Platform.pathSeparator}control',
+      ).readAsString();
+      final launcher = await File(
+        '${stage.path}${Platform.pathSeparator}usr${Platform.pathSeparator}bin${Platform.pathSeparator}mini-todo',
+      ).readAsString();
+      expect(control, contains('Package: mini-todo'));
+      expect(launcher, contains('/usr/lib/mini-todo/mini_todo'));
+      expect(runner.calls.last, contains('mini-todo-1.0.0-linux-amd64.deb'));
+    },
+    skip: !Platform.isLinux,
+  );
 
   test('adding an already enabled capability is idempotent', () async {
     final project = await Directory.systemTemp.createTemp('dartloom_add_test');

@@ -37,13 +37,19 @@ class BuildCommand {
             .readAsString());
     final dist = Directory('${project.path}${Platform.pathSeparator}dist');
     for (final target in targets) {
-      await _buildOne(project, dist, config.app.name, version, target.platform);
+      await _buildOne(
+        project,
+        dist,
+        config.app.packageName,
+        version,
+        target.platform,
+      );
     }
   }
 
-  Future<void> _buildOne(Directory project, Directory dist, String app,
+  Future<void> _buildOne(Directory project, Directory dist, String packageName,
       String version, TargetPlatform platform) async {
-    final base = '$app-$version-${platform.name}';
+    final base = '$packageName-$version-${platform.name}';
     switch (platform) {
       case TargetPlatform.android:
         await runRequired(runner, executableFor('flutter'),

@@ -20,10 +20,12 @@ class NewCommand {
       required Set<TargetPlatform> platforms,
       required Set<Capability> capabilities,
       CapabilitySource capabilitySource = CapabilitySource.github}) async {
-    if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
+    if (!RegExp(r'^[a-z][a-z0-9_-]*$').hasMatch(name)) {
       throw CommandFailure(
-          'Invalid app name "$name". Use lowercase letters, digits, and underscores.');
+          'Invalid app name "$name". Use lowercase letters, digits, hyphens, and underscores.');
     }
+    final projectName = name.replaceAll('-', '_');
+    final packageName = name.replaceAll('_', '-');
     final project = Directory('${parent.path}${Platform.pathSeparator}$name');
     if (await project.exists()) {
       throw CommandFailure('Target directory already exists: ${project.path}');
@@ -36,6 +38,7 @@ class NewCommand {
           'create',
           '--org',
           organization,
+          '--project-name=$projectName',
           '--platforms=$flutterPlatforms',
           name
         ],
@@ -53,9 +56,10 @@ class NewCommand {
     }
     final config = DartloomConfig(
         app: AppConfig(
-            name: name,
+            name: projectName,
+            packageName: packageName,
             organization: organization,
-            description: '$name application'),
+            description: '$packageName application'),
         platforms: platforms,
         capabilities: configuredCapabilities,
         capabilitySource: capabilitySource);
