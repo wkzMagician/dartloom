@@ -495,7 +495,28 @@ Future<void> bootstrapDartloom() async {
 }
 ''';
 
-const agentInstructions = '''# Agent Instructions
+String agentInstructions(DartloomConfig config) {
+  final projectPlatforms = _platformList(config.platforms);
+  final rows = <String>[];
+  for (final capability in Capability.values) {
+    final instances = config.capabilities[capability] ?? const {};
+    for (final entry in instances.entries) {
+      final instance = entry.value;
+      final effectivePlatforms = _supportedPlatforms(
+        capability,
+        instance,
+      ).intersection(config.platforms);
+      rows.add(
+        '| `${capability.name}.${entry.key}` | '
+        '`${CapabilityRegistry.all[capability]!.contractPackage}` | '
+        '`${instance.implementation}` | ${_platformList(effectivePlatforms)} |',
+      );
+    }
+  }
+  final capabilityRows =
+      rows.isEmpty ? '| None | - | - | - |' : rows.join('\n');
+
+  return '''# Agent Instructions
 
 This project is managed by Dartloom.
 
@@ -509,8 +530,29 @@ This project is managed by Dartloom.
    `lib/capabilities/bootstrap.dart`. Application files, including `lib/app`
    and ARB translations, are never overwritten by `dartloom project update`.
 
+## Capability platform support
+
+Enabled project targets: $projectPlatforms.
+
+Generated registration is platform-aware. Treat a capability as optional when
+the current target is not listed below, and use `Dartloom.maybeGet<T>()` for
+optional feature UI instead of duplicating operating-system checks.
+
+| Capability instance | Contract package | Implementation | Project targets |
+| --- | --- | --- | --- |
+$capabilityRows
+
 Before finishing, run `dart format .`, `flutter analyze`, and `flutter test`.
 ''';
+}
+
+String _platformList(Set<TargetPlatform> platforms) {
+  final names = TargetPlatform.values
+      .where(platforms.contains)
+      .map((platform) => platform.name)
+      .join(', ');
+  return names.isEmpty ? 'none' : names;
+}
 
 const ciWorkflow = '''name: CI
 on: [push, pull_request]

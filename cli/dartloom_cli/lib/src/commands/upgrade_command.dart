@@ -22,7 +22,7 @@ class UpgradeCommand {
     final schemaVersion = await _loader.schemaVersion(project);
     final config = await _loader.loadForMigration(project);
     final files = <String, String>{
-      'AGENTS.md': agentInstructions,
+      'AGENTS.md': agentInstructions(config),
       '.github/workflows/ci.yml': ciWorkflow,
       '.github/workflows/release.yml': releaseWorkflow(config),
       'lib/capabilities/capabilities.dart': capabilityGlue(config),
