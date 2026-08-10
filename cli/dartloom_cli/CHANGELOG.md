@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Track the Dartloom `main` branch for GitHub capability dependencies and
+  refresh dependency locks during project updates.
+
 ## 0.2.1
 
 - Refresh Dartloom Git/package locks during project updates.

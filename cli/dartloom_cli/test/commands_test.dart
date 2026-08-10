@@ -216,7 +216,7 @@ void main() {
     );
     expect(
       runner.calls,
-      contains('flutter.bat --no-version-check pub upgrade'),
+      contains('${executableFor('flutter')} --no-version-check pub upgrade'),
     );
     expect(runner.calls.length, 5);
   });
