@@ -382,6 +382,24 @@ void main() {
     );
   });
 
+  test('generated registrations honor instance target platforms', () {
+    final config = DartloomConfig(
+      app: const AppConfig(
+          name: 'demo', organization: 'com.example', description: ''),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: const {
+        Capability.logging: {
+          'default': CapabilityInstanceConfig(
+            implementation: 'logger',
+            platforms: {TargetPlatform.android},
+          ),
+        },
+      },
+    );
+
+    expect(capabilityGlue(config), contains('const {"android"}'));
+  });
+
   test('self-upgrade schedules a detached install', () async {
     final runner = FakeRunner();
     await SelfUpgradeCommand(runner).run(Directory.current);

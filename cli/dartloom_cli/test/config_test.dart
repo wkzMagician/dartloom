@@ -121,6 +121,38 @@ capabilities:
     expect(loaded.capabilities, config.capabilities);
   });
 
+  test('preserves per-instance target platforms', () async {
+    final directory =
+        await Directory.systemTemp.createTemp('dartloom_platforms_test');
+    addTearDown(() => directory.delete(recursive: true));
+    final config = DartloomConfig(
+      app: const AppConfig(
+        name: 'demo',
+        organization: 'com.example',
+        description: '',
+      ),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: const {
+        Capability.autostart: {
+          'default': CapabilityInstanceConfig(
+            implementation: 'launch_at_startup',
+            platforms: {TargetPlatform.windows},
+          ),
+        },
+      },
+    );
+
+    const loader = ConfigLoader();
+    await loader.save(directory, config);
+    final loaded = await loader.load(directory);
+
+    expect(loaded.capabilities, config.capabilities);
+    expect(
+        await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
+            .readAsString(),
+        contains('platforms:\n          - "windows"'));
+  });
+
   test('rejects unknown implementations and unsupported platforms', () async {
     final directory =
         await Directory.systemTemp.createTemp('dartloom_bad_test');

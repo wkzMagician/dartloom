@@ -83,6 +83,10 @@ class ConfigLoader {
         instances[name] = CapabilityInstanceConfig(
           implementation: implementation,
           factory: value['factory'] as String?,
+          platforms: _platformSet(
+            value['platforms'],
+            context: '${capability.name}.$name.platforms',
+          ),
           options: _stringMap(value['options']),
           dependsOn: _stringList(value['depends_on'], name: 'depends_on'),
           stores: _stringList(value['stores']),
@@ -264,6 +268,27 @@ class ConfigLoader {
       throw ConfigException('$name must be a string list.');
     }
     return value.cast<String>().toList();
+  }
+
+  Set<TargetPlatform>? _platformSet(
+    Object? value, {
+    required String context,
+  }) {
+    if (value == null) return null;
+    if (value is! YamlList ||
+        value.isEmpty ||
+        value.any((item) => item is! String)) {
+      throw ConfigException('$context must be a non-empty platform list.');
+    }
+    final result = <TargetPlatform>{};
+    for (final item in value.cast<String>()) {
+      try {
+        result.add(TargetPlatform.values.byName(item));
+      } on ArgumentError {
+        throw ConfigException('$context contains unknown platform $item.');
+      }
+    }
+    return result;
   }
 
   CapabilitySource _capabilitySource(Object? sources) {

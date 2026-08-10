@@ -393,7 +393,10 @@ Set<TargetPlatform> _supportedPlatforms(
     capability,
     instance.implementation,
   );
-  return adapter?.platforms ?? CapabilityRegistry.all[capability]!.platforms;
+  final supported =
+      adapter?.platforms ?? CapabilityRegistry.all[capability]!.platforms;
+  final configured = instance.platforms;
+  return configured == null ? supported : supported.intersection(configured);
 }
 
 String _serviceType(Capability capability, String name) => switch (capability) {

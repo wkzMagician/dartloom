@@ -58,6 +58,7 @@ class CapabilityInstanceConfig {
   const CapabilityInstanceConfig({
     required this.implementation,
     this.factory,
+    this.platforms,
     this.options = const {},
     this.dependsOn = const [],
     this.stores = const [],
@@ -67,6 +68,7 @@ class CapabilityInstanceConfig {
 
   final String implementation;
   final String? factory;
+  final Set<TargetPlatform>? platforms;
   final Map<String, Object?> options;
   final List<String> dependsOn;
   final List<String> stores;
@@ -78,6 +80,7 @@ class CapabilityInstanceConfig {
       other is CapabilityInstanceConfig &&
       other.implementation == implementation &&
       other.factory == factory &&
+      _setEquals(other.platforms, platforms) &&
       _mapEquals(other.options, options) &&
       _listEquals(other.dependsOn, dependsOn) &&
       _listEquals(other.stores, stores) &&
@@ -87,6 +90,7 @@ class CapabilityInstanceConfig {
   int get hashCode => Object.hash(
         implementation,
         factory,
+        platforms == null ? null : Object.hashAllUnordered(platforms!),
         _mapHash(options),
         Object.hashAll(dependsOn),
         Object.hashAll(stores),
@@ -173,6 +177,14 @@ class DartloomConfig {
               '        implementation: ${_scalar(instance.implementation)}');
         if (instance.factory != null) {
           buffer.writeln('        factory: ${_scalar(instance.factory!)}');
+        }
+        if (instance.platforms case final platforms?) {
+          buffer.writeln('        platforms:');
+          for (final platform in TargetPlatform.values) {
+            if (platforms.contains(platform)) {
+              buffer.writeln('          - ${_scalar(platform.name)}');
+            }
+          }
         }
         _writeMap(buffer, '        ', 'options', instance.options);
         if (instance.dependsOn.isNotEmpty) {
@@ -294,6 +306,12 @@ bool _listEquals(List<Object?> a, List<Object?> b) {
     if (!_valueEquals(a[index], b[index])) return false;
   }
   return true;
+}
+
+bool _setEquals(Set<Object?>? a, Set<Object?>? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null || a.length != b.length) return false;
+  return a.containsAll(b);
 }
 
 bool _valueEquals(Object? a, Object? b) {

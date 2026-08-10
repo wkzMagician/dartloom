@@ -89,6 +89,11 @@ capabilities:
         implementation: json_file
         options:
           path: dartloom/data.json
+  autostart:
+    instances:
+      default:
+        implementation: launch_at_startup
+        platforms: [windows, macos, linux]
   sync:
     instances:
       default:
@@ -113,8 +118,10 @@ compatible commit.
 
 Desktop-only adapters such as `resident` are registered only on supported
 desktop targets. A mixed Android/Windows application can therefore keep one
-configuration without initializing a tray adapter on Android. Configure the
-resident menu, click actions, and exit callback through the contract:
+configuration without initializing a tray adapter on Android. An instance-level
+`platforms` list can narrow registration further, and optional UI can use
+`Dartloom.maybeGet<T>()` instead of repeating operating-system checks.
+Configure the resident menu, click actions, and exit callback through the contract:
 
 ```dart
 final resident = Dartloom.get<ResidentService>();

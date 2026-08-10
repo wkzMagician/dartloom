@@ -249,6 +249,16 @@ abstract final class CapabilityRegistry {
       }
       for (final instanceEntry in capabilityEntry.value.entries) {
         final instance = instanceEntry.value;
+        final configuredPlatforms = instance.platforms;
+        if (configuredPlatforms != null) {
+          final outsideApp = configuredPlatforms.difference(config.platforms);
+          if (outsideApp.isNotEmpty) {
+            errors.add(
+              '${capabilityEntry.key.name}.${instanceEntry.key} configures disabled app platforms: '
+              '${outsideApp.map((platform) => platform.name).join(', ')}.',
+            );
+          }
+        }
         if (instance.implementation == 'custom') {
           if (instance.factory == null || instance.factory!.isEmpty) {
             errors.add(
@@ -266,6 +276,18 @@ abstract final class CapabilityRegistry {
             '${capabilityEntry.key.name}.${instanceEntry.key} has unknown implementation ${instance.implementation}.',
           );
           continue;
+        }
+        if (configuredPlatforms != null) {
+          final unsupported = configuredPlatforms.difference(
+            adapter.platforms ?? metadata.platforms,
+          );
+          if (unsupported.isNotEmpty) {
+            errors.add(
+              '${capabilityEntry.key.name}.${instanceEntry.key} implementation '
+              '${instance.implementation} does not support: '
+              '${unsupported.map((platform) => platform.name).join(', ')}.',
+            );
+          }
         }
         if (adapter.instanceNames != null &&
             !adapter.instanceNames!.contains(instanceEntry.key)) {
