@@ -376,6 +376,10 @@ void main() {
       contains('const {"windows", "macos", "linux"}'),
     );
     expect(glue, contains('TrayResidentService'));
+    expect(
+      glue,
+      contains("linuxIconPath: context.options['icon_path_linux']"),
+    );
   });
 
   test('self-upgrade schedules a detached install', () async {

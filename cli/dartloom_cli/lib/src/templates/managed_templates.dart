@@ -261,8 +261,16 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
   if (_uses(instances, Capability.resident, 'tray')) {
     buffer
       ..writeln("    'tray': (context) async {")
+      ..writeln('      final value = TrayResidentService(')
       ..writeln(
-          "      final value = TrayResidentService(tooltip: context.options['tooltip'] as String? ?? 'Dartloom application');")
+          "        tooltip: context.options['tooltip'] as String? ?? 'Dartloom application',")
+      ..writeln(
+          "        linuxIconPath: context.options['icon_path_linux'] as String?,")
+      ..writeln(
+          "        macosIconPath: context.options['icon_path_macos'] as String?,")
+      ..writeln(
+          "        windowsIconPath: context.options['icon_path_windows'] as String?,")
+      ..writeln('      );')
       ..writeln(
           "      await value.initialize(iconPath: context.options['icon_path'] as String, configuration: _dartloomResidentConfiguration(context.options));")
       ..writeln(

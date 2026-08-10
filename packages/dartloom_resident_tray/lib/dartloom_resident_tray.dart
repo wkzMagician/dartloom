@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dartloom_resident/dartloom_resident.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -8,9 +9,17 @@ import 'package:window_manager/window_manager.dart';
 final class TrayResidentService
     with WindowListener, TrayListener
     implements ResidentService {
-  TrayResidentService({this.tooltip = 'Dartloom application'});
+  TrayResidentService({
+    this.tooltip = 'Dartloom application',
+    this.linuxIconPath,
+    this.macosIconPath,
+    this.windowsIconPath,
+  });
 
   final String tooltip;
+  final String? linuxIconPath;
+  final String? macosIconPath;
+  final String? windowsIconPath;
   bool _initialized = false;
   ResidentConfiguration _configuration = const ResidentConfiguration();
 
@@ -28,8 +37,10 @@ final class TrayResidentService
     await windowManager.setPreventClose(true);
     windowManager.addListener(this);
     trayManager.addListener(this);
-    await trayManager.setToolTip(tooltip);
-    await trayManager.setIcon(iconPath);
+    await trayManager.setIcon(_iconPathForCurrentPlatform(iconPath));
+    if (defaultTargetPlatform != TargetPlatform.linux) {
+      await trayManager.setToolTip(tooltip);
+    }
     _initialized = true;
     await configure(configuration);
   }
@@ -96,10 +107,10 @@ final class TrayResidentService
   }
 
   Future<void> _handleClick(ResidentClickAction action) => switch (action) {
-        ResidentClickAction.restore => restore(),
-        ResidentClickAction.showMenu => trayManager.popUpContextMenu(),
-        ResidentClickAction.ignore => Future<void>.value(),
-      };
+    ResidentClickAction.restore => restore(),
+    ResidentClickAction.showMenu => trayManager.popUpContextMenu(),
+    ResidentClickAction.ignore => Future<void>.value(),
+  };
 
   Future<void> _handleMenuSelection(String id) async {
     if (id == _configuration.exitMenuItemId) {
@@ -108,4 +119,12 @@ final class TrayResidentService
     }
     await _configuration.onMenuSelected?.call(id);
   }
+
+  String _iconPathForCurrentPlatform(String fallback) =>
+      switch (defaultTargetPlatform) {
+        TargetPlatform.linux => linuxIconPath ?? fallback,
+        TargetPlatform.macOS => macosIconPath ?? fallback,
+        TargetPlatform.windows => windowsIconPath ?? fallback,
+        _ => fallback,
+      };
 }

@@ -220,7 +220,7 @@ abstract final class CapabilityRegistry {
     const versions = <String, String>{
       'dartloom_runtime': '^0.1.0',
       'dartloom_resident': '^0.3.0',
-      'dartloom_resident_tray': '^0.2.0',
+      'dartloom_resident_tray': '^0.2.1',
     };
     final version = versions[name] ??
         (all.values.any((value) => value.contractPackage == name)
