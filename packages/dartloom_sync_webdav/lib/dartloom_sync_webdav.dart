@@ -74,14 +74,16 @@ final class WebDavObjectStore implements RemoteObjectStore {
           ?.innerText;
       final isCollection =
           node.findAllElements('collection', namespace: 'DAV:').isNotEmpty;
-      if (href == null || etag == null || etag.isEmpty || isCollection)
+      if (href == null || etag == null || etag.isEmpty || isCollection) {
         continue;
+      }
       final hrefUri = rootUri.resolve(href);
       final prefix = _directoryPath(rootUri.path);
       if (!hrefUri.path.startsWith(prefix)) continue;
       final key = Uri.decodeFull(hrefUri.path.substring(prefix.length));
-      if (key.isNotEmpty)
+      if (key.isNotEmpty) {
         values.add(RemoteObjectMetadata(key: key, etag: etag));
+      }
     }
     return values..sort((a, b) => a.key.compareTo(b.key));
   }
