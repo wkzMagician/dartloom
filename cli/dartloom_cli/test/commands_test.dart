@@ -122,6 +122,45 @@ void main() {
     );
   });
 
+  test('new storage sample keeps replica paths in application-owned code',
+      () async {
+    final parent =
+        await Directory.systemTemp.createTemp('dartloom_replica_sample_test');
+    addTearDown(() => parent.delete(recursive: true));
+    final runner = FakeRunner();
+
+    await NewCommand(runner).run(
+      parent: parent,
+      name: 'replica-sample',
+      organization: 'com.example',
+      platforms: {TargetPlatform.windows},
+      capabilities: {Capability.storage},
+    );
+
+    final project = Directory(
+      '${parent.path}${Platform.pathSeparator}replica-sample',
+    );
+    final factory = File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}features${Platform.pathSeparator}dartloom_replica_factory.dart',
+    );
+    final main = await File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}main.dart',
+    ).readAsString();
+    final generated = await File(
+      '${project.path}${Platform.pathSeparator}lib${Platform.pathSeparator}capabilities${Platform.pathSeparator}capabilities.dart',
+    ).readAsString();
+    final pubspec = await File(
+      '${project.path}${Platform.pathSeparator}pubspec.yaml',
+    ).readAsString();
+
+    expect(await factory.exists(), isTrue);
+    expect(await factory.readAsString(), contains('JsonDirectoryStore.openAt'));
+    expect(main, contains('dartloomApplicationFactories'));
+    expect(generated, contains('DartloomRegistration<ReplicaStore>'));
+    expect(generated, isNot(contains('FileDirectoryStore.open')));
+    expect(pubspec, contains('dartloom_storage_json_file:'));
+  });
+
   test(
     'linux package uses a hyphenated package and launcher name',
     () async {

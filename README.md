@@ -54,8 +54,9 @@ final json = Dartloom.get<JsonStore>(name: 'json');
 ```
 
 Application-owned adapters use a factory ID in `dartloom.yaml` and are supplied
-to `initializeDartloom(customFactories: {...})`. Feature code should never
-import adapter packages directly.
+to `bootstrapDartloom(customFactories: {...})`. The application factory resolves
+absolute business and metadata paths; Dartloom only consumes those paths.
+Feature code should never import adapter packages directly.
 
 ## Capability catalog
 
@@ -63,7 +64,7 @@ import adapter packages directly.
 | --- | --- | --- |
 | settings | portable settings values | shared_preferences, secure_storage |
 | storage.text | UTF-8 text CRUD | atomic files |
-| storage.json | JSON value CRUD | atomic JSON file |
+| storage replica | raw-byte replica or business codec | application-owned path factory |
 | storage.database | collection/id document CRUD | Drift/SQLite |
 | logging | application logger | logger |
 | autostart | enable/disable startup | launch_at_startup |
@@ -77,9 +78,9 @@ conflicts by default, and accepts an application-specific merge factory.
 
 ## Configuration and secrets
 
-Schema version 3 stores named instances, typed sync policies, platform
-overrides, and adapter options. Dartloom-owned
-storage categories are intentionally generic: `text`, `json`, and `database`.
+Schema version 5 stores named instances, typed sync policies, platform
+overrides, and factory symbols. Synchronized business directories are owned by
+the application, never selected by Dartloom.
 Business-specific names such as “notes” do not appear in the framework catalog.
 
 ```yaml
@@ -87,11 +88,8 @@ capabilities:
   storage:
     instances:
       json:
-        implementation: json_directory
-        options:
-          path: Dartloom
-          metadata_path: dartloom/sync-metadata/Dartloom
-          hierarchical: false
+        implementation: app_file_replica
+        factory: createJsonReplicaStore
   autostart:
     instances:
       default:
@@ -111,13 +109,14 @@ capabilities:
 ```
 
 `${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
-into generated Dart source. Run `dartloom project update` once to migrate a
-schema version 1 project. It only overwrites Dartloom-owned capability glue
+into generated Dart source. Run `dartloom upgrade` to migrate a schema 4
+project. The migration preserves legacy settings for the app-owned factory and
+fails with an explicit diagnostic when it cannot prove an absolute business
+path. It only overwrites Dartloom-owned capability glue
 (`lib/capabilities`), never application widgets or existing ARB translations,
 and always runs `flutter pub upgrade` so Git dependency locks match the
-generated contract API. GitHub mode explicitly tracks Dartloom's `main`
-branch; each `dartloom project update` refreshes the lockfile to its latest
-compatible commit.
+generated contract API. Production applications should pin GitHub dependencies
+to the audited schema-5 commit rather than a moving branch.
 
 Desktop-only adapters such as `resident` are registered only on supported
 desktop targets. A mixed Android/Windows application can therefore keep one

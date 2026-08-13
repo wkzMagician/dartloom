@@ -180,6 +180,17 @@ The Stage 4 transport and background contracts are fixed as follows:
   autostart, and window/UI infrastructure from the worker scope. Unsupported
   desktop targets remain scheduling no-ops.
 
+The Stage 5 configuration contract is fixed as follows:
+
+- Schema 5 synchronized storage uses `implementation: app_file_replica` plus
+  an application factory symbol. Generated code registers the factory as a
+  `ReplicaStore` and never resolves or defaults a business-data directory.
+- Generated sync uses `ReplicaStoreLocalReplicaFactory`; schema-5 output does
+  not mention the removed JSON-specific replica contracts.
+- Application factories are passed through
+  `bootstrapDartloom(customFactories: ...)`, while both generated capability
+  files remain Dartloom-owned and safely replaceable.
+
 Each choice must be recorded in this file or a linked application ADR before
 the corresponding gate is marked passed.
 

@@ -92,8 +92,17 @@ class NewCommand {
         .create(recursive: true);
     await Directory('${project.path}$separator.github${separator}workflows')
         .create(recursive: true);
+    final hasAppOwnedReplica = config.capabilities[Capability.storage]?.values
+            .any((value) => value.implementation == 'app_file_replica') ??
+        false;
+    final replicaFactoryImport = hasAppOwnedReplica
+        ? "import 'features/dartloom_replica_factory.dart';\n"
+        : '';
+    final bootstrapArguments = hasAppOwnedReplica
+        ? 'customFactories: dartloomApplicationFactories'
+        : '';
     await File('${project.path}${separator}lib${separator}main.dart').writeAsString(
-        "import 'package:flutter/widgets.dart';\n\nimport 'app/app.dart';\nimport 'capabilities/bootstrap.dart';\n\nFuture<void> main() async {\n  await bootstrapDartloom();\n  runApp(const DartloomApp());\n}\n");
+        "import 'package:flutter/widgets.dart';\n\nimport 'app/app.dart';\nimport 'capabilities/bootstrap.dart';\n$replicaFactoryImport\nFuture<void> main() async {\n  await bootstrapDartloom($bootstrapArguments);\n  runApp(const DartloomApp());\n}\n");
     await File(
             '${project.path}${separator}lib${separator}app${separator}app.dart')
         .writeAsString(appShell(config));
@@ -119,6 +128,11 @@ class NewCommand {
     await File(
             '${project.path}${separator}lib${separator}capabilities${separator}bootstrap.dart')
         .writeAsString(capabilityBootstrap);
+    if (hasAppOwnedReplica) {
+      await File(
+        '${project.path}${separator}lib${separator}features${separator}dartloom_replica_factory.dart',
+      ).writeAsString(appOwnedReplicaFactory);
+    }
     if (config.enabledCapabilities.contains(Capability.localization)) {
       await Directory('${project.path}${separator}lib${separator}l10n')
           .create(recursive: true);

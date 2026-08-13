@@ -88,6 +88,10 @@ abstract final class CapabilityRegistry {
           options: {'path': 'Dartloom'},
         ),
         ImplementationMetadata(
+          id: 'app_file_replica',
+          packageName: 'dartloom_storage_file',
+        ),
+        ImplementationMetadata(
           id: 'drift',
           packageName: 'dartloom_storage_drift',
           instanceNames: {'database'},
@@ -217,6 +221,10 @@ abstract final class CapabilityRegistry {
       for (final instance in entry.value.values) {
         final adapter = implementation(entry.key, instance.implementation);
         if (adapter != null) names.add(adapter.packageName);
+        if (entry.key == Capability.storage &&
+            instance.implementation == 'app_file_replica') {
+          names.add('dartloom_storage_json_file');
+        }
         if (entry.key == Capability.sync &&
             instance.backend?.implementation == 'webdav') {
           names
@@ -280,13 +288,15 @@ abstract final class CapabilityRegistry {
             );
           }
         }
-        if (instance.implementation == 'custom') {
+        if (instance.implementation == 'custom' ||
+            instance.implementation == 'app_file_replica') {
           if (instance.factory == null || instance.factory!.isEmpty) {
             errors.add(
-              '${capabilityEntry.key.name}.${instanceEntry.key} custom implementation requires factory.',
+              '${capabilityEntry.key.name}.${instanceEntry.key} '
+              '${instance.implementation} implementation requires factory.',
             );
           }
-          continue;
+          if (instance.implementation == 'custom') continue;
         }
         final adapter = implementation(
           capabilityEntry.key,
@@ -331,11 +341,6 @@ abstract final class CapabilityRegistry {
           ));
         }
       }
-    }
-    if (config.capabilities.containsKey(Capability.sync) &&
-        !(config.capabilities[Capability.storage]?.containsKey('json') ??
-            false)) {
-      errors.add('sync requires storage.json for durable sync state.');
     }
     if (config.capabilities.containsKey(Capability.sync) &&
         !(config.capabilities[Capability.settings]

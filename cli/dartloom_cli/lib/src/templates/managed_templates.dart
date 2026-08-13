@@ -54,6 +54,7 @@ String capabilityGlue(DartloomConfig config) {
         instance.implementation,
       );
       if (metadata != null) {
+        if (instance.implementation == 'app_file_replica') continue;
         imports.add(
           "import 'package:${metadata.packageName}/${metadata.packageName}.dart';",
         );
@@ -348,11 +349,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           "      final replicaName = (context.options['replica'] as String).substring('storage.'.length);")
       ..writeln(
-          '      final localStore = context.get<JsonStore>(name: replicaName);')
-      ..writeln('      if (localStore is! ReplicaJsonStore) {')
-      ..writeln(
-          "        throw DartloomException('sync replica storage.\$replicaName must be directory backed.');")
-      ..writeln('      }')
+          '      final localStore = context.get<ReplicaStore>(name: replicaName);')
       ..writeln(
           '      final scope = context.get<SyncProfileScope>(name: context.name);')
       ..writeln('      final profiles = SettingsSyncProfileRepository(')
@@ -417,7 +414,8 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           "        policy: SyncPolicyCodec.resolve((context.options['policy'] as Map).cast<String, Object?>(), _dartloomCurrentPlatform),")
       ..writeln('        profiles: profiles,')
-      ..writeln('        localFactory: JsonLocalReplicaFactory(localStore),')
+      ..writeln(
+          '        localFactory: ReplicaStoreLocalReplicaFactory(localStore),')
       ..writeln('        stateRepository: state,')
       ..writeln('        reconciler: const EtagReconciler(),')
       ..writeln("        backends: {'webdav': backend},")
@@ -460,7 +458,7 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
     final instances = config.capabilities[capability] ?? const {};
     for (final entry in instances.entries) {
       final instance = entry.value;
-      final type = _serviceType(capability, entry.key);
+      final type = _serviceType(capability, entry.key, instance);
       final factory = instance.factory ?? instance.implementation;
       final platforms = _supportedPlatforms(capability, instance);
       final options = <String, Object?>{...instance.options};
@@ -525,8 +523,15 @@ Set<TargetPlatform> _supportedPlatforms(
   return configured == null ? supported : supported.intersection(configured);
 }
 
-String _serviceType(Capability capability, String name) => switch (capability) {
+String _serviceType(
+  Capability capability,
+  String name,
+  CapabilityInstanceConfig instance,
+) =>
+    switch (capability) {
       Capability.settings => 'SettingsStore',
+      Capability.storage when instance.implementation == 'app_file_replica' =>
+        'ReplicaStore',
       Capability.storage => switch (name) {
           'text' => 'TextStore',
           'json' => 'JsonStore',
@@ -609,16 +614,54 @@ class DartloomApp extends StatelessWidget {
 }
 ''';
 
-const capabilityBootstrap = '''import 'package:flutter/widgets.dart';
+const capabilityBootstrap =
+    '''import 'package:dartloom_runtime/dartloom_runtime.dart';
+import 'package:flutter/widgets.dart';
 
 import 'capabilities.dart';
 
 /// Dartloom-owned startup fragment. Call this from the application's main
 /// method before creating its widget tree.
-Future<void> bootstrapDartloom() async {
+Future<void> bootstrapDartloom({
+  Map<String, DartloomFactory> customFactories = const {},
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDartloom();
+  await initializeDartloom(customFactories: customFactories);
 }
+''';
+
+const appOwnedReplicaFactory = '''import 'dart:io';
+
+import 'package:dartloom_runtime/dartloom_runtime.dart';
+import 'package:dartloom_storage/dartloom_storage.dart';
+import 'package:dartloom_storage_json_file/dartloom_storage_json_file.dart';
+
+/// Application-owned paths for the synchronized JSON replica.
+///
+/// Resolve both absolute directories through the same application path API
+/// used by the rest of the app. Metadata must remain outside the business root.
+Future<DartloomBinding<Object>> createJsonReplicaStore(
+  DartloomFactoryContext context,
+) async {
+  final (businessRoot, metadataRoot) = await resolveJsonReplicaDirectories();
+  final value = await JsonDirectoryStore.openAt(
+    directory: businessRoot,
+    metadataDirectory: metadataRoot,
+  );
+  return DartloomBinding<ReplicaStore>(value, dispose: value.close);
+}
+
+Future<(Directory, Directory)> resolveJsonReplicaDirectories() {
+  // TODO(app): use the application's path service to return absolute business
+  // and metadata directories. Do not put metadata inside the business root.
+  throw const DartloomException(
+    'Implement application-owned JSON replica path resolution.',
+  );
+}
+
+final dartloomApplicationFactories = <String, DartloomFactory>{
+  'createJsonReplicaStore': createJsonReplicaStore,
+};
 ''';
 
 String agentInstructions(DartloomConfig config) {
@@ -693,8 +736,9 @@ This project is managed by Dartloom.
 1. Read `dartloom.yaml` before changing infrastructure.
 2. Feature code depends on capability contracts and obtains implementations with
    `Dartloom.get<T>(name: ...)`; do not import adapter packages in feature code.
-3. Register app-owned implementations through `initializeDartloom` custom
-   factories. Do not bypass or replace the generated registry wiring.
+3. Register app-owned implementations by passing their factory map to
+   `bootstrapDartloom(customFactories: ...)`. Keep factory implementations in
+   application-owned files; do not add them to generated capability files.
 4. Business code belongs in `lib/features`; shared app glue belongs in `lib/app`.
 5. Dartloom owns `lib/capabilities/capabilities.dart` and
    `lib/capabilities/bootstrap.dart`. Application files, including `lib/app`
