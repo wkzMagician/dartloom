@@ -244,18 +244,32 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln("    'json_file': (context) async {")
       ..writeln(
           "      final value = await JsonFileStore.open(path: context.options['path'] as String? ?? 'dartloom/data.json');")
+      ..writeln('      return DartloomBinding<JsonStore>(value);')
+      ..writeln('    },');
+  }
+  if (_uses(instances, Capability.storage, 'json_directory')) {
+    buffer
+      ..writeln("    'json_directory': (context) async {")
+      ..writeln('      final value = await JsonDirectoryStore.open(')
       ..writeln(
-          "      final syncScope = context.options['sync_scope'] as String?;")
+          "        path: context.options['path'] as String? ?? 'Dartloom',")
       ..writeln(
-          '      if (syncScope == null) return DartloomBinding<JsonStore>(value);')
-      ..writeln('      final scoped = await ProfileScopedJsonStore.open(')
+          "        metadataPath: context.options['metadata_path'] as String?,")
       ..writeln(
-          '        value, context.get<SyncProfileScope>(name: syncScope),')
+          "        hierarchical: context.options['hierarchical'] as bool? ?? false,")
       ..writeln(
-          "        attachExistingData: context.options['sync_attach_existing'] != false,")
+          "        legacyJsonPath: context.options['legacy_json_path'] as String?,")
+      ..writeln(
+          "        legacyKeyPrefix: context.options['legacy_key_prefix'] as String? ?? '',")
+      ..writeln(
+          "        allowedKeys: ((context.options['allowed_keys'] as List?) ?? const []).cast<String>().toSet(),")
+      ..writeln(
+          "        allowedPrefixes: ((context.options['allowed_prefixes'] as List?) ?? const []).cast<String>(),")
+      ..writeln(
+          "        seed: ((context.options['seed'] as Map?) ?? const {}).cast<String, Object?>(),")
       ..writeln('      );')
       ..writeln(
-          '      return DartloomBinding<JsonStore>(scoped, dispose: scoped.close);')
+          '      return DartloomBinding<JsonStore>(value, dispose: value.close);')
       ..writeln('    },');
   }
   if (_uses(instances, Capability.storage, 'drift')) {
@@ -328,22 +342,13 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
   if (_uses(instances, Capability.sync, 'etag')) {
     buffer
       ..writeln("    'etag': (context) async {")
-      ..writeln('      final localStores = <String, ProfileScopedJsonStore>{};')
       ..writeln(
-          "      for (final reference in (context.options['stores'] as List).cast<String>()) {")
-      ..writeln("        final name = reference.substring('storage.'.length);")
-      ..writeln("        if (name == 'json') {")
-      ..writeln('          final store = context.get<JsonStore>(name: name);')
-      ..writeln('          if (store is! ProfileScopedJsonStore) {')
+          "      final replicaName = (context.options['replica'] as String).substring('storage.'.length);")
       ..writeln(
-          "            throw DartloomException('sync store storage.\$name is not profile scoped.');")
-      ..writeln('          }')
-      ..writeln('          localStores[name] = store;')
-      ..writeln('        }')
-      ..writeln('      }')
-      ..writeln('      if (localStores.isEmpty) {')
+          '      final localStore = context.get<JsonStore>(name: replicaName);')
+      ..writeln('      if (localStore is! ReplicaJsonStore) {')
       ..writeln(
-          "        throw const DartloomException('etag sync currently requires storage.json.');")
+          "        throw DartloomException('sync replica storage.\$replicaName must be directory backed.');")
       ..writeln('      }')
       ..writeln(
           '      final scope = context.get<SyncProfileScope>(name: context.name);')
@@ -354,9 +359,9 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           "        secretsStore: context.get<SettingsStore>(name: 'sync_secrets'),")
       ..writeln('        scope: scope,')
       ..writeln('      );')
-      ..writeln('      final firstStore = localStores.values.first;')
-      ..writeln('      final state = JsonReconciliationStateRepository(')
-      ..writeln('        firstStore.raw, instanceName: context.name,')
+      ..writeln('      final state = SettingsReconciliationStateRepository(')
+      ..writeln(
+          '        context.get<SettingsStore>(), instanceName: context.name,')
       ..writeln('      );')
       ..writeln('      final backend = WebDavBackendFactory(')
       ..writeln(
@@ -369,6 +374,16 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           "        maxParallelRequests: context.options['backend_max_parallel_requests'] as int,")
       ..writeln(
           "        createMissingCollections: context.options['backend_create_missing_collections'] as bool,")
+      ..writeln(
+          "        hierarchical: context.options['backend_hierarchical'] as bool? ?? false,")
+      ..writeln(
+          "        probeDepthInfinity: context.options['backend_probe_depth_infinity'] as bool? ?? false,")
+      ..writeln(
+          "        legacyCollection: context.options['backend_legacy_collection'] as String?,")
+      ..writeln(
+          "        legacyKeyPrefix: context.options['backend_legacy_key_prefix'] as String? ?? '',")
+      ..writeln(
+          "        listingLimitHint: context.options['backend_listing_limit_hint'] as int? ?? 750,")
       ..writeln('      );')
       ..writeln('      SyncMergePolicy? merge;')
       ..writeln(
@@ -399,7 +414,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           "        policy: SyncPolicyCodec.resolve((context.options['policy'] as Map).cast<String, Object?>(), _dartloomCurrentPlatform),")
       ..writeln('        profiles: profiles,')
-      ..writeln('        localFactory: JsonLocalReplicaFactory(localStores),')
+      ..writeln('        localFactory: JsonLocalReplicaFactory(localStore),')
       ..writeln('        stateRepository: state,')
       ..writeln('        reconciler: const EtagReconciler(),')
       ..writeln("        backends: {'webdav': backend},")
@@ -437,12 +452,6 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       ..writeln('        ],')
       ..writeln('      ),');
   }
-  final storeOwners = <String, MapEntry<String, CapabilityInstanceConfig>>{};
-  for (final sync in syncInstances.entries) {
-    for (final store in sync.value.stores) {
-      storeOwners[store] = sync;
-    }
-  }
   for (final capability in Capability.values) {
     final instances = config.capabilities[capability] ?? const {};
     for (final entry in instances.entries) {
@@ -451,16 +460,8 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       final factory = instance.factory ?? instance.implementation;
       final platforms = _supportedPlatforms(capability, instance);
       final options = <String, Object?>{...instance.options};
-      final storeOwner = storeOwners['${capability.name}.${entry.key}'];
-      if (capability == Capability.storage && storeOwner != null) {
-        options['sync_scope'] = storeOwner.key;
-        final existingData = storeOwner.value.policy['profiles'] is Map
-            ? (storeOwner.value.policy['profiles'] as Map)['existing_data']
-            : null;
-        options['sync_attach_existing'] = existingData != 'new_empty';
-      }
       if (capability == Capability.sync) {
-        options['stores'] = instance.stores;
+        options['replica'] = instance.replica;
         options['policy'] = instance.policy;
         for (final option in instance.backend?.options.entries ??
             const <MapEntry<String, Object?>>[]) {
@@ -481,9 +482,8 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
         ..writeln('        options: ${_dartMap(options)},');
       final dependencies = <String>{
         ...instance.dependsOn,
-        if (capability == Capability.storage && storeOwner != null)
-          'sync_profile.${storeOwner.key}',
-        if (capability == Capability.sync) ...instance.stores,
+        if (capability == Capability.sync && instance.replica != null)
+          instance.replica!,
         if (capability == Capability.sync) 'sync_profile.${entry.key}',
         if (capability == Capability.sync) 'settings.default',
         if (capability == Capability.sync) 'settings.sync_secrets',

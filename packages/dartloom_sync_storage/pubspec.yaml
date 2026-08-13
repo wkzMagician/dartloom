@@ -1,5 +1,5 @@
 name: dartloom_sync_storage
-description: Profile-scoped storage and durable state adapters for Dartloom Sync.
+description: Isomorphic JSON replica and durable state adapters for Dartloom Sync.
 version: 0.1.0
 repository: https://github.com/wkzMagician/dartloom
 environment:

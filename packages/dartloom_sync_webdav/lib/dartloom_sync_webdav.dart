@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart';
@@ -13,6 +14,11 @@ final class WebDavBackendFactory implements SyncBackendFactory {
     this.requestTimeout = const Duration(seconds: 30),
     this.maxParallelRequests = 4,
     this.createMissingCollections = true,
+    this.hierarchical = false,
+    this.probeDepthInfinity = false,
+    this.legacyCollection,
+    this.legacyKeyPrefix = '',
+    this.listingLimitHint = 750,
     http.Client Function()? clientFactory,
   }) : _clientFactory = clientFactory ?? http.Client.new;
 
@@ -21,6 +27,11 @@ final class WebDavBackendFactory implements SyncBackendFactory {
   final Duration requestTimeout;
   final int maxParallelRequests;
   final bool createMissingCollections;
+  final bool hierarchical;
+  final bool probeDepthInfinity;
+  final String? legacyCollection;
+  final String legacyKeyPrefix;
+  final int listingLimitHint;
   final http.Client Function() _clientFactory;
 
   @override
@@ -50,7 +61,7 @@ final class WebDavBackendFactory implements SyncBackendFactory {
     final uri = Uri.parse(profile.options['base_url'] as String);
     return WebDavRemoteReplica(
       baseUrl: uri,
-      rootPath: profile.options['root_path'] as String? ?? defaultRootPath,
+      rootPath: defaultRootPath,
       username:
           profile.options['username'] as String? ?? secrets['username'] ?? '',
       password: secrets['password'] ?? '',
@@ -58,6 +69,11 @@ final class WebDavBackendFactory implements SyncBackendFactory {
       requestTimeout: requestTimeout,
       maxParallelRequests: maxParallelRequests,
       createMissingCollections: createMissingCollections,
+      hierarchical: hierarchical,
+      probeDepthInfinity: probeDepthInfinity,
+      legacyCollection: legacyCollection,
+      legacyKeyPrefix: legacyKeyPrefix,
+      listingLimitHint: listingLimitHint,
       client: _clientFactory(),
     );
   }
@@ -73,6 +89,11 @@ final class WebDavRemoteReplica implements RemoteReplica {
     required this.requestTimeout,
     required this.maxParallelRequests,
     required this.createMissingCollections,
+    this.hierarchical = false,
+    this.probeDepthInfinity = false,
+    this.legacyCollection,
+    this.legacyKeyPrefix = '',
+    this.listingLimitHint = 750,
     http.Client? client,
   })  : baseUrl = baseUrl.replace(path: _directoryPath(baseUrl.path)),
         _client = client ?? http.Client();
@@ -85,10 +106,29 @@ final class WebDavRemoteReplica implements RemoteReplica {
   final Duration requestTimeout;
   final int maxParallelRequests;
   final bool createMissingCollections;
+  final bool hierarchical;
+  final bool probeDepthInfinity;
+  final String? legacyCollection;
+  final String legacyKeyPrefix;
+  final int listingLimitHint;
   final http.Client _client;
   bool _closed = false;
   int _activeRequests = 0;
   final List<Completer<void>> _requestQueue = [];
+  WebDavDepthSupport depthSupport = WebDavDepthSupport.unknown;
+  bool _scanComplete = true;
+
+  @override
+  String get identity {
+    final endpoint = baseUrl.replace(
+      scheme: baseUrl.scheme.toLowerCase(),
+      host: baseUrl.host.toLowerCase(),
+      fragment: '',
+      query: '',
+    );
+    final account = sha256.convert(utf8.encode(username)).toString();
+    return 'webdav-v4|$endpoint|${_normalizeRelativePath(rootPath)}|$account';
+  }
 
   @override
   RemoteReplicaCapabilities get capabilities => const RemoteReplicaCapabilities(
@@ -107,7 +147,36 @@ final class WebDavRemoteReplica implements RemoteReplica {
       };
 
   @override
-  Future<void> initialize() => _ensureCollection(rootPath);
+  Future<void> initialize() async {
+    await _ensureCollection(rootPath);
+    final legacy = legacyCollection;
+    if (legacy != null && legacy.isNotEmpty) {
+      await _migrateLegacyCollection(legacy);
+    }
+  }
+
+  Future<void> _migrateLegacyCollection(String collection) async {
+    final entries = await _propfind(
+      '$rootPath/$collection',
+      depth: '1',
+      missingIsEmpty: true,
+    );
+    final prefix = '${_normalizeRelativePath(collection)}/';
+    for (final entry in entries.where((entry) => !entry.isCollection)) {
+      if (!entry.key.startsWith(prefix)) continue;
+      final key = entry.key.substring(prefix.length);
+      if (key.contains('/') || !key.startsWith(legacyKeyPrefix)) continue;
+      if (await read(key) != null) continue;
+      final source = await _readUri(key, _uri('$rootPath/$collection/$key'));
+      if (source == null) continue;
+      try {
+        await write(key, source.data,
+            condition: const RemoteWriteCondition.create());
+      } on RemotePreconditionException {
+        // A concurrent migrator already copied this object.
+      }
+    }
+  }
 
   Future<void> _ensureCollection(String path) async {
     if (!createMissingCollections) return;
@@ -124,45 +193,111 @@ final class WebDavRemoteReplica implements RemoteReplica {
 
   @override
   Future<RemoteScan> scan({String? cursor}) async {
-    final request = http.Request('PROPFIND', _uri(rootPath))
-      ..headers.addAll({..._authorization, 'depth': 'infinity'})
+    _scanComplete = true;
+    final entries = <String, _DavEntry>{};
+    final pending = <String>[rootPath];
+    final visited = <String>{};
+    while (pending.isNotEmpty) {
+      final collection = pending.removeLast();
+      if (!visited.add(_normalizeRelativePath(collection))) continue;
+      for (final entry in await _propfind(collection, depth: '1')) {
+        if (entry.key.isEmpty) continue;
+        if (entry.isCollection) {
+          if (hierarchical) pending.add('$rootPath/${entry.key}');
+          continue;
+        }
+        if (!hierarchical && entry.key.contains('/')) continue;
+        entries[entry.key] = entry;
+      }
+    }
+    depthSupport = hierarchical
+        ? WebDavDepthSupport.finiteDepth
+        : WebDavDepthSupport.finiteDepth;
+    if (hierarchical && probeDepthInfinity) {
+      try {
+        final infinite = await _propfind(rootPath, depth: 'infinity');
+        final infiniteFiles = {
+          for (final entry in infinite.where((entry) => !entry.isCollection))
+            entry.key,
+        };
+        final baselineFiles = entries.keys.toSet();
+        depthSupport = infiniteFiles.containsAll(baselineFiles)
+            ? WebDavDepthSupport.verifiedInfinity
+            : WebDavDepthSupport.partial;
+      } on Object {
+        depthSupport = WebDavDepthSupport.unknown;
+      }
+    }
+    final values = entries.values
+        .map((entry) => RemoteObjectMetadata(
+              key: entry.key,
+              version: entry.version!,
+            ))
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return RemoteScan(
+      kind: SyncScanKind.full,
+      objects: values,
+      complete: _scanComplete,
+    );
+  }
+
+  Future<List<_DavEntry>> _propfind(
+    String collection, {
+    required String depth,
+    bool missingIsEmpty = false,
+  }) async {
+    final request = http.Request('PROPFIND', _uri(collection))
+      ..headers.addAll({
+        ..._authorization,
+        'depth': depth,
+        'content-type': 'application/xml; charset=utf-8',
+      })
       ..body = '<?xml version="1.0" encoding="utf-8" ?>'
           '<d:propfind xmlns:d="DAV:"><d:prop><d:getetag/><d:resourcetype/></d:prop></d:propfind>';
     final response = await _send(request);
+    if (missingIsEmpty && response.statusCode == 404) return const [];
     if (response.statusCode != 207) {
       _throwResponse('PROPFIND', response, request.url);
     }
     final document = XmlDocument.parse(utf8.decode(response.bodyBytes));
     final rootUri = _uri(rootPath);
-    final values = <RemoteObjectMetadata>[];
+    final prefix = _directoryPath(rootUri.path);
+    final result = <_DavEntry>[];
     for (final node
         in document.findAllElements('response', namespace: 'DAV:')) {
       final href =
           node.findElements('href', namespace: 'DAV:').firstOrNull?.innerText;
+      if (href == null) continue;
+      final hrefUri = baseUrl.resolve(href);
+      if (hrefUri.scheme != rootUri.scheme ||
+          hrefUri.host != rootUri.host ||
+          !hrefUri.path.startsWith(prefix)) {
+        continue;
+      }
+      final key = _normalizeRelativePath(hrefUri.path.substring(prefix.length));
+      if (key.isEmpty) continue;
+      final isCollection =
+          node.findAllElements('collection', namespace: 'DAV:').isNotEmpty;
       final version = node
           .findAllElements('getetag', namespace: 'DAV:')
           .firstOrNull
           ?.innerText;
-      final isCollection =
-          node.findAllElements('collection', namespace: 'DAV:').isNotEmpty;
-      if (href == null || version == null || version.isEmpty || isCollection) {
-        continue;
-      }
-      final hrefUri = rootUri.resolve(href);
-      final prefix = _directoryPath(rootUri.path);
-      if (!hrefUri.path.startsWith(prefix)) continue;
-      final key = Uri.decodeFull(hrefUri.path.substring(prefix.length));
-      if (key.isNotEmpty) {
-        values.add(RemoteObjectMetadata(key: key, version: version));
-      }
+      if (!isCollection && (version == null || version.isEmpty)) continue;
+      result.add(_DavEntry(key, version, isCollection));
     }
-    values.sort((a, b) => a.key.compareTo(b.key));
-    return RemoteScan(kind: SyncScanKind.full, objects: values);
+    if (listingLimitHint > 0 && result.length >= listingLimitHint) {
+      _scanComplete = false;
+    }
+    return result;
   }
 
   @override
   Future<RemoteObject?> read(String key) async {
-    final uri = _objectUri(key);
+    return _readUri(key, _objectUri(key));
+  }
+
+  Future<RemoteObject?> _readUri(String key, Uri uri) async {
     final response =
         await _send(http.Request('GET', uri)..headers.addAll(_authorization));
     if (response.statusCode == 404) return null;
@@ -279,7 +414,8 @@ final class WebDavRemoteReplica implements RemoteReplica {
     ));
   }
 
-  Uri _objectUri(String key) => _uri('$rootPath/$key');
+  Uri _objectUri(String key) =>
+      _uri('$rootPath/${_normalizeRelativePath(key)}');
   Uri _uri(String path) {
     final encoded = path
         .split('/')
@@ -298,4 +434,24 @@ final class WebDavRemoteReplica implements RemoteReplica {
 
   static String _directoryPath(String value) =>
       value.isEmpty || value.endsWith('/') ? value : '$value/';
+
+  static String _normalizeRelativePath(String value) {
+    final normalized = value.replaceAll('\\', '/');
+    final parts =
+        normalized.split('/').where((part) => part.isNotEmpty).toList();
+    if (parts.any((part) => part == '.' || part == '..')) {
+      throw FormatException('Invalid WebDAV relative path: $value');
+    }
+    return parts.join('/');
+  }
+}
+
+enum WebDavDepthSupport { verifiedInfinity, finiteDepth, partial, unknown }
+
+final class _DavEntry {
+  const _DavEntry(this.key, this.version, this.isCollection);
+
+  final String key;
+  final String? version;
+  final bool isCollection;
 }

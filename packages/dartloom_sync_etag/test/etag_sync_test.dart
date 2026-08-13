@@ -50,13 +50,29 @@ void main() {
     expect(report.failure?.kind, SyncFailureKind.configuration);
   });
 
+  test('restores a missing local object without an explicit deletion',
+      () async {
+    final local = _Local()..externalWrite('a', _bytes('value'));
+    final remote = _Remote();
+    final state = _State();
+    const reconciler = EtagReconciler();
+    await reconciler.reconcile(_request(local, remote, state));
+
+    local.values.remove('a');
+    final report = await reconciler.reconcile(_request(local, remote, state));
+
+    expect(report.downloaded, 1);
+    expect(String.fromCharCodes(local.values['a']!), 'value');
+    expect(remote.values, contains('a'));
+  });
+
   test('retains tombstones and applies delete-versus-update policy', () async {
     final local = _Local()..externalWrite('a', _bytes('value'));
     final remote = _Remote();
     final state = _State();
     const reconciler = EtagReconciler();
     await reconciler.reconcile(_request(local, remote, state));
-    local.values.remove('a');
+    local.externalDelete('a');
     await reconciler.reconcile(_request(local, remote, state));
     expect(remote.values, isEmpty);
     expect(
@@ -144,8 +160,26 @@ String _version(Uint8List value) => sha256.convert(value).toString();
 
 final class _Local implements LocalReplica {
   final values = <String, Uint8List>{};
+  final deletions = <String>{};
   final controller = StreamController<LocalReplicaChange>.broadcast();
-  void externalWrite(String key, Uint8List data) => values[key] = data;
+  void externalWrite(String key, Uint8List data) {
+    values[key] = data;
+    deletions.remove(key);
+  }
+
+  void externalDelete(String key) {
+    values.remove(key);
+    deletions.add(key);
+  }
+
+  @override
+  String get identity => 'test-local';
+  @override
+  bool acceptsKey(String key) => true;
+  @override
+  Future<Set<String>> deletedKeys() async => Set.of(deletions);
+  @override
+  Future<void> forgetDeletedKey(String key) async => deletions.remove(key);
   @override
   Stream<LocalReplicaChange> get changes => controller.stream;
   @override
@@ -160,6 +194,11 @@ final class _Local implements LocalReplica {
       return false;
     }
     values.remove(key);
+    if (origin == SyncMutationOrigin.remote) {
+      deletions.remove(key);
+    } else {
+      deletions.add(key);
+    }
     return true;
   }
 
@@ -191,6 +230,8 @@ final class _Remote implements RemoteReplica {
   final values = <String, Uint8List>{};
   final versions = <String, String>{};
   int revision = 0;
+  @override
+  String get identity => 'test-remote';
   void externalWrite(String key, Uint8List data) {
     values[key] = data;
     versions[key] = 'v${++revision}';
@@ -216,11 +257,13 @@ final class _Remote implements RemoteReplica {
       ? null
       : RemoteObject(key: key, data: values[key]!, version: versions[key]!);
   @override
-  Future<RemoteScan> scan({String? cursor}) async =>
-      RemoteScan(kind: SyncScanKind.full, objects: [
+  Future<RemoteScan> scan({String? cursor}) async => RemoteScan(
+      kind: SyncScanKind.full,
+      objects: [
         for (final key in values.keys)
           RemoteObjectMetadata(key: key, version: versions[key]!)
-      ]);
+      ],
+      complete: true);
   @override
   Future<String> write(String key, Uint8List data,
       {RemoteWriteCondition? condition}) async {

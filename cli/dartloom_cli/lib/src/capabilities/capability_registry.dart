@@ -82,6 +82,12 @@ abstract final class CapabilityRegistry {
           options: {'path': 'dartloom/data.json'},
         ),
         ImplementationMetadata(
+          id: 'json_directory',
+          packageName: 'dartloom_storage_json_file',
+          instanceNames: {'json'},
+          options: {'path': 'Dartloom'},
+        ),
+        ImplementationMetadata(
           id: 'drift',
           packageName: 'dartloom_storage_drift',
           instanceNames: {'database'},
@@ -347,14 +353,14 @@ abstract final class CapabilityRegistry {
     final storeOwners = <String, String>{};
     for (final instance in config.capabilities[Capability.sync]?.entries ??
         const <MapEntry<String, CapabilityInstanceConfig>>[]) {
-      for (final store in instance.value.stores) {
-        final previous = storeOwners[store];
-        if (previous != null) {
-          errors.add(
-              '$store is assigned to both sync.$previous and sync.${instance.key}.');
-        } else {
-          storeOwners[store] = instance.key;
-        }
+      final store = instance.value.replica;
+      if (store == null) continue;
+      final previous = storeOwners[store];
+      if (previous != null) {
+        errors.add(
+            '$store is assigned to both sync.$previous and sync.${instance.key}.');
+      } else {
+        storeOwners[store] = instance.key;
       }
     }
     return errors;

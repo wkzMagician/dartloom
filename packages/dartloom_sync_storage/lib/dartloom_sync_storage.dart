@@ -7,9 +7,6 @@ import 'package:dartloom_settings/dartloom_settings.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 
-const _profilesPrefix = '__dartloom_profiles/';
-const _syncStatePrefix = '__dartloom_sync_v3/';
-
 final class SyncProfileScope {
   SyncProfileScope._(this._settings, this.instanceName, this._activeProfileId);
 
@@ -41,179 +38,71 @@ final class SyncProfileScope {
   Future<void> dispose() => _changes.close();
 }
 
-abstract interface class ProfileScopedStore {
-  SyncProfileScope get profileScope;
-}
-
-final class ProfileScopedJsonStore implements JsonStore, ProfileScopedStore {
-  ProfileScopedJsonStore._(this.raw, this.profileScope);
-
-  final JsonStore raw;
-  @override
-  final SyncProfileScope profileScope;
-  final StreamController<LocalReplicaChange> _changes =
-      StreamController.broadcast();
-
-  static Future<ProfileScopedJsonStore> open(
-    JsonStore raw,
-    SyncProfileScope scope, {
-    bool attachExistingData = true,
-  }) async {
-    final value = ProfileScopedJsonStore._(raw, scope);
-    if (attachExistingData) await value._migrateLegacy();
-    return value;
-  }
-
-  Stream<LocalReplicaChange> get changes => _changes.stream;
-
-  String _prefix(String profileId) =>
-      '$_profilesPrefix${Uri.encodeComponent(profileId)}/';
-  String _key(String profileId, String key) =>
-      '${_prefix(profileId)}${Uri.encodeComponent(key)}';
-
-  @override
-  Future<void> delete(String key) =>
-      deleteFor(profileScope.activeProfileId, key,
-          origin: SyncMutationOrigin.local);
-
-  @override
-  Future<List<String>> list({String prefix = ''}) =>
-      listFor(profileScope.activeProfileId, prefix: prefix);
-
-  @override
-  Future<Object?> read(String key) =>
-      readFor(profileScope.activeProfileId, key);
-
-  @override
-  Future<void> write(String key, Object? value) =>
-      writeFor(profileScope.activeProfileId, key, value,
-          origin: SyncMutationOrigin.local);
-
-  Future<List<String>> listFor(String profileId, {String prefix = ''}) async {
-    final storagePrefix = _prefix(profileId);
-    final values = <String>[];
-    for (final key in await raw.list(prefix: storagePrefix)) {
-      final decoded = Uri.decodeComponent(key.substring(storagePrefix.length));
-      if (decoded.startsWith(prefix)) values.add(decoded);
-    }
-    return values..sort();
-  }
-
-  Future<Object?> readFor(String profileId, String key) =>
-      raw.read(_key(profileId, key));
-
-  Future<void> writeFor(
-    String profileId,
-    String key,
-    Object? value, {
-    required SyncMutationOrigin origin,
-  }) async {
-    await raw.write(_key(profileId, key), value);
-    _changes.add(LocalReplicaChange(key, origin));
-  }
-
-  Future<void> deleteFor(
-    String profileId,
-    String key, {
-    required SyncMutationOrigin origin,
-  }) async {
-    await raw.delete(_key(profileId, key));
-    _changes.add(LocalReplicaChange(key, origin));
-  }
-
-  Future<void> deleteProfile(String profileId) async {
-    for (final key in await raw.list(prefix: _prefix(profileId))) {
-      await raw.delete(key);
-    }
-  }
-
-  Future<void> _migrateLegacy() async {
-    final marker =
-        '$_syncStatePrefix${profileScope.instanceName}/legacy_migrated';
-    if (await raw.read(marker) == true) return;
-    final legacyKeys = (await raw.list())
-        .where((key) => !key.startsWith('__dartloom_'))
-        .toList(growable: false);
-    for (final key in legacyKeys) {
-      final value = await raw.read(key);
-      await raw.write(_key(profileScope.activeProfileId, key), value);
-      await raw.delete(key);
-    }
-    await raw.write(marker, true);
-  }
-
-  Future<void> close() => _changes.close();
-}
-
+/// Opens one local replica. Keys are passed through unchanged: a key is the
+/// relative path on both the local filesystem and the remote backend.
 final class JsonLocalReplicaFactory implements LocalReplicaFactory {
-  const JsonLocalReplicaFactory(this.stores);
-  final Map<String, ProfileScopedJsonStore> stores;
+  const JsonLocalReplicaFactory(this.store);
+
+  final ReplicaJsonStore store;
 
   @override
-  Future<LocalReplica> open(String profileId) async =>
-      _CompositeJsonReplica(profileId, stores);
+  Future<LocalReplica> open(String profileId) async => _JsonReplica(store);
 
   @override
   Future<void> deleteProfile(String profileId) async {
-    for (final store in stores.values) {
-      await store.deleteProfile(profileId);
-    }
+    // Profiles select remote credentials, not local namespaces. Removing a
+    // profile must never erase the shared local replica.
   }
 }
 
-final class _CompositeJsonReplica implements LocalReplica {
-  _CompositeJsonReplica(this.profileId, this.stores) {
-    for (final entry in stores.entries) {
-      _subscriptions.add(entry.value.changes.listen((change) {
-        _changes.add(LocalReplicaChange(
-            '${entry.key}/${Uri.encodeComponent(change.key)}', change.origin));
-      }));
-    }
+final class _JsonReplica implements LocalReplica {
+  _JsonReplica(this.store) {
+    _subscription = store.changes.listen((change) {
+      _changes.add(LocalReplicaChange(
+        change.key,
+        change.origin == JsonStoreMutationOrigin.local
+            ? SyncMutationOrigin.local
+            : SyncMutationOrigin.remote,
+      ));
+    });
   }
 
-  final String profileId;
-  final Map<String, ProfileScopedJsonStore> stores;
+  final ReplicaJsonStore store;
   final StreamController<LocalReplicaChange> _changes =
       StreamController.broadcast();
-  final List<StreamSubscription<LocalReplicaChange>> _subscriptions = [];
+  late final StreamSubscription<JsonStoreChange> _subscription;
+
+  @override
+  String get identity => store.replicaIdentity;
+
+  @override
+  bool acceptsKey(String key) => store.acceptsReplicaKey(key);
 
   @override
   Stream<LocalReplicaChange> get changes => _changes.stream;
 
-  (ProfileScopedJsonStore, String) _target(String key) {
-    final slash = key.indexOf('/');
-    if (slash <= 0) {
-      throw FormatException('Composite sync key is invalid: $key');
-    }
-    final store = stores[key.substring(0, slash)];
-    if (store == null) {
-      throw StateError('Sync store is no longer configured: $key');
-    }
-    return (store, Uri.decodeComponent(key.substring(slash + 1)));
-  }
+  @override
+  Future<Set<String>> deletedKeys() => store.deletedKeys();
+
+  @override
+  Future<void> forgetDeletedKey(String key) => store.forgetDeletedKey(key);
 
   @override
   Future<List<LocalObjectMetadata>> scan() async {
     final result = <LocalObjectMetadata>[];
-    for (final entry in stores.entries) {
-      for (final key in await entry.value.listFor(profileId)) {
-        final value = await entry.value.readFor(profileId, key);
-        final data = _encodeJson(value);
-        result.add(LocalObjectMetadata(
-          key: '${entry.key}/${Uri.encodeComponent(key)}',
-          version: _hash(data),
-        ));
-      }
+    for (final key in await store.list()) {
+      if (!acceptsKey(key)) continue;
+      final data = await store.readReplicaBytes(key);
+      if (data == null) continue;
+      result.add(LocalObjectMetadata(key: key, version: _hash(data)));
     }
     return result..sort((a, b) => a.key.compareTo(b.key));
   }
 
   @override
   Future<LocalObject?> read(String key) async {
-    final target = _target(key);
-    final value = await target.$1.readFor(profileId, target.$2);
-    if (value == null) return null;
-    final data = _encodeJson(value);
+    final data = await store.readReplicaBytes(key);
+    if (data == null) return null;
     return LocalObject(key: key, data: data, version: _hash(data));
   }
 
@@ -224,16 +113,17 @@ final class _CompositeJsonReplica implements LocalReplica {
     String? expectedVersion,
     SyncMutationOrigin origin = SyncMutationOrigin.remote,
   }) async {
-    final target = _target(key);
-    final current = await target.$1.readFor(profileId, target.$2);
-    if (expectedVersion != null &&
-        (current == null || _hash(_encodeJson(current)) != expectedVersion)) {
+    final current = await read(key);
+    if (expectedVersion != null && current?.version != expectedVersion) {
       return false;
     }
     if (expectedVersion == null && current != null) return false;
-    await target.$1.writeFor(
-        profileId, target.$2, jsonDecode(utf8.decode(data)),
-        origin: origin);
+    final value = jsonDecode(utf8.decode(data));
+    if (origin == SyncMutationOrigin.remote) {
+      await store.writeReplicaBytes(key, data);
+    } else {
+      await store.write(key, value);
+    }
     return true;
   }
 
@@ -243,27 +133,30 @@ final class _CompositeJsonReplica implements LocalReplica {
     String? expectedVersion,
     SyncMutationOrigin origin = SyncMutationOrigin.remote,
   }) async {
-    final target = _target(key);
-    final current = await target.$1.readFor(profileId, target.$2);
-    if (current == null) return true;
-    if (expectedVersion != null &&
-        _hash(_encodeJson(current)) != expectedVersion) {
+    final current = await read(key);
+    if (current == null) {
+      if (origin == SyncMutationOrigin.remote) {
+        await store.deleteFromReplica(key);
+      }
+      return true;
+    }
+    if (expectedVersion != null && current.version != expectedVersion) {
       return false;
     }
-    await target.$1.deleteFor(profileId, target.$2, origin: origin);
+    if (origin == SyncMutationOrigin.remote) {
+      await store.deleteFromReplica(key);
+    } else {
+      await store.delete(key);
+    }
     return true;
   }
 
   @override
   Future<void> close() async {
-    for (final subscription in _subscriptions) {
-      await subscription.cancel();
-    }
+    await _subscription.cancel();
     await _changes.close();
   }
 
-  Uint8List _encodeJson(Object? value) =>
-      Uint8List.fromList(utf8.encode(jsonEncode(value)));
   String _hash(Uint8List value) => sha256.convert(value).toString();
 }
 
@@ -404,57 +297,68 @@ final class SettingsSyncProfileRepository implements SyncProfileRepository {
       );
 }
 
-final class JsonReconciliationStateRepository
+/// Keeps reconciliation metadata outside the replicated dataset.
+final class SettingsReconciliationStateRepository
     implements ReconciliationStateRepository {
-  const JsonReconciliationStateRepository(this.raw,
-      {required this.instanceName});
-  final JsonStore raw;
+  const SettingsReconciliationStateRepository(
+    this.settings, {
+    required this.instanceName,
+  });
+
+  final SettingsStore settings;
   final String instanceName;
+
   String _key(String profileId) =>
-      '$_syncStatePrefix$instanceName/${Uri.encodeComponent(profileId)}';
+      'sync.$instanceName.v4.state.${Uri.encodeComponent(profileId)}';
 
   @override
   Future<Map<String, Object?>> load(String profileId) async {
-    final value = await raw.read(_key(profileId));
-    return value is Map ? value.cast<String, Object?>() : <String, Object?>{};
+    final value = await settings.read(_key(profileId));
+    if (value is! String || value.isEmpty) return <String, Object?>{};
+    final decoded = jsonDecode(value);
+    return decoded is Map
+        ? decoded.cast<String, Object?>()
+        : <String, Object?>{};
   }
 
   @override
   Future<void> save(String profileId, Map<String, Object?> state) =>
-      raw.write(_key(profileId), state);
+      settings.write(_key(profileId), jsonEncode(state));
 
   @override
   Future<List<SyncConflict>> conflicts(String profileId) async {
-    final state = await load(profileId);
-    final values = state['conflicts'];
+    final values = (await load(profileId))['conflicts'];
     if (values is! Map) return const [];
     return values.values.whereType<Map>().map((value) {
       final map = value.cast<String, Object?>();
       return SyncConflict(
         id: map['id'] as String,
         key: map['key'] as String,
-        local: _decode(map['local']),
-        remote: _decode(map['remote']),
-        base: _decode(map['base']),
+        local: _decodeStateBytes(map['local']),
+        remote: _decodeStateBytes(map['remote']),
+        base: _decodeStateBytes(map['base']),
       );
     }).toList(growable: false);
   }
 
   @override
-  Future<void> resolve(String profileId, String conflictId,
-      SyncConflictResolution resolution) async {
+  Future<void> resolve(
+    String profileId,
+    String conflictId,
+    SyncConflictResolution resolution,
+  ) async {
     final state = await load(profileId);
-    final values = state['resolutions'] is Map
+    final resolutions = state['resolutions'] is Map
         ? (state['resolutions'] as Map).cast<String, Object?>()
         : <String, Object?>{};
-    values[conflictId] = {
+    resolutions[conflictId] = {
       'choice': resolution.choice.name,
       if (resolution.merged != null) 'merged': base64Encode(resolution.merged!),
     };
-    state['resolutions'] = values;
+    state['resolutions'] = resolutions;
     await save(profileId, state);
   }
 
-  Uint8List? _decode(Object? value) =>
+  Uint8List? _decodeStateBytes(Object? value) =>
       value is String ? base64Decode(value) : null;
 }

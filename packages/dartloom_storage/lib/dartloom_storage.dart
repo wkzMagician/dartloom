@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
 abstract interface class TextStore {
   Future<List<String>> list({String prefix = ''});
   Future<String?> read(String key);
@@ -10,6 +14,32 @@ abstract interface class JsonStore {
   Future<Object?> read(String key);
   Future<void> write(String key, Object? value);
   Future<void> delete(String key);
+}
+
+enum JsonStoreMutationOrigin { local, replica }
+
+final class JsonStoreChange {
+  const JsonStoreChange(this.key, this.origin);
+
+  final String key;
+  final JsonStoreMutationOrigin origin;
+}
+
+/// A JSON store whose keys are also the stable relative paths of a replica.
+///
+/// Implementations must keep sync metadata, including deletion journals,
+/// outside the directory returned by [replicaIdentity].
+abstract interface class ReplicaJsonStore implements JsonStore {
+  String get replicaIdentity;
+  bool acceptsReplicaKey(String key);
+  Stream<JsonStoreChange> get changes;
+  Future<Set<String>> deletedKeys();
+  Future<void> forgetDeletedKey(String key);
+  Future<Uint8List?> readReplicaBytes(String key);
+  Future<void> writeReplicaBytes(String key, Uint8List data);
+  Future<void> writeFromReplica(String key, Object? value);
+  Future<void> deleteFromReplica(String key);
+  Future<void> close();
 }
 
 abstract interface class DatabaseStore {
@@ -48,11 +78,28 @@ class MemoryTextStore implements TextStore {
   Future<void> write(String key, String value) async => _values[key] = value;
 }
 
-class MemoryJsonStore implements JsonStore {
+class MemoryJsonStore implements ReplicaJsonStore {
   final Map<String, Object?> _values = {};
+  final Set<String> _deletedKeys = {};
+  final StreamController<JsonStoreChange> _changes =
+      StreamController<JsonStoreChange>.broadcast();
 
   @override
-  Future<void> delete(String key) async => _values.remove(key);
+  String get replicaIdentity => 'memory-json-store';
+
+  @override
+  bool acceptsReplicaKey(String key) => true;
+
+  @override
+  Stream<JsonStoreChange> get changes => _changes.stream;
+
+  @override
+  Future<void> delete(String key) async {
+    _values.remove(key);
+    _deletedKeys.add(key);
+    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.local));
+  }
+
   @override
   Future<List<String>> list({String prefix = ''}) async =>
       (_values.keys.where((key) => key.startsWith(prefix)).toList()..sort());
@@ -64,7 +111,45 @@ class MemoryJsonStore implements JsonStore {
       throw ArgumentError.value(value, 'value', 'Value must be valid JSON.');
     }
     _values[key] = value;
+    _deletedKeys.remove(key);
+    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.local));
   }
+
+  @override
+  Future<Set<String>> deletedKeys() async => Set.unmodifiable(_deletedKeys);
+
+  @override
+  Future<void> forgetDeletedKey(String key) async => _deletedKeys.remove(key);
+
+  @override
+  Future<Uint8List?> readReplicaBytes(String key) async {
+    if (!_values.containsKey(key)) return null;
+    return Uint8List.fromList(utf8.encode(jsonEncode(_values[key])));
+  }
+
+  @override
+  Future<void> writeReplicaBytes(String key, Uint8List data) =>
+      writeFromReplica(key, jsonDecode(utf8.decode(data)));
+
+  @override
+  Future<void> writeFromReplica(String key, Object? value) async {
+    if (!isJsonValue(value)) {
+      throw ArgumentError.value(value, 'value', 'Value must be valid JSON.');
+    }
+    _values[key] = value;
+    _deletedKeys.remove(key);
+    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.replica));
+  }
+
+  @override
+  Future<void> deleteFromReplica(String key) async {
+    _values.remove(key);
+    _deletedKeys.remove(key);
+    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.replica));
+  }
+
+  @override
+  Future<void> close() => _changes.close();
 }
 
 class MemoryDatabaseStore implements DatabaseStore {

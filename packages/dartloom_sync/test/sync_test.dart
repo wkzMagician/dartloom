@@ -150,6 +150,14 @@ final class _Local implements LocalReplica {
   @override
   Stream<LocalReplicaChange> get changes => _changes.stream;
   @override
+  String get identity => 'test-local';
+  @override
+  bool acceptsKey(String key) => true;
+  @override
+  Future<Set<String>> deletedKeys() async => const {};
+  @override
+  Future<void> forgetDeletedKey(String key) async {}
+  @override
   Future<void> close() => _changes.close();
   @override
   Future<bool> delete(String key,
@@ -183,6 +191,8 @@ final class _Backend implements SyncBackendFactory {
 
 final class _Remote implements RemoteReplica {
   @override
+  String get identity => 'test-remote';
+  @override
   RemoteReplicaCapabilities get capabilities => const RemoteReplicaCapabilities(
       deltaScan: false, changeFeed: false, conditionalWrites: true);
   @override
@@ -197,7 +207,7 @@ final class _Remote implements RemoteReplica {
   Future<RemoteObject?> read(String key) async => null;
   @override
   Future<RemoteScan> scan({String? cursor}) async =>
-      const RemoteScan(kind: SyncScanKind.full, objects: []);
+      const RemoteScan(kind: SyncScanKind.full, objects: [], complete: true);
   @override
   Future<String> write(String key, Uint8List data,
           {RemoteWriteCondition? condition}) async =>

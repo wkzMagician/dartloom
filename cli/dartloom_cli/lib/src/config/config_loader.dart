@@ -22,21 +22,21 @@ class ConfigLoader {
 
   Future<DartloomConfig> load(Directory project) async {
     final root = await _root(project);
-    if (root['schema_version'] != 3) {
+    if (root['schema_version'] != 4) {
       throw ConfigException(
-        'schema_version: 3 is required. Sync v3 is a breaking upgrade; '
+        'schema_version: 4 is required. Sync v4 uses one isomorphic replica; '
         'rewrite dartloom.yaml before running project update.',
       );
     }
-    return _parseV3(root);
+    return _parseV4(root);
   }
 
   Future<DartloomConfig> loadForMigration(Directory project) async {
     final root = await _root(project);
-    if (root['schema_version'] != 3) {
-      throw ConfigException('schema_version: 3 is required.');
+    if (root['schema_version'] != 4) {
+      throw ConfigException('schema_version: 4 is required.');
     }
-    return _parseV3(root);
+    return _parseV4(root);
   }
 
   Future<YamlMap> _root(Directory project) async {
@@ -49,7 +49,7 @@ class ConfigLoader {
     return root;
   }
 
-  DartloomConfig _parseV3(YamlMap root) {
+  DartloomConfig _parseV4(YamlMap root) {
     final base = _base(root);
     final rawCapabilities = root['capabilities'];
     if (rawCapabilities is! YamlMap) {
@@ -86,7 +86,7 @@ class ConfigLoader {
           ),
           options: _stringMap(value['options']),
           dependsOn: _stringList(value['depends_on'], name: 'depends_on'),
-          stores: _stringList(value['stores']),
+          replica: value['replica'] as String?,
           backend: backend is YamlMap
               ? AdapterConfig(
                   implementation: _requiredString(
@@ -168,15 +168,14 @@ class ConfigLoader {
       if (sync.value.backend == null) {
         throw ConfigException('sync.${sync.key}.backend is required.');
       }
-      for (final reference in sync.value.stores) {
-        final parts = reference.split('.');
-        if (parts.length != 2 ||
-            parts.first != 'storage' ||
-            !storage.containsKey(parts.last)) {
-          throw ConfigException(
-            'sync.${sync.key} references missing store $reference.',
-          );
-        }
+      final reference = sync.value.replica;
+      final parts = reference?.split('.') ?? const <String>[];
+      if (parts.length != 2 ||
+          parts.first != 'storage' ||
+          !storage.containsKey(parts.last)) {
+        throw ConfigException(
+          'sync.${sync.key} requires one existing replica such as storage.json.',
+        );
       }
     }
     for (final capability in config.capabilities.entries) {

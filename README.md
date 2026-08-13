@@ -87,9 +87,11 @@ capabilities:
   storage:
     instances:
       json:
-        implementation: json_file
+        implementation: json_directory
         options:
-          path: dartloom/data.json
+          path: Dartloom
+          metadata_path: dartloom/sync-metadata/Dartloom
+          hierarchical: false
   autostart:
     instances:
       default:
@@ -101,7 +103,7 @@ capabilities:
         implementation: etag
         policy:
           mode: automatic
-        stores: [storage.json]
+        replica: storage.json
         backend:
           implementation: webdav
           options:
