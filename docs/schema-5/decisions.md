@@ -156,6 +156,30 @@ The Stage 3 synchronization API is fixed as follows:
   absence-based local or remote deletion. Merge policies receive raw
   base/local/remote bytes.
 
+The Stage 4 transport and background contracts are fixed as follows:
+
+- WebDAV payloads are raw `Uint8List` values. Creates use `If-None-Match: *`;
+  updates and deletes require `If-Match` with the known ETag.
+- Initialization performs a temporary conditional create/read/delete probe and
+  verifies that the ETag returned by PUT is identical to the ETag returned by
+  GET. Probe deletion is itself conditional.
+- ETags are trimmed and a lowercase weak prefix is canonicalized to `W/`.
+  Weak and strong validators remain distinct values and are never treated as
+  equivalent.
+- Transport failures distinguish authentication, permission, not-found,
+  precondition, invalid response, connectivity, timeout, and server limits.
+- WebDAV scans do not invent cursor pagination. Missing object ETags and
+  listing-limit boundaries make a scan explicitly incomplete, so absence can
+  never authorize deletion.
+- Legacy remote migration is additive: each source object is copied with a
+  conditional create, concurrent 412 responses are idempotent success, and
+  the source collection is never deleted.
+- A Workmanager callback opens a background-scoped runtime session, runs one
+  sync, and disposes the session in `finally`, including timeout and failure.
+  Generated foreground-only registrations exclude localization, resident,
+  autostart, and window/UI infrastructure from the worker scope. Unsupported
+  desktop targets remain scheduling no-ops.
+
 Each choice must be recorded in this file or a linked application ADR before
 the corresponding gate is marked passed.
 

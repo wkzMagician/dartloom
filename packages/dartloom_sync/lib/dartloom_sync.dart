@@ -46,6 +46,11 @@ enum SyncScanKind { full, delta }
 
 enum SyncFailureKind {
   authentication,
+  permission,
+  notFound,
+  precondition,
+  invalidResponse,
+  serverLimit,
   configuration,
   connectivity,
   timeout,

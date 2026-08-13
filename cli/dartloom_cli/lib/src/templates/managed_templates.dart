@@ -74,7 +74,7 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln()
     ..writeln('Future<void> initializeDartloom({')
     ..writeln('  Map<String, DartloomFactory> customFactories = const {},')
-    ..writeln('  bool syncWorker = false,')
+    ..writeln('  DartloomStartupScope scope = DartloomStartupScope.foreground,')
     ..writeln('}) async {')
     ..writeln('  late final Map<String, DartloomFactory> factories;')
     ..writeln('  final officialFactories = <String, DartloomFactory>{');
@@ -94,6 +94,7 @@ String capabilityGlue(DartloomConfig config) {
   buffer
     ..writeln('    ],')
     ..writeln('    factories: factories,')
+    ..writeln('    scope: scope,')
     ..writeln('  );')
     ..writeln('}')
     ..writeln()
@@ -104,14 +105,16 @@ String capabilityGlue(DartloomConfig config) {
       ..writeln("@pragma('vm:entry-point')")
       ..writeln('void dartloomSyncCallbackDispatcher() {')
       ..writeln('  executeDartloomSyncWorker((instanceName) async {')
-      ..writeln('    await initializeDartloom(syncWorker: true);')
-      ..writeln('    try {')
       ..writeln(
-          '      final service = Dartloom.get<SyncService>(name: instanceName);')
-      ..writeln('      return (await service.syncNow()).isSuccess;')
-      ..writeln('    } finally {')
-      ..writeln('      await disposeDartloom();')
-      ..writeln('    }')
+          '    await initializeDartloom(scope: DartloomStartupScope.background);')
+      ..writeln('    return DartloomSyncWorkerSession(')
+      ..writeln('      run: () async {')
+      ..writeln(
+          '        final service = Dartloom.get<SyncService>(name: instanceName);')
+      ..writeln('        return (await service.syncNow()).isSuccess;')
+      ..writeln('      },')
+      ..writeln('      dispose: disposeDartloom,')
+      ..writeln('    );')
       ..writeln('  });')
       ..writeln('}')
       ..writeln();
@@ -405,7 +408,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln('        merge = binding.value as SyncMergePolicy;')
       ..writeln('      }')
       ..writeln('      FlutterSyncRuntimeSignals? runtime;')
-      ..writeln('      if (!syncWorker) {')
+      ..writeln('      if (scope != DartloomStartupScope.background) {')
       ..writeln('        runtime = FlutterSyncRuntimeSignals();')
       ..writeln('        await runtime.start();')
       ..writeln('      }')
@@ -420,7 +423,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln("        backends: {'webdav': backend},")
       ..writeln('        runtimeSignals: runtime,')
       ..writeln(
-          '        backgroundScheduler: syncWorker ? null : WorkmanagerSyncBackgroundScheduler(callbackDispatcher: dartloomSyncCallbackDispatcher),')
+          '        backgroundScheduler: scope == DartloomStartupScope.background ? null : WorkmanagerSyncBackgroundScheduler(callbackDispatcher: dartloomSyncCallbackDispatcher),')
       ..writeln('        merge: merge,')
       ..writeln('      );')
       ..writeln('      await coordinator.start();')
@@ -447,6 +450,7 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       ..writeln("        capability: 'sync_profile',")
       ..writeln('        name: ${_dart(entry.key)},')
       ..writeln("        factory: 'sync_profile_scope',")
+      ..writeln('        scope: DartloomStartupScope.both,')
       ..writeln('        dependsOn: const [')
       ..writeln("          DartloomReference('settings', 'default'),")
       ..writeln('        ],')
@@ -473,12 +477,15 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       }
       buffer
         ..writeln(
-          "      if ((!syncWorker || ${capability == Capability.settings || capability == Capability.storage || capability == Capability.sync}) && _dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
+          "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
         )
         ..writeln('      DartloomRegistration<$type>(')
         ..writeln("        capability: '${capability.name}',")
         ..writeln('        name: ${_dart(entry.key)},')
         ..writeln('        factory: ${_dart(factory)},')
+        ..writeln(
+          '        scope: DartloomStartupScope.${capability == Capability.settings || capability == Capability.storage || capability == Capability.sync ? 'both' : 'foreground'},',
+        )
         ..writeln('        options: ${_dartMap(options)},');
       final dependencies = <String>{
         ...instance.dependsOn,

@@ -3,20 +3,42 @@ import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
 typedef DartloomSyncCallbackDispatcher = void Function();
-typedef DartloomSyncWorkerRunner = Future<bool> Function(String instanceName);
+typedef DartloomSyncWorkerOpener = Future<DartloomSyncWorkerSession> Function(
+  String instanceName,
+);
 
-void executeDartloomSyncWorker(DartloomSyncWorkerRunner runner) {
+final class DartloomSyncWorkerSession {
+  const DartloomSyncWorkerSession({required this.run, required this.dispose});
+
+  final Future<bool> Function() run;
+  final Future<void> Function() dispose;
+}
+
+void executeDartloomSyncWorker(DartloomSyncWorkerOpener open) {
   Workmanager().executeTask((task, inputData) async {
-    final instance = inputData?['instance'];
-    if (instance is! String || instance.isEmpty) return false;
+    return runDartloomSyncWorkerTask(inputData, open);
+  });
+}
+
+@visibleForTesting
+Future<bool> runDartloomSyncWorkerTask(
+  Map<String, dynamic>? inputData,
+  DartloomSyncWorkerOpener open,
+) async {
+  final instance = inputData?['instance'];
+  if (instance is! String || instance.isEmpty) return false;
+  final session = await open(instance);
+  try {
     final timeoutMs = inputData?['timeout_ms'];
-    final work = runner(instance);
-    if (timeoutMs is! int || timeoutMs <= 0) return work;
-    return work.timeout(
+    final work = session.run();
+    if (timeoutMs is! int || timeoutMs <= 0) return await work;
+    return await work.timeout(
       Duration(milliseconds: timeoutMs),
       onTimeout: () => false,
     );
-  });
+  } finally {
+    await session.dispose();
+  }
 }
 
 final class WorkmanagerSyncBackgroundScheduler

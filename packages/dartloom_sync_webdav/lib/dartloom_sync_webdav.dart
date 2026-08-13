@@ -149,9 +149,37 @@ final class WebDavRemoteReplica implements RemoteReplica {
   @override
   Future<void> initialize() async {
     await _ensureCollection(rootPath);
+    await _probeConditionalWrites();
     final legacy = legacyCollection;
     if (legacy != null && legacy.isNotEmpty) {
       await _migrateLegacyCollection(legacy);
+    }
+  }
+
+  Future<void> _probeConditionalWrites() async {
+    final key = '.dartloom-probe-${DateTime.now().microsecondsSinceEpoch}';
+    String? version;
+    try {
+      version = await write(
+        key,
+        Uint8List(0),
+        condition: const RemoteWriteCondition.create(),
+      );
+      final object = await read(key);
+      if (object == null || object.version != version) {
+        throw SyncOperationException(SyncFailure(
+          SyncFailureKind.invalidResponse,
+          'WebDAV server returned inconsistent ETags during initialization.',
+        ));
+      }
+      version = object.version;
+    } finally {
+      if (version != null) {
+        await delete(
+          key,
+          condition: RemoteWriteCondition.version(version),
+        );
+      }
     }
   }
 
@@ -193,6 +221,12 @@ final class WebDavRemoteReplica implements RemoteReplica {
 
   @override
   Future<RemoteScan> scan({String? cursor}) async {
+    if (cursor != null) {
+      throw const SyncOperationException(SyncFailure(
+        SyncFailureKind.configuration,
+        'WebDAV does not support cursor-based scans.',
+      ));
+    }
     _scanComplete = true;
     final entries = <String, _DavEntry>{};
     final pending = <String>[rootPath];
@@ -260,7 +294,15 @@ final class WebDavRemoteReplica implements RemoteReplica {
     if (response.statusCode != 207) {
       _throwResponse('PROPFIND', response, request.url);
     }
-    final document = XmlDocument.parse(utf8.decode(response.bodyBytes));
+    late final XmlDocument document;
+    try {
+      document = XmlDocument.parse(utf8.decode(response.bodyBytes));
+    } on Object catch (error) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.invalidResponse,
+        'WebDAV PROPFIND returned invalid XML: $error',
+      ));
+    }
     final rootUri = _uri(rootPath);
     final prefix = _directoryPath(rootUri.path);
     final result = <_DavEntry>[];
@@ -283,8 +325,15 @@ final class WebDavRemoteReplica implements RemoteReplica {
           .findAllElements('getetag', namespace: 'DAV:')
           .firstOrNull
           ?.innerText;
-      if (!isCollection && (version == null || version.isEmpty)) continue;
-      result.add(_DavEntry(key, version, isCollection));
+      if (!isCollection && (version == null || version.trim().isEmpty)) {
+        _scanComplete = false;
+        continue;
+      }
+      result.add(_DavEntry(
+        key,
+        version == null ? null : _normalizeEtag(version, key: key),
+        isCollection,
+      ));
     }
     if (listingLimitHint > 0 && result.length >= listingLimitHint) {
       _scanComplete = false;
@@ -304,17 +353,26 @@ final class WebDavRemoteReplica implements RemoteReplica {
     if (response.statusCode != 200) _throwResponse('GET', response, uri);
     final version = response.headers['etag'];
     if (version == null || version.isEmpty) {
-      throw StateError('WebDAV server did not return an ETag for $key.');
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.invalidResponse,
+        'WebDAV server did not return an ETag for $key.',
+      ));
     }
     return RemoteObject(
         key: key,
         data: Uint8List.fromList(response.bodyBytes),
-        version: version);
+        version: _normalizeEtag(version, key: key));
   }
 
   @override
   Future<String> write(String key, Uint8List data,
       {RemoteWriteCondition? condition}) async {
+    if (condition == null) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.configuration,
+        'WebDAV writes require a create or version precondition for $key.',
+      ));
+    }
     final slash = key.lastIndexOf('/');
     if (slash > 0) {
       await _ensureCollection('$rootPath/${key.substring(0, slash)}');
@@ -329,14 +387,25 @@ final class WebDavRemoteReplica implements RemoteReplica {
       _throwResponse('PUT', response, uri);
     }
     final version = response.headers['etag'];
-    if (version != null && version.isNotEmpty) return version;
+    if (version != null && version.isNotEmpty) {
+      return _normalizeEtag(version, key: key);
+    }
     final refreshed = await read(key);
     if (refreshed != null) return refreshed.version;
-    throw StateError('WebDAV server did not return an ETag for $key.');
+    throw SyncOperationException(SyncFailure(
+      SyncFailureKind.invalidResponse,
+      'WebDAV server did not return an ETag for $key.',
+    ));
   }
 
   @override
   Future<void> delete(String key, {RemoteWriteCondition? condition}) async {
+    if (condition is! RemoteVersionCondition) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.configuration,
+        'WebDAV deletes require a version precondition for $key.',
+      ));
+    }
     final uri = _objectUri(key);
     final request = http.Request('DELETE', uri)
       ..headers.addAll({..._authorization, ..._conditionHeaders(condition)});
@@ -350,7 +419,9 @@ final class WebDavRemoteReplica implements RemoteReplica {
   Map<String, String> _conditionHeaders(RemoteWriteCondition? condition) =>
       switch (condition) {
         RemoteCreateCondition() => const {'if-none-match': '*'},
-        RemoteVersionCondition(:final version) => {'if-match': version},
+        RemoteVersionCondition(:final version) => {
+            'if-match': _normalizeEtag(version),
+          },
         null => const {},
       };
 
@@ -399,14 +470,41 @@ final class WebDavRemoteReplica implements RemoteReplica {
   }
 
   Never _throwResponse(String method, http.Response response, Uri uri) {
-    if (response.statusCode == 401 || response.statusCode == 403) {
+    if (response.statusCode == 401) {
       throw SyncOperationException(SyncFailure(
         SyncFailureKind.authentication,
         'WebDAV authentication failed with ${response.statusCode}.',
       ));
     }
+    if (response.statusCode == 403) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.permission,
+        'WebDAV permission denied for $method at $uri.',
+      ));
+    }
+    if (response.statusCode == 404) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.notFound,
+        'WebDAV resource not found for $method at $uri.',
+      ));
+    }
+    if (response.statusCode == 412) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.precondition,
+        'WebDAV precondition failed for $method at $uri.',
+      ));
+    }
+    if ({413, 429, 507}.contains(response.statusCode)) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.serverLimit,
+        'WebDAV server limit reached with ${response.statusCode}.',
+        retryable: response.statusCode == 429 || response.statusCode == 507,
+      ));
+    }
     throw SyncOperationException(SyncFailure(
-      SyncFailureKind.connectivity,
+      response.statusCode >= 500
+          ? SyncFailureKind.connectivity
+          : SyncFailureKind.invalidResponse,
       'WebDAV $method failed with ${response.statusCode} at $uri.',
       retryable: response.statusCode == 408 ||
           response.statusCode == 429 ||
@@ -443,6 +541,22 @@ final class WebDavRemoteReplica implements RemoteReplica {
       throw FormatException('Invalid WebDAV relative path: $value');
     }
     return parts.join('/');
+  }
+
+  static String _normalizeEtag(String value, {String? key}) {
+    var normalized = value.trim();
+    if (normalized.startsWith('w/')) {
+      normalized = 'W/${normalized.substring(2)}';
+    }
+    final opaque =
+        normalized.startsWith('W/') ? normalized.substring(2) : normalized;
+    if (opaque.length < 2 || !opaque.startsWith('"') || !opaque.endsWith('"')) {
+      throw SyncOperationException(SyncFailure(
+        SyncFailureKind.invalidResponse,
+        'WebDAV server returned an invalid ETag${key == null ? '' : ' for $key'}.',
+      ));
+    }
+    return normalized;
   }
 }
 
