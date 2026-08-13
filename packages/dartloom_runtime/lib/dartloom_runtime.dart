@@ -5,6 +5,8 @@ typedef DartloomFactory = FutureOr<DartloomBinding<Object>> Function(
   DartloomFactoryContext context,
 );
 
+enum DartloomStartupScope { foreground, background, both }
+
 final class DartloomBinding<T extends Object> {
   const DartloomBinding(this.value, {this.dispose});
 
@@ -14,17 +16,19 @@ final class DartloomBinding<T extends Object> {
 
 final class DartloomFactoryContext {
   const DartloomFactoryContext._({
+    required this.runtime,
     required this.capability,
     required this.name,
     required this.options,
   });
 
+  final DartloomRuntime runtime;
   final String capability;
   final String name;
   final Map<String, Object?> options;
 
   T get<T extends Object>({String name = 'default'}) =>
-      Dartloom.get<T>(name: name);
+      runtime.get<T>(name: name);
 }
 
 final class DartloomRegistration<T extends Object> {
@@ -34,6 +38,7 @@ final class DartloomRegistration<T extends Object> {
     required this.factory,
     this.options = const {},
     this.dependsOn = const [],
+    this.scope = DartloomStartupScope.both,
   });
 
   final String capability;
@@ -41,6 +46,7 @@ final class DartloomRegistration<T extends Object> {
   final String factory;
   final Map<String, Object?> options;
   final List<DartloomReference> dependsOn;
+  final DartloomStartupScope scope;
 
   Type get serviceType => T;
   bool accepts(Object value) => value is T;
@@ -64,14 +70,15 @@ final class DartloomException implements Exception {
   String toString() => 'Dartloom runtime error: $message';
 }
 
-abstract final class Dartloom {
-  static final Map<_ServiceKey, _Entry> _entries = {};
-  static final List<_ServiceKey> _initializationOrder = [];
-  static bool _initializing = false;
+final class DartloomRuntime {
+  final Map<_ServiceKey, _Entry> _entries = {};
+  final List<_ServiceKey> _initializationOrder = [];
+  bool _initializing = false;
 
-  static Future<void> initialize(
+  Future<void> initialize(
     Iterable<DartloomRegistration<Object>> registrations, {
     required Map<String, DartloomFactory> factories,
+    DartloomStartupScope scope = DartloomStartupScope.foreground,
   }) async {
     if (_entries.isNotEmpty || _initializing) {
       throw const DartloomException('initialize may only be called once.');
@@ -80,6 +87,7 @@ abstract final class Dartloom {
     final byKey = <String, DartloomRegistration<Object>>{};
     try {
       for (final registration in registrations) {
+        if (!_isActive(registration.scope, scope)) continue;
         if (byKey.containsKey(registration.key)) {
           throw DartloomException(
             'duplicate capability instance ${registration.key}.',
@@ -116,6 +124,7 @@ abstract final class Dartloom {
         try {
           binding = await factory(
             DartloomFactoryContext._(
+              runtime: this,
               capability: item.capability,
               name: item.name,
               options: Map.unmodifiable(item.options),
@@ -155,7 +164,7 @@ abstract final class Dartloom {
     }
   }
 
-  static T get<T extends Object>({String name = 'default'}) {
+  T get<T extends Object>({String name = 'default'}) {
     final entry = _entries[_ServiceKey(T, name)];
     if (entry == null) {
       throw DartloomException('no $T instance named $name is registered.');
@@ -175,7 +184,7 @@ abstract final class Dartloom {
   /// Platform-aware generated registries intentionally omit adapters that do
   /// not support the active target. Feature code can use this method for
   /// optional UI without duplicating platform checks.
-  static T? maybeGet<T extends Object>({String name = 'default'}) {
+  T? maybeGet<T extends Object>({String name = 'default'}) {
     final entry = _entries[_ServiceKey(T, name)];
     if (entry == null) return null;
     final value = entry.value;
@@ -187,10 +196,10 @@ abstract final class Dartloom {
     return value;
   }
 
-  static bool contains<T extends Object>({String name = 'default'}) =>
+  bool contains<T extends Object>({String name = 'default'}) =>
       _entries.containsKey(_ServiceKey(T, name));
 
-  static Future<void> dispose() async {
+  Future<void> dispose() async {
     Object? firstError;
     StackTrace? firstStack;
     for (final key in _initializationOrder.reversed) {
@@ -207,6 +216,38 @@ abstract final class Dartloom {
     _initializationOrder.clear();
     if (firstError != null) Error.throwWithStackTrace(firstError, firstStack!);
   }
+
+  bool _isActive(
+      DartloomStartupScope registration, DartloomStartupScope requested) {
+    if (registration == DartloomStartupScope.both ||
+        requested == DartloomStartupScope.both) {
+      return true;
+    }
+    return registration == requested;
+  }
+}
+
+abstract final class Dartloom {
+  static final DartloomRuntime _defaultRuntime = DartloomRuntime();
+
+  static Future<void> initialize(
+    Iterable<DartloomRegistration<Object>> registrations, {
+    required Map<String, DartloomFactory> factories,
+    DartloomStartupScope scope = DartloomStartupScope.foreground,
+  }) =>
+      _defaultRuntime.initialize(registrations,
+          factories: factories, scope: scope);
+
+  static T get<T extends Object>({String name = 'default'}) =>
+      _defaultRuntime.get<T>(name: name);
+
+  static T? maybeGet<T extends Object>({String name = 'default'}) =>
+      _defaultRuntime.maybeGet<T>(name: name);
+
+  static bool contains<T extends Object>({String name = 'default'}) =>
+      _defaultRuntime.contains<T>(name: name);
+
+  static Future<void> dispose() => _defaultRuntime.dispose();
 }
 
 final class _Entry {

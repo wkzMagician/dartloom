@@ -14,4 +14,19 @@ void main() {
     final store = MemorySettingsStore();
     expect(() => store.write('bad', <String, Object?>{}), throwsArgumentError);
   });
+
+  test('structured JSON codec round-trips nested values', () {
+    const value = <String, Object?>{
+      'version': 2,
+      'enabled': true,
+      'labels': ['one', 'two'],
+      'nested': {'unknownField': 'preserved'},
+    };
+    expect(SettingsJsonCodec.decode(SettingsJsonCodec.encode(value)), value);
+  });
+
+  test('structured JSON codec rejects unsupported and malformed values', () {
+    expect(() => SettingsJsonCodec.encode(Object()), throwsArgumentError);
+    expect(() => SettingsJsonCodec.decode('{'), throwsFormatException);
+  });
 }

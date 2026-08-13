@@ -100,4 +100,62 @@ void main() {
       ),
     );
   });
+
+  test('runtime instances are isolated and factory context uses its runtime',
+      () async {
+    final first = DartloomRuntime();
+    final second = DartloomRuntime();
+    await first.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'service',
+          name: 'default',
+          factory: 'service',
+        ),
+      ],
+      factories: {'service': (_) => DartloomBinding(ServiceImpl('first'))},
+    );
+    await second.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'service',
+          name: 'default',
+          factory: 'service',
+        ),
+      ],
+      factories: {'service': (_) => DartloomBinding(ServiceImpl('second'))},
+    );
+    expect(first.get<Service>().value, 'first');
+    expect(second.get<Service>().value, 'second');
+    await first.dispose();
+    expect(second.get<Service>().value, 'second');
+    await second.dispose();
+  });
+
+  test('startup scope filters registrations', () async {
+    final runtime = DartloomRuntime();
+    await runtime.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'foreground',
+          name: 'foreground',
+          factory: 'service',
+          scope: DartloomStartupScope.foreground,
+        ),
+        const DartloomRegistration<Service>(
+          capability: 'background',
+          name: 'default',
+          factory: 'service',
+          scope: DartloomStartupScope.background,
+        ),
+      ],
+      factories: {
+        'service': (context) => DartloomBinding(ServiceImpl(context.capability))
+      },
+      scope: DartloomStartupScope.background,
+    );
+    expect(runtime.maybeGet<Service>(name: 'foreground'), isNull);
+    expect(runtime.get<Service>(name: 'default'), isA<Service>());
+    await runtime.dispose();
+  });
 }

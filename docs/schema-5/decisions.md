@@ -103,6 +103,21 @@ constraints above binding the choice:
   journal when IPC is unavailable;
 - the final field-level merge policy implementation for Markdown.
 
+The Stage 1 runtime API is now fixed as follows:
+
+- `DartloomRuntime` owns an isolated registry and exposes `initialize`, `get`,
+  `maybeGet`, `contains`, and `dispose`.
+- `Dartloom` remains the compatibility facade backed by one default
+  `DartloomRuntime`; existing static calls retain their meaning.
+- `DartloomFactoryContext.get` resolves through the runtime that is currently
+  initializing, not through the global facade.
+- `DartloomStartupScope` and `DartloomRegistration.scope` support
+  `foreground`, `background`, and `both`; runtime initialization defaults to
+  foreground for compatibility.
+- `SettingsJsonCodec` is the explicit structured-settings JSON contract. It
+  preserves unknown object fields, accepts only JSON-compatible values, and
+  reports malformed input with `FormatException`.
+
 Each choice must be recorded in this file or a linked application ADR before
 the corresponding gate is marked passed.
 
