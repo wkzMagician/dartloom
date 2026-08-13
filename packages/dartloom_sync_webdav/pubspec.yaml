@@ -1,16 +1,26 @@
 name: dartloom_sync_webdav
-description: WebDAV RemoteObjectStore adapter for Dartloom synchronization.
-version: 0.1.0
+description: WebDAV RemoteReplica backend for Dartloom Sync v3.
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
 topics: [flutter, sync, webdav, dartloom]
 environment:
   sdk: ^3.5.0
+  flutter: ">=3.24.0"
 dependencies:
-  dartloom_sync: ^0.2.0
+  flutter:
+    sdk: flutter
+  dartloom_sync: ^0.3.0
   http: ^1.2.0
   xml: ^6.5.0
 dev_dependencies:
   lints: ^5.1.1
   test: ^1.25.8
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.dartloom.sync.webdav
+        pluginClass: DartloomSyncWebdavPlugin

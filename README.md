@@ -77,7 +77,8 @@ conflicts by default, and accepts an application-specific merge factory.
 
 ## Configuration and secrets
 
-Schema version 2 stores named instances and adapter options. Dartloom-owned
+Schema version 3 stores named instances, typed sync policies, platform
+overrides, and adapter options. Dartloom-owned
 storage categories are intentionally generic: `text`, `json`, and `database`.
 Business-specific names such as “notes” do not appear in the framework catalog.
 
@@ -89,17 +90,22 @@ capabilities:
         implementation: json_file
         options:
           path: dartloom/data.json
+  autostart:
+    instances:
+      default:
+        implementation: launch_at_startup
+        platforms: [windows, macos, linux]
   sync:
     instances:
       default:
-        implementation: etag_object
+        implementation: etag
+        policy:
+          mode: automatic
         stores: [storage.json]
         backend:
           implementation: webdav
           options:
-            base_url: "${WEBDAV_URL}"
-            username: "${WEBDAV_USERNAME}"
-            password: "${WEBDAV_PASSWORD}"
+            root_path: Dartloom
 ```
 
 `${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
@@ -113,8 +119,10 @@ compatible commit.
 
 Desktop-only adapters such as `resident` are registered only on supported
 desktop targets. A mixed Android/Windows application can therefore keep one
-configuration without initializing a tray adapter on Android. Configure the
-resident menu, click actions, and exit callback through the contract:
+configuration without initializing a tray adapter on Android. An instance-level
+`platforms` list can narrow registration further, and optional UI can use
+`Dartloom.maybeGet<T>()` instead of repeating operating-system checks.
+Configure the resident menu, click actions, and exit callback through the contract:
 
 ```dart
 final resident = Dartloom.get<ResidentService>();

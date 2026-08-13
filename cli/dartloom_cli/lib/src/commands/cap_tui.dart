@@ -5,6 +5,7 @@ import 'package:dart_console/dart_console.dart';
 import '../capabilities/capability_registry.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
+import '../config/option_schema.dart';
 import '../process/process_runner.dart';
 import 'capability_manager.dart';
 
@@ -40,6 +41,7 @@ class CapTui {
   final ConfigLoader _loader;
   final CapabilityManager _manager;
   final Console _console;
+  Set<TargetPlatform> _appPlatforms = const {};
 
   Future<void> run(Directory project) async {
     if (!_console.hasTerminal) {
@@ -48,6 +50,7 @@ class CapTui {
       );
     }
     final config = await _loader.load(project);
+    _appPlatforms = config.platforms;
     final selection = {
       for (final entry in config.capabilities.entries)
         entry.key: {...entry.value},
@@ -85,6 +88,16 @@ class CapTui {
               ...CapabilityDefaults.forCapability(capability),
             };
             if (capability == Capability.sync) {
+              selection.putIfAbsent(
+                Capability.settings,
+                () =>
+                    {...CapabilityDefaults.forCapability(Capability.settings)},
+              );
+              selection[Capability.settings]!.putIfAbsent(
+                'sync_secrets',
+                () => const CapabilityInstanceConfig(
+                    implementation: 'secure_storage'),
+              );
               selection.putIfAbsent(
                 Capability.storage,
                 () => {...CapabilityDefaults.forCapability(Capability.storage)},
@@ -207,12 +220,15 @@ class CapTui {
       metadata = CapabilityRegistry.implementation(capability, implementation);
     }
     final options = <String, Object?>{...current.options};
-    for (final option
-        in metadata?.options.entries ?? const <MapEntry<String, String>>[]) {
-      options[option.key] = _prompt(
-        option.key,
-        options[option.key]?.toString() ?? option.value,
-      );
+    final adapterOptionSchema = metadata?.optionSchema;
+    if (capability != Capability.sync && adapterOptionSchema != null) {
+      _editOptionSchema(options, adapterOptionSchema, title: 'Adapter options');
+    } else if (capability != Capability.sync) {
+      for (final option
+          in metadata?.options.entries ?? const <MapEntry<String, String>>[]) {
+        options[option.key] = _prompt(
+            option.key, options[option.key]?.toString() ?? option.value);
+      }
     }
     if (implementation == 'custom') {
       final rawOptions = _prompt(
@@ -240,6 +256,7 @@ class CapTui {
     var stores = current.stores;
     AdapterConfig? backend = current.backend;
     String? mergeFactory = current.mergeFactory;
+    var policy = _deepCopy(current.policy);
     if (capability == Capability.sync) {
       final rawStores = _prompt(
         'Stores (comma separated: storage.text/storage.json/storage.database)',
@@ -250,17 +267,38 @@ class CapTui {
           .map((value) => value.trim())
           .where((value) => value.isNotEmpty)
           .toList();
+      _console.writeLine('\nSync backends');
+      for (var index = 0;
+          index < CapabilityRegistry.syncBackends.length;
+          index++) {
+        _console.writeLine(
+            '  ${index + 1}. ${CapabilityRegistry.syncBackends[index].id}');
+      }
+      final selectedBackend = _prompt(
+        'Select backend',
+        backend?.implementation ?? CapabilityRegistry.syncBackends.first.id,
+      );
+      final backendIndex = int.tryParse(selectedBackend);
+      final backendMetadata = backendIndex != null &&
+              backendIndex > 0 &&
+              backendIndex <= CapabilityRegistry.syncBackends.length
+          ? CapabilityRegistry.syncBackends[backendIndex - 1]
+          : CapabilityRegistry.syncBackend(selectedBackend) ??
+              CapabilityRegistry.syncBackend(backend?.implementation ?? '') ??
+              CapabilityRegistry.syncBackends.first;
       final backendOptions = <String, Object?>{
+        ...?backendMetadata.optionSchema?.defaults(),
         ...?backend?.options,
       };
-      for (final option in CapabilityRegistry.webDav.options.entries) {
-        backendOptions[option.key] = _prompt(
-          'webdav.${option.key}',
-          backendOptions[option.key]?.toString() ?? option.value,
+      if (backendMetadata.optionSchema case final schema?) {
+        _editOptionSchema(
+          backendOptions,
+          schema,
+          title: '${backendMetadata.id} backend options',
         );
       }
       backend = AdapterConfig(
-        implementation: 'webdav',
+        implementation: backendMetadata.id,
         options: backendOptions,
       );
       final rawMerge = _prompt(
@@ -268,17 +306,152 @@ class CapTui {
         mergeFactory ?? '',
       );
       mergeFactory = rawMerge.isEmpty ? null : rawMerge;
+      policy = deepMerge(SyncOptionSchemas.policy.defaults(), policy);
+      _console.writeLine('\nBasic sync policy');
+      _editOptionSchema(
+        policy,
+        OptionSchema(SyncOptionSchemas.policy.fields
+            .where((field) =>
+                field.group == 'basic' || field.path == 'conflicts.strategy')
+            .toList()),
+        title: 'Basic',
+      );
+      if (_prompt('Configure advanced policy? (y/n)', 'n').toLowerCase() ==
+          'y') {
+        _editOptionSchema(
+          policy,
+          OptionSchema(SyncOptionSchemas.policy.fields
+              .where((field) =>
+                  field.group != 'basic' && field.path != 'conflicts.strategy')
+              .toList()),
+          title: 'Advanced',
+        );
+      }
+      final platformPolicies = policy['platforms'] is Map
+          ? (policy['platforms'] as Map).cast<String, Object?>()
+          : <String, Object?>{};
+      if (_prompt('Configure platform overrides? (y/n)', 'n').toLowerCase() ==
+          'y') {
+        for (final platform
+            in TargetPlatform.values.where(_appPlatforms.contains)) {
+          final currentOverride = platformPolicies[platform.name] is Map
+              ? (platformPolicies[platform.name] as Map).cast<String, Object?>()
+              : <String, Object?>{};
+          if (_prompt('Override ${platform.name}? (y/n/reset)',
+                      currentOverride.isEmpty ? 'n' : 'y')
+                  .toLowerCase() ==
+              'reset') {
+            platformPolicies.remove(platform.name);
+            continue;
+          }
+          if (_prompt('Edit ${platform.name} values? (y/n)',
+                      currentOverride.isEmpty ? 'n' : 'y')
+                  .toLowerCase() !=
+              'y') {
+            continue;
+          }
+          _editOptionSchema(currentOverride, SyncOptionSchemas.policy,
+              title: '${platform.name} foreground overrides',
+              includeMissing: false);
+          if ({TargetPlatform.android, TargetPlatform.ios}.contains(platform) &&
+              _prompt('Configure ${platform.name} background? (y/n)', 'n')
+                      .toLowerCase() ==
+                  'y') {
+            final background = currentOverride['background'] is Map
+                ? (currentOverride['background'] as Map).cast<String, Object?>()
+                : <String, Object?>{};
+            _editOptionSchema(
+              background,
+              OptionSchema(SyncOptionSchemas.background.fields
+                  .where((field) => field.platforms?.contains(platform) ?? true)
+                  .toList()),
+              title: '${platform.name} background',
+            );
+            currentOverride['background'] = background;
+          }
+          platformPolicies[platform.name] = currentOverride;
+        }
+        policy['platforms'] = platformPolicies;
+        _console.writeLine('Resolved platform policies:');
+        for (final platform
+            in TargetPlatform.values.where(_appPlatforms.contains)) {
+          final override = platformPolicies[platform.name] is Map
+              ? (platformPolicies[platform.name] as Map).cast<String, Object?>()
+              : const <String, Object?>{};
+          _console.writeLine(
+              '  ${platform.name}: ${deepMerge(Map.fromEntries(policy.entries.where((entry) => entry.key != 'platforms')), override)}');
+        }
+      }
     }
     return CapabilityInstanceConfig(
       implementation: implementation,
       factory: factory,
+      platforms: current.platforms,
       options: options,
       dependsOn: dependsOn,
       stores: stores,
       backend: backend,
       mergeFactory: mergeFactory,
+      policy: policy,
     );
   }
+
+  void _editOptionSchema(
+    Map<String, Object?> values,
+    OptionSchema schema, {
+    required String title,
+    bool includeMissing = true,
+  }) {
+    _console.writeLine('\n$title');
+    String? group;
+    for (final field in schema.fields) {
+      final condition = field.condition;
+      if (condition != null) {
+        final controllingValue = readPath(values, condition.path);
+        if (controllingValue != null &&
+            !condition.values.contains(controllingValue)) {
+          continue;
+        }
+      }
+      final current = readPath(values, field.path);
+      if (!includeMissing && current == null) {
+        final enabled = _prompt('Override ${field.path}? (y/n)', 'n');
+        if (enabled.toLowerCase() != 'y') continue;
+      }
+      if (group != field.group) {
+        group = field.group;
+        _console.writeLine('[$group]');
+      }
+      final defaultValue = current ?? field.defaultValue;
+      final raw = _prompt(
+          '${field.label} — ${field.description}', _formatOption(defaultValue));
+      setPath(values, field.path, _parseOption(field, raw));
+    }
+  }
+
+  Object? _parseOption(OptionField field, String raw) => switch (field.type) {
+        OptionValueType.boolean => raw.toLowerCase() == 'true',
+        OptionValueType.integer => int.tryParse(raw) ?? raw,
+        OptionValueType.number => num.tryParse(raw) ?? raw,
+        OptionValueType.stringList => raw
+            .split(',')
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
+        _ => raw,
+      };
+
+  String _formatOption(Object? value) =>
+      value is List ? value.join(',') : '$value';
+
+  Map<String, Object?> _deepCopy(Map<String, Object?> value) => {
+        for (final entry in value.entries)
+          entry.key: entry.value is Map
+              ? _deepCopy((entry.value as Map).cast<String, Object?>())
+              : entry.value is List
+                  ? List<Object?>.from(entry.value as List)
+                  : entry.value,
+      };
 
   CapabilityInstanceConfig _defaultInstance(
       Capability capability, String name) {

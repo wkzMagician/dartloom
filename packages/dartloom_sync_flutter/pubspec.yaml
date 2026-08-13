@@ -1,0 +1,16 @@
+name: dartloom_sync_flutter
+description: Flutter lifecycle and connectivity signals for Dartloom Sync.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  connectivity_plus: ^7.3.1
+  dartloom_sync: ^0.3.0
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1

@@ -49,6 +49,8 @@ void main() {
     );
 
     expect(Dartloom.get<Service>().value, 'two');
+    expect(Dartloom.maybeGet<Service>()?.value, 'two');
+    expect(Dartloom.maybeGet<Service>(name: 'missing'), isNull);
     await Dartloom.dispose();
     expect(events, ['first', 'one', 'dispose second', 'dispose first']);
   });

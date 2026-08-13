@@ -58,40 +58,48 @@ class CapabilityInstanceConfig {
   const CapabilityInstanceConfig({
     required this.implementation,
     this.factory,
+    this.platforms,
     this.options = const {},
     this.dependsOn = const [],
     this.stores = const [],
     this.backend,
     this.mergeFactory,
+    this.policy = const {},
   });
 
   final String implementation;
   final String? factory;
+  final Set<TargetPlatform>? platforms;
   final Map<String, Object?> options;
   final List<String> dependsOn;
   final List<String> stores;
   final AdapterConfig? backend;
   final String? mergeFactory;
+  final Map<String, Object?> policy;
 
   @override
   bool operator ==(Object other) =>
       other is CapabilityInstanceConfig &&
       other.implementation == implementation &&
       other.factory == factory &&
+      _setEquals(other.platforms, platforms) &&
       _mapEquals(other.options, options) &&
       _listEquals(other.dependsOn, dependsOn) &&
       _listEquals(other.stores, stores) &&
       other.backend == backend &&
-      other.mergeFactory == mergeFactory;
+      other.mergeFactory == mergeFactory &&
+      _mapEquals(other.policy, policy);
   @override
   int get hashCode => Object.hash(
         implementation,
         factory,
+        platforms == null ? null : Object.hashAllUnordered(platforms!),
         _mapHash(options),
         Object.hashAll(dependsOn),
         Object.hashAll(stores),
         backend,
         mergeFactory,
+        _mapHash(policy),
       );
 }
 
@@ -129,7 +137,7 @@ class DartloomConfig {
 
   String toYaml() {
     final buffer = StringBuffer()
-      ..writeln('schema_version: 2')
+      ..writeln('schema_version: 3')
       ..writeln()
       ..writeln('app:')
       ..writeln('  name: ${_scalar(app.name)}')
@@ -147,7 +155,7 @@ class DartloomConfig {
     if (enabledCapabilities.isEmpty) {
       buffer
         ..clear()
-        ..write('schema_version: 2\n\n')
+        ..write('schema_version: 3\n\n')
         ..write('app:\n')
         ..write('  name: ${_scalar(app.name)}\n')
         ..write('  package_name: ${_scalar(app.packageName)}\n')
@@ -173,6 +181,14 @@ class DartloomConfig {
               '        implementation: ${_scalar(instance.implementation)}');
         if (instance.factory != null) {
           buffer.writeln('        factory: ${_scalar(instance.factory!)}');
+        }
+        if (instance.platforms case final platforms?) {
+          buffer.writeln('        platforms:');
+          for (final platform in TargetPlatform.values) {
+            if (platforms.contains(platform)) {
+              buffer.writeln('          - ${_scalar(platform.name)}');
+            }
+          }
         }
         _writeMap(buffer, '        ', 'options', instance.options);
         if (instance.dependsOn.isNotEmpty) {
@@ -203,6 +219,7 @@ class DartloomConfig {
               '          merge_factory: ${_scalar(instance.mergeFactory!)}',
             );
         }
+        _writeMap(buffer, '        ', 'policy', instance.policy);
       }
     }
     buffer
@@ -296,6 +313,12 @@ bool _listEquals(List<Object?> a, List<Object?> b) {
   return true;
 }
 
+bool _setEquals(Set<Object?>? a, Set<Object?>? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null || a.length != b.length) return false;
+  return a.containsAll(b);
+}
+
 bool _valueEquals(Object? a, Object? b) {
   if (a is Map && b is Map) {
     return _mapEquals(a.cast<Object?, Object?>(), b.cast<Object?, Object?>());
@@ -341,17 +364,87 @@ abstract final class CapabilityDefaults {
           },
         Capability.sync => const {
             'default': CapabilityInstanceConfig(
-              implementation: 'etag_object',
+              implementation: 'etag',
               stores: ['storage.json'],
               backend: AdapterConfig(
                 implementation: 'webdav',
                 options: {
-                  'base_url': r'${WEBDAV_URL}',
                   'root_path': 'Dartloom',
-                  'username': r'${WEBDAV_USERNAME}',
-                  'password': r'${WEBDAV_PASSWORD}',
+                  'connect_timeout': '10s',
+                  'request_timeout': '30s',
+                  'max_parallel_requests': 4,
+                  'create_missing_collections': true,
                 },
               ),
+              policy: {
+                'mode': 'automatic',
+                'triggers': {
+                  'startup': true,
+                  'resume': true,
+                  'connectivity_restored': true,
+                  'local_write': {
+                    'enabled': true,
+                    'debounce': '2s',
+                    'max_delay': '10s',
+                  },
+                },
+                'discovery': {
+                  'remote_changes': 'auto',
+                  'poll_interval': '60s',
+                  'safety_reconcile_interval': '15m',
+                },
+                'execution': {
+                  'timeout': '2m',
+                  'busy_behavior': 'coalesce_then_rerun',
+                  'max_parallel_transfers': 4,
+                  'max_object_size': '20mb',
+                },
+                'retry': {
+                  'strategy': 'exponential',
+                  'initial_delay': '5s',
+                  'fixed_delay': '30s',
+                  'sequence': ['5s', '30s', '2m', '10m'],
+                  'multiplier': 3,
+                  'max_delay': '10m',
+                  'jitter': '20%',
+                  'max_attempts': 0,
+                },
+                'conflicts': {
+                  'strategy': 'preserve',
+                  'delete_vs_update': 'conflict',
+                },
+                'state': {
+                  'base_payload': 'always',
+                  'tombstone_retention': '30d',
+                },
+                'profiles': {
+                  'sync_on_activate': true,
+                  'existing_data': 'attach_to_default',
+                },
+                'platforms': {
+                  'android': {
+                    'background': {
+                      'enabled': true,
+                      'enqueue_on_pending': true,
+                      'periodic_interval': '15m',
+                      'flex_interval': '5m',
+                      'network': 'connected',
+                      'requires_battery_not_low': true,
+                      'requires_charging': false,
+                      'timeout': '2m',
+                    },
+                  },
+                  'ios': {
+                    'background': {
+                      'enabled': true,
+                      'task': 'app_refresh',
+                      'earliest_begin': '15m',
+                      'requires_network': true,
+                      'timeout': '25s',
+                    },
+                  },
+                },
+              },
             ),
           },
         Capability.localization => const {

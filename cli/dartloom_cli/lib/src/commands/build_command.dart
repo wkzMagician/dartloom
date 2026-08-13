@@ -52,20 +52,22 @@ class BuildCommand {
     final base = '$packageName-$version-${platform.name}';
     switch (platform) {
       case TargetPlatform.android:
-        await runRequired(runner, executableFor('flutter'),
-            ['build', 'apk', '--release'], project);
-        await _packager.copyFile(
-            File(
-                '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}app${Platform.pathSeparator}outputs${Platform.pathSeparator}flutter-apk${Platform.pathSeparator}app-release.apk'),
-            dist,
-            '$base.apk');
-        await runRequired(runner, executableFor('flutter'),
-            ['build', 'appbundle', '--release'], project);
-        await _packager.copyFile(
-            File(
-                '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}app${Platform.pathSeparator}outputs${Platform.pathSeparator}bundle${Platform.pathSeparator}release${Platform.pathSeparator}app-release.aab'),
-            dist,
-            '$base.aab');
+        await withStableAndroidKotlinBuild(project, () async {
+          await runRequired(runner, executableFor('flutter'),
+              ['build', 'apk', '--release'], project);
+          await _packager.copyFile(
+              File(
+                  '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}app${Platform.pathSeparator}outputs${Platform.pathSeparator}flutter-apk${Platform.pathSeparator}app-release.apk'),
+              dist,
+              '$base.apk');
+          await runRequired(runner, executableFor('flutter'),
+              ['build', 'appbundle', '--release'], project);
+          await _packager.copyFile(
+              File(
+                  '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}app${Platform.pathSeparator}outputs${Platform.pathSeparator}bundle${Platform.pathSeparator}release${Platform.pathSeparator}app-release.aab'),
+              dist,
+              '$base.aab');
+        });
       case TargetPlatform.windows:
         await runRequired(runner, executableFor('flutter'),
             ['build', 'windows', '--release'], project);
@@ -112,4 +114,34 @@ class BuildCommand {
           .firstMatch(pubspec)
           ?.group(1) ??
       '0.1.0';
+}
+
+/// Temporarily disables Kotlin incremental compilation for reproducible
+/// Android release builds, then restores the application-owned file exactly.
+///
+/// Kotlin's incremental cache cannot reliably relativize plugin sources when
+/// the Pub cache and Flutter project are on different Windows volumes.
+Future<T> withStableAndroidKotlinBuild<T>(
+  Directory project,
+  Future<T> Function() build,
+) async {
+  if (!Platform.isWindows) return build();
+  final properties = File(
+    '${project.path}${Platform.pathSeparator}android${Platform.pathSeparator}gradle.properties',
+  );
+  if (!await properties.exists()) return build();
+
+  final original = await properties.readAsString();
+  final setting = RegExp(r'^kotlin\.incremental=.*$', multiLine: true);
+  final updated = setting.hasMatch(original)
+      ? original.replaceFirst(setting, 'kotlin.incremental=false')
+      : '${original.trimRight()}\nkotlin.incremental=false\n';
+  if (updated == original) return build();
+
+  await properties.writeAsString(updated);
+  try {
+    return await build();
+  } finally {
+    await properties.writeAsString(original);
+  }
 }

@@ -382,6 +382,64 @@ void main() {
     );
   });
 
+  test('generated registrations honor instance target platforms', () {
+    final config = DartloomConfig(
+      app: const AppConfig(
+          name: 'demo', organization: 'com.example', description: ''),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: const {
+        Capability.logging: {
+          'default': CapabilityInstanceConfig(
+            implementation: 'logger',
+            platforms: {TargetPlatform.android},
+          ),
+        },
+      },
+    );
+
+    expect(capabilityGlue(config), contains('const {"android"}'));
+  });
+
+  test('generated agent instructions list effective capability platforms', () {
+    final config = DartloomConfig(
+      app: const AppConfig(
+          name: 'demo', organization: 'com.example', description: ''),
+      platforms: {TargetPlatform.android, TargetPlatform.windows},
+      capabilities: const {
+        Capability.settings: {
+          'default': CapabilityInstanceConfig(
+            implementation: 'shared_preferences',
+          ),
+        },
+        Capability.autostart: {
+          'default': CapabilityInstanceConfig(
+            implementation: 'launch_at_startup',
+            platforms: {TargetPlatform.windows},
+          ),
+        },
+      },
+    );
+
+    final instructions = agentInstructions(config);
+    expect(
+        instructions, contains('Enabled project targets: android, windows.'));
+    expect(
+      instructions,
+      contains(
+        '| `settings.default` | `dartloom_settings` | '
+        '`shared_preferences` | android, windows |',
+      ),
+    );
+    expect(
+      instructions,
+      contains(
+        '| `autostart.default` | `dartloom_autostart` | '
+        '`launch_at_startup` | windows |',
+      ),
+    );
+    expect(instructions, contains('Dartloom.maybeGet<T>()'));
+  });
+
   test('self-upgrade schedules a detached install', () async {
     final runner = FakeRunner();
     await SelfUpgradeCommand(runner).run(Directory.current);

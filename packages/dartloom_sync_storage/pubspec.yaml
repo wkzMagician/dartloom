@@ -1,0 +1,14 @@
+name: dartloom_sync_storage
+description: Profile-scoped storage and durable state adapters for Dartloom Sync.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+environment:
+  sdk: ^3.5.0
+dependencies:
+  crypto: ^3.0.3
+  dartloom_settings: ^0.2.0
+  dartloom_storage: ^0.2.0
+  dartloom_sync: ^0.3.0
+dev_dependencies:
+  lints: ^5.1.1
+  test: ^1.25.8

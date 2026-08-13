@@ -1,0 +1,16 @@
+name: dartloom_sync_workmanager
+description: Android and iOS system background scheduling for Dartloom Sync.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_sync: ^0.3.0
+  flutter:
+    sdk: flutter
+  workmanager: ^0.10.7
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1

@@ -169,6 +169,24 @@ abstract final class Dartloom {
     return value;
   }
 
+  /// Returns a registered capability instance, or `null` when the current
+  /// target did not register one.
+  ///
+  /// Platform-aware generated registries intentionally omit adapters that do
+  /// not support the active target. Feature code can use this method for
+  /// optional UI without duplicating platform checks.
+  static T? maybeGet<T extends Object>({String name = 'default'}) {
+    final entry = _entries[_ServiceKey(T, name)];
+    if (entry == null) return null;
+    final value = entry.value;
+    if (value is! T) {
+      throw DartloomException(
+        '$T instance named $name has unexpected type ${value.runtimeType}.',
+      );
+    }
+    return value;
+  }
+
   static bool contains<T extends Object>({String name = 'default'}) =>
       _entries.containsKey(_ServiceKey(T, name));
 

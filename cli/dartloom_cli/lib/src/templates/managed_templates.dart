@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../capabilities/capability_registry.dart';
 import '../config/dartloom_config.dart';
+import '../config/option_schema.dart';
 
 String capabilityGlue(DartloomConfig config) {
   final enabled = config.enabledCapabilities;
@@ -25,7 +26,14 @@ String capabilityGlue(DartloomConfig config) {
       ..add("import 'package:dartloom_autostart/dartloom_autostart.dart';");
   }
   if (enabled.contains(Capability.sync)) {
-    imports.add("import 'package:dartloom_sync/dartloom_sync.dart';");
+    imports
+      ..add("import 'package:dartloom_sync/dartloom_sync.dart';")
+      ..add(
+          "import 'package:dartloom_sync_storage/dartloom_sync_storage.dart';")
+      ..add(
+          "import 'package:dartloom_sync_flutter/dartloom_sync_flutter.dart';")
+      ..add(
+          "import 'package:dartloom_sync_workmanager/dartloom_sync_workmanager.dart';");
   }
   if (enabled.contains(Capability.localization)) {
     imports
@@ -66,6 +74,7 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln()
     ..writeln('Future<void> initializeDartloom({')
     ..writeln('  Map<String, DartloomFactory> customFactories = const {},')
+    ..writeln('  bool syncWorker = false,')
     ..writeln('}) async {')
     ..writeln('  late final Map<String, DartloomFactory> factories;')
     ..writeln('  final officialFactories = <String, DartloomFactory>{');
@@ -90,18 +99,36 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln()
     ..writeln('Future<void> disposeDartloom() => Dartloom.dispose();')
     ..writeln();
+  if (enabled.contains(Capability.sync)) {
+    buffer
+      ..writeln("@pragma('vm:entry-point')")
+      ..writeln('void dartloomSyncCallbackDispatcher() {')
+      ..writeln('  executeDartloomSyncWorker((instanceName) async {')
+      ..writeln('    await initializeDartloom(syncWorker: true);')
+      ..writeln('    try {')
+      ..writeln(
+          '      final service = Dartloom.get<SyncService>(name: instanceName);')
+      ..writeln('      return (await service.syncNow()).isSuccess;')
+      ..writeln('    } finally {')
+      ..writeln('      await disposeDartloom();')
+      ..writeln('    }')
+      ..writeln('  });')
+      ..writeln('}')
+      ..writeln();
+  }
   buffer
-    ..writeln('bool _dartloomSupportsCurrentPlatform(Set<String> platforms) {')
     ..writeln(
-        "  final current = kIsWeb ? 'web' : switch (defaultTargetPlatform) {")
-    ..writeln("    TargetPlatform.android => 'android',")
-    ..writeln("    TargetPlatform.iOS => 'ios',")
-    ..writeln("    TargetPlatform.linux => 'linux',")
-    ..writeln("    TargetPlatform.macOS => 'macos',")
-    ..writeln("    TargetPlatform.windows => 'windows',")
-    ..writeln("    TargetPlatform.fuchsia => 'fuchsia',")
-    ..writeln('  };')
-    ..writeln('  return platforms.contains(current);')
+        'String get _dartloomCurrentPlatform => kIsWeb ? \'web\' : switch (defaultTargetPlatform) {')
+    ..writeln("  TargetPlatform.android => 'android',")
+    ..writeln("  TargetPlatform.iOS => 'ios',")
+    ..writeln("  TargetPlatform.linux => 'linux',")
+    ..writeln("  TargetPlatform.macOS => 'macos',")
+    ..writeln("  TargetPlatform.windows => 'windows',")
+    ..writeln("  TargetPlatform.fuchsia => 'fuchsia',")
+    ..writeln('};')
+    ..writeln()
+    ..writeln('bool _dartloomSupportsCurrentPlatform(Set<String> platforms) {')
+    ..writeln('  return platforms.contains(_dartloomCurrentPlatform);')
     ..writeln('}')
     ..writeln();
   if (_requiresEnvironment(config)) {
@@ -217,7 +244,18 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln("    'json_file': (context) async {")
       ..writeln(
           "      final value = await JsonFileStore.open(path: context.options['path'] as String? ?? 'dartloom/data.json');")
-      ..writeln('      return DartloomBinding<JsonStore>(value);')
+      ..writeln(
+          "      final syncScope = context.options['sync_scope'] as String?;")
+      ..writeln(
+          '      if (syncScope == null) return DartloomBinding<JsonStore>(value);')
+      ..writeln('      final scoped = await ProfileScopedJsonStore.open(')
+      ..writeln(
+          '        value, context.get<SyncProfileScope>(name: syncScope),')
+      ..writeln(
+          "        attachExistingData: context.options['sync_attach_existing'] != false,")
+      ..writeln('      );')
+      ..writeln(
+          '      return DartloomBinding<JsonStore>(scoped, dispose: scoped.close);')
       ..writeln('    },');
   }
   if (_uses(instances, Capability.storage, 'drift')) {
@@ -277,35 +315,60 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           '      return DartloomBinding<ResidentService>(value, dispose: value.dispose);')
       ..writeln('    },');
   }
-  if (_uses(instances, Capability.sync, 'etag_object')) {
+  if (instances.containsKey(Capability.sync)) {
     buffer
-      ..writeln("    'etag_object': (context) async {")
-      ..writeln('      final localStores = <String, LocalSyncStore>{};')
+      ..writeln("    'sync_profile_scope': (context) async {")
+      ..writeln('      final value = await SyncProfileScope.open(')
+      ..writeln("        context.get<SettingsStore>(), context.name,")
+      ..writeln('      );')
+      ..writeln(
+          '      return DartloomBinding<SyncProfileScope>(value, dispose: value.dispose);')
+      ..writeln('    },');
+  }
+  if (_uses(instances, Capability.sync, 'etag')) {
+    buffer
+      ..writeln("    'etag': (context) async {")
+      ..writeln('      final localStores = <String, ProfileScopedJsonStore>{};')
       ..writeln(
           "      for (final reference in (context.options['stores'] as List).cast<String>()) {")
       ..writeln("        final name = reference.substring('storage.'.length);")
-      ..writeln("        if (name == 'text') {")
-      ..writeln(
-          "          localStores[name] = TextLocalSyncStore(context.get<TextStore>(name: name));")
-      ..writeln('        }')
       ..writeln("        if (name == 'json') {")
+      ..writeln('          final store = context.get<JsonStore>(name: name);')
+      ..writeln('          if (store is! ProfileScopedJsonStore) {')
       ..writeln(
-          "          localStores[name] = JsonLocalSyncStore(context.get<JsonStore>(name: name));")
-      ..writeln('        }')
-      ..writeln("        if (name == 'database') {")
-      ..writeln(
-          "          localStores[name] = DatabaseLocalSyncStore(context.get<DatabaseStore>(name: name));")
+          "            throw DartloomException('sync store storage.\$name is not profile scoped.');")
+      ..writeln('          }')
+      ..writeln('          localStores[name] = store;')
       ..writeln('        }')
       ..writeln('      }')
-      ..writeln("      final remote = WebDavObjectStore(")
+      ..writeln('      if (localStores.isEmpty) {')
       ..writeln(
-          "        baseUrl: Uri.parse(context.options['backend_base_url'] as String),")
+          "        throw const DartloomException('etag sync currently requires storage.json.');")
+      ..writeln('      }')
       ..writeln(
-          "        rootPath: context.options['backend_root_path'] as String? ?? 'Dartloom',")
+          '      final scope = context.get<SyncProfileScope>(name: context.name);')
+      ..writeln('      final profiles = SettingsSyncProfileRepository(')
+      ..writeln('        instanceName: context.name,')
+      ..writeln('        metadata: context.get<SettingsStore>(),')
       ..writeln(
-          "        username: context.options['backend_username'] as String? ?? '',")
+          "        secretsStore: context.get<SettingsStore>(name: 'sync_secrets'),")
+      ..writeln('        scope: scope,')
+      ..writeln('      );')
+      ..writeln('      final firstStore = localStores.values.first;')
+      ..writeln('      final state = JsonReconciliationStateRepository(')
+      ..writeln('        firstStore.raw, instanceName: context.name,')
+      ..writeln('      );')
+      ..writeln('      final backend = WebDavBackendFactory(')
       ..writeln(
-          "        password: context.options['backend_password'] as String? ?? '',")
+          "        defaultRootPath: context.options['backend_root_path'] as String? ?? 'Dartloom',")
+      ..writeln(
+          "        connectTimeout: SyncPolicyCodec.parseDuration(context.options['backend_connect_timeout'] as String),")
+      ..writeln(
+          "        requestTimeout: SyncPolicyCodec.parseDuration(context.options['backend_request_timeout'] as String),")
+      ..writeln(
+          "        maxParallelRequests: context.options['backend_max_parallel_requests'] as int,")
+      ..writeln(
+          "        createMissingCollections: context.options['backend_create_missing_collections'] as bool,")
       ..writeln('      );')
       ..writeln('      SyncMergePolicy? merge;')
       ..writeln(
@@ -326,17 +389,60 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln('        }')
       ..writeln('        merge = binding.value as SyncMergePolicy;')
       ..writeln('      }')
+      ..writeln('      FlutterSyncRuntimeSignals? runtime;')
+      ..writeln('      if (!syncWorker) {')
+      ..writeln('        runtime = FlutterSyncRuntimeSignals();')
+      ..writeln('        await runtime.start();')
+      ..writeln('      }')
+      ..writeln('      final coordinator = SyncCoordinator(')
+      ..writeln('        instanceName: context.name,')
       ..writeln(
-          "      final state = JsonSyncStateStore(context.get<JsonStore>(name: 'json'), key: '__dartloom_sync/\${context.name}');")
-      ..writeln('      return DartloomBinding<SyncEngine>(EtagSyncEngine(')
-      ..writeln('        local: CompositeLocalSyncStore(localStores),')
-      ..writeln('        remote: remote, stateStore: state, merge: merge,')
-      ..writeln('      ));')
+          "        policy: SyncPolicyCodec.resolve((context.options['policy'] as Map).cast<String, Object?>(), _dartloomCurrentPlatform),")
+      ..writeln('        profiles: profiles,')
+      ..writeln('        localFactory: JsonLocalReplicaFactory(localStores),')
+      ..writeln('        stateRepository: state,')
+      ..writeln('        reconciler: const EtagReconciler(),')
+      ..writeln("        backends: {'webdav': backend},")
+      ..writeln('        runtimeSignals: runtime,')
+      ..writeln(
+          '        backgroundScheduler: syncWorker ? null : WorkmanagerSyncBackgroundScheduler(callbackDispatcher: dartloomSyncCallbackDispatcher),')
+      ..writeln('        merge: merge,')
+      ..writeln('      );')
+      ..writeln('      await coordinator.start();')
+      ..writeln('      return DartloomBinding<SyncService>(')
+      ..writeln('        coordinator,')
+      ..writeln('        dispose: () async {')
+      ..writeln('          await coordinator.dispose();')
+      ..writeln('          await runtime?.dispose();')
+      ..writeln('        },')
+      ..writeln('      );')
       ..writeln('    },');
   }
 }
 
 void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
+  final syncInstances = config.capabilities[Capability.sync] ?? const {};
+  for (final entry in syncInstances.entries) {
+    final platforms = _supportedPlatforms(Capability.sync, entry.value);
+    buffer
+      ..writeln(
+        "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
+      )
+      ..writeln('      DartloomRegistration<SyncProfileScope>(')
+      ..writeln("        capability: 'sync_profile',")
+      ..writeln('        name: ${_dart(entry.key)},')
+      ..writeln("        factory: 'sync_profile_scope',")
+      ..writeln('        dependsOn: const [')
+      ..writeln("          DartloomReference('settings', 'default'),")
+      ..writeln('        ],')
+      ..writeln('      ),');
+  }
+  final storeOwners = <String, MapEntry<String, CapabilityInstanceConfig>>{};
+  for (final sync in syncInstances.entries) {
+    for (final store in sync.value.stores) {
+      storeOwners[store] = sync;
+    }
+  }
   for (final capability in Capability.values) {
     final instances = config.capabilities[capability] ?? const {};
     for (final entry in instances.entries) {
@@ -345,8 +451,17 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       final factory = instance.factory ?? instance.implementation;
       final platforms = _supportedPlatforms(capability, instance);
       final options = <String, Object?>{...instance.options};
+      final storeOwner = storeOwners['${capability.name}.${entry.key}'];
+      if (capability == Capability.storage && storeOwner != null) {
+        options['sync_scope'] = storeOwner.key;
+        final existingData = storeOwner.value.policy['profiles'] is Map
+            ? (storeOwner.value.policy['profiles'] as Map)['existing_data']
+            : null;
+        options['sync_attach_existing'] = existingData != 'new_empty';
+      }
       if (capability == Capability.sync) {
         options['stores'] = instance.stores;
+        options['policy'] = instance.policy;
         for (final option in instance.backend?.options.entries ??
             const <MapEntry<String, Object?>>[]) {
           options['backend_${option.key}'] = option.value;
@@ -357,7 +472,7 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       }
       buffer
         ..writeln(
-          "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
+          "      if ((!syncWorker || ${capability == Capability.settings || capability == Capability.storage || capability == Capability.sync}) && _dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
         )
         ..writeln('      DartloomRegistration<$type>(')
         ..writeln("        capability: '${capability.name}',")
@@ -366,8 +481,12 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
         ..writeln('        options: ${_dartMap(options)},');
       final dependencies = <String>{
         ...instance.dependsOn,
+        if (capability == Capability.storage && storeOwner != null)
+          'sync_profile.${storeOwner.key}',
         if (capability == Capability.sync) ...instance.stores,
-        if (capability == Capability.sync) 'storage.json',
+        if (capability == Capability.sync) 'sync_profile.${entry.key}',
+        if (capability == Capability.sync) 'settings.default',
+        if (capability == Capability.sync) 'settings.sync_secrets',
       };
       if (dependencies.isNotEmpty) {
         buffer
@@ -393,7 +512,10 @@ Set<TargetPlatform> _supportedPlatforms(
     capability,
     instance.implementation,
   );
-  return adapter?.platforms ?? CapabilityRegistry.all[capability]!.platforms;
+  final supported =
+      adapter?.platforms ?? CapabilityRegistry.all[capability]!.platforms;
+  final configured = instance.platforms;
+  return configured == null ? supported : supported.intersection(configured);
 }
 
 String _serviceType(Capability capability, String name) => switch (capability) {
@@ -406,7 +528,7 @@ String _serviceType(Capability capability, String name) => switch (capability) {
         },
       Capability.logging => 'AppLogger',
       Capability.autostart => 'AutostartService',
-      Capability.sync => 'SyncEngine',
+      Capability.sync => 'SyncService',
       Capability.localization => 'LocalizationService',
       Capability.resident => 'ResidentService',
     };
@@ -492,7 +614,72 @@ Future<void> bootstrapDartloom() async {
 }
 ''';
 
-const agentInstructions = '''# Agent Instructions
+String agentInstructions(DartloomConfig config) {
+  final projectPlatforms = _platformList(config.platforms);
+  final rows = <String>[];
+  for (final capability in Capability.values) {
+    final instances = config.capabilities[capability] ?? const {};
+    for (final entry in instances.entries) {
+      final instance = entry.value;
+      final effectivePlatforms = _supportedPlatforms(
+        capability,
+        instance,
+      ).intersection(config.platforms);
+      rows.add(
+        '| `${capability.name}.${entry.key}` | '
+        '`${CapabilityRegistry.all[capability]!.contractPackage}` | '
+        '`${instance.implementation}` | ${_platformList(effectivePlatforms)} |',
+      );
+    }
+  }
+  final capabilityRows =
+      rows.isEmpty ? '| None | - | - | - |' : rows.join('\n');
+  final syncRows = <String>[];
+  for (final entry in config.capabilities[Capability.sync]?.entries ??
+      const <MapEntry<String, CapabilityInstanceConfig>>[]) {
+    final configured =
+        deepMerge(SyncOptionSchemas.policy.defaults(), entry.value.policy);
+    final base = Map<String, Object?>.fromEntries(
+      configured.entries.where((item) => item.key != 'platforms'),
+    );
+    final overrides = configured['platforms'] is Map
+        ? (configured['platforms'] as Map).cast<String, Object?>()
+        : const <String, Object?>{};
+    for (final platform in config.platforms) {
+      final override = overrides[platform.name] is Map
+          ? (overrides[platform.name] as Map).cast<String, Object?>()
+          : const <String, Object?>{};
+      final resolved = deepMerge(
+          base,
+          Map.fromEntries(
+              override.entries.where((item) => item.key != 'background')));
+      final background = override['background'] is Map &&
+          (override['background'] as Map)['enabled'] == true;
+      syncRows.add(
+        '| `sync.${entry.key}` | ${platform.name} | '
+        '${readPath(resolved, 'mode')} | '
+        '${readPath(resolved, 'discovery.remote_changes')} | '
+        '${readPath(resolved, 'discovery.poll_interval')} | '
+        '${background ? 'enabled' : 'disabled'} |',
+      );
+    }
+  }
+  final syncPolicyTable = syncRows.isEmpty
+      ? ''
+      : '''
+
+## Sync policy by platform
+
+Startup, resume, local-write, connectivity, polling, retry, conflict, and
+background behavior is owned by Dartloom. Feature code calls `SyncService`
+and must not reproduce these triggers.
+
+| Sync instance | Platform | Mode | Remote discovery | Poll interval | System background |
+| --- | --- | --- | --- | --- | --- |
+${syncRows.join('\n')}
+''';
+
+  return '''# Agent Instructions
 
 This project is managed by Dartloom.
 
@@ -506,8 +693,30 @@ This project is managed by Dartloom.
    `lib/capabilities/bootstrap.dart`. Application files, including `lib/app`
    and ARB translations, are never overwritten by `dartloom project update`.
 
+## Capability platform support
+
+Enabled project targets: $projectPlatforms.
+
+Generated registration is platform-aware. Treat a capability as optional when
+the current target is not listed below, and use `Dartloom.maybeGet<T>()` for
+optional feature UI instead of duplicating operating-system checks.
+
+| Capability instance | Contract package | Implementation | Project targets |
+| --- | --- | --- | --- |
+$capabilityRows
+$syncPolicyTable
+
 Before finishing, run `dart format .`, `flutter analyze`, and `flutter test`.
 ''';
+}
+
+String _platformList(Set<TargetPlatform> platforms) {
+  final names = TargetPlatform.values
+      .where(platforms.contains)
+      .map((platform) => platform.name)
+      .join(', ');
+  return names.isEmpty ? 'none' : names;
+}
 
 const ciWorkflow = '''name: CI
 on: [push, pull_request]

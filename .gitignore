@@ -10,3 +10,4 @@ dartloom_integration/
 **/.flutter-plugins-dependencies
 **/.packages
 **/pubspec.lock
+**/pubspec_overrides.yaml

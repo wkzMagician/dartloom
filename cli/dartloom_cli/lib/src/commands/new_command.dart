@@ -106,7 +106,7 @@ class NewCommand {
       "import 'package:flutter_test/flutter_test.dart';\n\nimport 'package:${config.app.name}/app/app.dart';\n\nvoid main() {\n  testWidgets('shows the Dartloom app shell', (tester) async {\n    await tester.pumpWidget(const DartloomApp());\n    expect(find.text('Dartloom app'), findsOneWidget);\n  });\n}\n",
     );
     await File('${project.path}${separator}AGENTS.md')
-        .writeAsString(agentInstructions);
+        .writeAsString(agentInstructions(config));
     await File(
             '${project.path}$separator.github${separator}workflows${separator}ci.yml')
         .writeAsString(ciWorkflow);

@@ -29,6 +29,14 @@ class AddCommand {
     capabilities[capability] = CapabilityDefaults.forCapability(capability);
     if (capability == Capability.sync) {
       capabilities.putIfAbsent(
+        Capability.settings,
+        () => CapabilityDefaults.forCapability(Capability.settings),
+      );
+      capabilities[Capability.settings]!.putIfAbsent(
+        'sync_secrets',
+        () => const CapabilityInstanceConfig(implementation: 'secure_storage'),
+      );
+      capabilities.putIfAbsent(
         Capability.storage,
         () => CapabilityDefaults.forCapability(Capability.storage),
       );

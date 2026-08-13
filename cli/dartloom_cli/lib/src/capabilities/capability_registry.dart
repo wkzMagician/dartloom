@@ -1,4 +1,5 @@
 import '../config/dartloom_config.dart';
+import '../config/option_schema.dart';
 
 class ImplementationMetadata {
   const ImplementationMetadata({
@@ -7,12 +8,14 @@ class ImplementationMetadata {
     this.instanceNames,
     this.platforms,
     this.options = const {},
+    this.optionSchema,
   });
   final String id;
   final String packageName;
   final Set<String>? instanceNames;
   final Set<TargetPlatform>? platforms;
   final Map<String, String> options;
+  final OptionSchema? optionSchema;
 }
 
 class CapabilityMetadata {
@@ -123,8 +126,9 @@ abstract final class CapabilityRegistry {
       platforms: _allPlatforms,
       implementations: [
         ImplementationMetadata(
-          id: 'etag_object',
+          id: 'etag',
           packageName: 'dartloom_sync_etag',
+          optionSchema: SyncOptionSchemas.policy,
         ),
       ],
     ),
@@ -168,13 +172,14 @@ abstract final class CapabilityRegistry {
   static const webDav = ImplementationMetadata(
     id: 'webdav',
     packageName: 'dartloom_sync_webdav',
-    options: {
-      'base_url': r'${WEBDAV_URL}',
-      'root_path': 'Dartloom',
-      'username': r'${WEBDAV_USERNAME}',
-      'password': r'${WEBDAV_PASSWORD}',
-    },
+    options: {'root_path': 'Dartloom'},
+    optionSchema: SyncOptionSchemas.webDav,
   );
+
+  static const syncBackends = <ImplementationMetadata>[webDav];
+
+  static ImplementationMetadata? syncBackend(String id) =>
+      syncBackends.where((backend) => backend.id == id).firstOrNull;
 
   static Capability parse(String name) {
     try {
@@ -208,7 +213,11 @@ abstract final class CapabilityRegistry {
         if (adapter != null) names.add(adapter.packageName);
         if (entry.key == Capability.sync &&
             instance.backend?.implementation == 'webdav') {
-          names.add(webDav.packageName);
+          names
+            ..add(webDav.packageName)
+            ..add('dartloom_sync_storage')
+            ..add('dartloom_sync_flutter')
+            ..add('dartloom_sync_workmanager');
         }
       }
     }
@@ -221,6 +230,9 @@ abstract final class CapabilityRegistry {
       'dartloom_runtime': '^0.1.0',
       'dartloom_resident': '^0.3.0',
       'dartloom_resident_tray': '^0.2.1',
+      'dartloom_sync': '^0.3.0',
+      'dartloom_sync_etag': '^0.2.0',
+      'dartloom_sync_webdav': '^0.2.0',
     };
     final version = versions[name] ??
         (all.values.any((value) => value.contractPackage == name)
@@ -235,7 +247,10 @@ abstract final class CapabilityRegistry {
         for (final capability in all.values)
           for (final implementation in capability.implementations)
             implementation.packageName,
-        webDav.packageName,
+        for (final backend in syncBackends) backend.packageName,
+        'dartloom_sync_storage',
+        'dartloom_sync_flutter',
+        'dartloom_sync_workmanager',
       };
 
   static List<String> validationErrors(DartloomConfig config) {
@@ -249,6 +264,16 @@ abstract final class CapabilityRegistry {
       }
       for (final instanceEntry in capabilityEntry.value.entries) {
         final instance = instanceEntry.value;
+        final configuredPlatforms = instance.platforms;
+        if (configuredPlatforms != null) {
+          final outsideApp = configuredPlatforms.difference(config.platforms);
+          if (outsideApp.isNotEmpty) {
+            errors.add(
+              '${capabilityEntry.key.name}.${instanceEntry.key} configures disabled app platforms: '
+              '${outsideApp.map((platform) => platform.name).join(', ')}.',
+            );
+          }
+        }
         if (instance.implementation == 'custom') {
           if (instance.factory == null || instance.factory!.isEmpty) {
             errors.add(
@@ -267,6 +292,18 @@ abstract final class CapabilityRegistry {
           );
           continue;
         }
+        if (configuredPlatforms != null) {
+          final unsupported = configuredPlatforms.difference(
+            adapter.platforms ?? metadata.platforms,
+          );
+          if (unsupported.isNotEmpty) {
+            errors.add(
+              '${capabilityEntry.key.name}.${instanceEntry.key} implementation '
+              '${instance.implementation} does not support: '
+              '${unsupported.map((platform) => platform.name).join(', ')}.',
+            );
+          }
+        }
         if (adapter.instanceNames != null &&
             !adapter.instanceNames!.contains(instanceEntry.key)) {
           errors.add(
@@ -280,12 +317,45 @@ abstract final class CapabilityRegistry {
             'sync.${instanceEntry.key} has unknown backend ${instance.backend?.implementation}.',
           );
         }
+        if (capabilityEntry.key == Capability.sync) {
+          errors.addAll(SyncOptionSchemas.validateSync(
+            instance,
+            config.platforms,
+            context: 'sync.${instanceEntry.key}',
+          ));
+        }
       }
     }
     if (config.capabilities.containsKey(Capability.sync) &&
         !(config.capabilities[Capability.storage]?.containsKey('json') ??
             false)) {
       errors.add('sync requires storage.json for durable sync state.');
+    }
+    if (config.capabilities.containsKey(Capability.sync) &&
+        !(config.capabilities[Capability.settings]
+                ?.containsKey('sync_secrets') ??
+            false)) {
+      errors.add('sync requires settings.sync_secrets using secure_storage.');
+    }
+    final secretsSettings =
+        config.capabilities[Capability.settings]?['sync_secrets'];
+    if (config.capabilities.containsKey(Capability.sync) &&
+        secretsSettings != null &&
+        secretsSettings.implementation != 'secure_storage') {
+      errors.add('settings.sync_secrets must use secure_storage.');
+    }
+    final storeOwners = <String, String>{};
+    for (final instance in config.capabilities[Capability.sync]?.entries ??
+        const <MapEntry<String, CapabilityInstanceConfig>>[]) {
+      for (final store in instance.value.stores) {
+        final previous = storeOwners[store];
+        if (previous != null) {
+          errors.add(
+              '$store is assigned to both sync.$previous and sync.${instance.key}.');
+        } else {
+          storeOwners[store] = instance.key;
+        }
+      }
     }
     return errors;
   }
