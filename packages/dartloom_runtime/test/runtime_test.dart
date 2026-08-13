@@ -158,4 +158,114 @@ void main() {
     expect(runtime.get<Service>(name: 'default'), isA<Service>());
     await runtime.dispose();
   });
+
+  test('reports missing factories and wrong return types', () async {
+    final runtime = DartloomRuntime();
+    const registration = DartloomRegistration<Service>(
+      capability: 'service',
+      name: 'default',
+      factory: 'missing',
+    );
+    await expectLater(
+      runtime.initialize(
+        <DartloomRegistration<Object>>[registration],
+        factories: const {},
+      ),
+      throwsA(isA<DartloomException>().having(
+        (error) => error.message,
+        'message',
+        contains('missing factory'),
+      )),
+    );
+    await expectLater(
+      runtime.initialize(
+        <DartloomRegistration<Object>>[registration],
+        factories: {
+          'missing': (_) => DartloomBinding<Object>(Object()),
+        },
+      ),
+      throwsA(isA<DartloomException>().having(
+        (error) => error.message,
+        'message',
+        contains('expected Service'),
+      )),
+    );
+  });
+
+  test('failed initialization cleans up in reverse and runtime is reusable',
+      () async {
+    final runtime = DartloomRuntime();
+    final events = <String>[];
+    await expectLater(
+      runtime.initialize(
+        <DartloomRegistration<Object>>[
+          const DartloomRegistration<Service>(
+            capability: 'first',
+            name: 'first',
+            factory: 'first',
+          ),
+          const DartloomRegistration<Service>(
+            capability: 'second',
+            name: 'second',
+            factory: 'second',
+          ),
+          const DartloomRegistration<Service>(
+            capability: 'third',
+            name: 'third',
+            factory: 'third',
+          ),
+        ],
+        factories: {
+          'first': (_) => DartloomBinding<Service>(
+                ServiceImpl('first'),
+                dispose: () => events.add('dispose first'),
+              ),
+          'second': (_) => DartloomBinding<Service>(
+                ServiceImpl('second'),
+                dispose: () => events.add('dispose second'),
+              ),
+          'third': (_) => throw StateError('boom'),
+        },
+      ),
+      throwsA(isA<DartloomException>()),
+    );
+    expect(events, ['dispose second', 'dispose first']);
+    expect(runtime.contains<Service>(name: 'first'), isFalse);
+
+    await runtime.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'service',
+          name: 'default',
+          factory: 'service',
+        ),
+      ],
+      factories: {'service': (_) => DartloomBinding(ServiceImpl('reused'))},
+    );
+    expect(runtime.get<Service>().value, 'reused');
+    await runtime.dispose();
+  });
+
+  test('default facade contains and reuses after dispose', () async {
+    const registration = DartloomRegistration<Service>(
+      capability: 'service',
+      name: 'default',
+      factory: 'service',
+    );
+    final factories = <String, DartloomFactory>{
+      'service': (_) => DartloomBinding(ServiceImpl('facade')),
+    };
+    await Dartloom.initialize(
+      <DartloomRegistration<Object>>[registration],
+      factories: factories,
+    );
+    expect(Dartloom.contains<Service>(), isTrue);
+    await Dartloom.dispose();
+    expect(Dartloom.contains<Service>(), isFalse);
+    await Dartloom.initialize(
+      <DartloomRegistration<Object>>[registration],
+      factories: factories,
+    );
+    expect(Dartloom.get<Service>().value, 'facade');
+  });
 }
