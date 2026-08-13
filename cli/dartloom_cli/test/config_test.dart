@@ -43,7 +43,7 @@ void main() {
         await Directory.systemTemp.createTemp('dartloom_legacy_name_test');
     addTearDown(() => directory.delete(recursive: true));
     await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
-        .writeAsString('''schema_version: 2
+        .writeAsString('''schema_version: 3
 app:
   name: mini_todo
   organization: com.example
@@ -58,7 +58,7 @@ capabilities: {}
     expect(loaded.app.packageName, 'mini-todo');
   });
 
-  test('migrates schema 1 defaults once for project update', () async {
+  test('rejects schema 1 without migration', () async {
     final directory = await Directory.systemTemp.createTemp('dartloom_v1_test');
     addTearDown(() => directory.delete(recursive: true));
     await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
@@ -79,10 +79,9 @@ capabilities:
 ''');
     final loader = const ConfigLoader();
     expect(() => loader.load(directory), throwsA(isA<ConfigException>()));
-    final migrated = await loader.loadForMigration(directory);
     expect(
-      migrated.capabilities[Capability.storage]!['json']!.implementation,
-      'json_file',
+      () => loader.loadForMigration(directory),
+      throwsA(isA<ConfigException>()),
     );
   });
 
@@ -158,7 +157,7 @@ capabilities:
         await Directory.systemTemp.createTemp('dartloom_bad_test');
     addTearDown(() => directory.delete(recursive: true));
     await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
-        .writeAsString('''schema_version: 2
+        .writeAsString('''schema_version: 3
 app:
   name: demo
   organization: com.example

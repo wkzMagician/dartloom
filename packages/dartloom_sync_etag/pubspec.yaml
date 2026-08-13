@@ -1,6 +1,6 @@
 name: dartloom_sync_etag
 description: ETag-based two-way object synchronization engine for Dartloom.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -9,8 +9,7 @@ environment:
   sdk: ^3.5.0
 dependencies:
   crypto: ^3.0.3
-  dartloom_storage: ^0.2.0
-  dartloom_sync: ^0.2.0
+  dartloom_sync: ^0.3.0
 dev_dependencies:
   lints: ^5.1.1
   test: ^1.25.8

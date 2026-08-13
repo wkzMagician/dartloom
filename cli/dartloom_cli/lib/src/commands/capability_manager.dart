@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
+import '../capabilities/capability_registry.dart';
 import '../process/process_runner.dart';
 import '../templates/managed_templates.dart';
 import 'check_command.dart';
@@ -41,7 +42,10 @@ class CapabilityManager {
           .toSet(),
     );
     if (change.isEmpty) return change;
-    await _writeProject(project, current.copyWith(capabilities: desired));
+    final next = current.copyWith(capabilities: desired);
+    final errors = CapabilityRegistry.validationErrors(next);
+    if (errors.isNotEmpty) throw ConfigException(errors.join(' '));
+    await _writeProject(project, next);
     return change;
   }
 
@@ -100,6 +104,6 @@ class CapabilityManager {
         for (final capability in capabilities.entries)
           for (final instance in capability.value.entries)
             '${capability.key.name}.${instance.key}':
-                '${instance.value.implementation}|${instance.value.factory}|${instance.value.options}|${instance.value.dependsOn}|${instance.value.stores}|${instance.value.backend?.implementation}|${instance.value.backend?.options}|${instance.value.mergeFactory}',
+                '${instance.value.implementation}|${instance.value.factory}|${instance.value.options}|${instance.value.dependsOn}|${instance.value.stores}|${instance.value.backend?.implementation}|${instance.value.backend?.options}|${instance.value.mergeFactory}|${instance.value.policy}',
       };
 }

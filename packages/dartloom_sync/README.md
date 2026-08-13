@@ -1,5 +1,7 @@
 # dartloom_sync
 
-Provider-neutral local/remote object, state, conflict, merge, and `SyncEngine` contracts. ETag algorithms and WebDAV transport are separate adapters.
+Provider-neutral `SyncService`, coordinator, profile, policy, local/remote
+replica, conflict, runtime signal, and background scheduler contracts. ETag
+algorithms and WebDAV transport are separate adapters.
 
 Applications normally select implementations through `dartloom cap`.

@@ -22,24 +22,21 @@ class ConfigLoader {
 
   Future<DartloomConfig> load(Directory project) async {
     final root = await _root(project);
-    if (root['schema_version'] == 1) {
+    if (root['schema_version'] != 3) {
       throw ConfigException(
-        'schema_version: 1 is obsolete. Run dartloom project update.',
+        'schema_version: 3 is required. Sync v3 is a breaking upgrade; '
+        'rewrite dartloom.yaml before running project update.',
       );
     }
-    if (root['schema_version'] != 2) {
-      throw ConfigException('schema_version: 2 is required.');
-    }
-    return _parseV2(root);
+    return _parseV3(root);
   }
 
   Future<DartloomConfig> loadForMigration(Directory project) async {
     final root = await _root(project);
-    return switch (root['schema_version']) {
-      1 => _migrateV1(root),
-      2 => _parseV2(root),
-      _ => throw ConfigException('schema_version must be 1 or 2.'),
-    };
+    if (root['schema_version'] != 3) {
+      throw ConfigException('schema_version: 3 is required.');
+    }
+    return _parseV3(root);
   }
 
   Future<YamlMap> _root(Directory project) async {
@@ -52,7 +49,7 @@ class ConfigLoader {
     return root;
   }
 
-  DartloomConfig _parseV2(YamlMap root) {
+  DartloomConfig _parseV3(YamlMap root) {
     final base = _base(root);
     final rawCapabilities = root['capabilities'];
     if (rawCapabilities is! YamlMap) {
@@ -102,6 +99,7 @@ class ConfigLoader {
               : null,
           mergeFactory:
               conflict is YamlMap ? conflict['merge_factory'] as String? : null,
+          policy: _stringMap(value['policy']),
         );
       }
       capabilities[capability] = instances;
@@ -119,35 +117,6 @@ class ConfigLoader {
       throw ConfigException(registryErrors.join(' '));
     }
     return config;
-  }
-
-  DartloomConfig _migrateV1(YamlMap root) {
-    final base = _base(root);
-    final raw = root['capabilities'];
-    if (raw is! YamlMap) throw ConfigException('capabilities must be a map.');
-    final capabilities = <Capability, Map<String, CapabilityInstanceConfig>>{};
-    for (final capability in Capability.values) {
-      if (raw[capability.name] == true) {
-        capabilities[capability] = CapabilityDefaults.forCapability(capability);
-      }
-    }
-    if (capabilities.containsKey(Capability.sync)) {
-      capabilities.putIfAbsent(
-        Capability.storage,
-        () => CapabilityDefaults.forCapability(Capability.storage),
-      );
-      capabilities[Capability.storage]!.putIfAbsent(
-        'json',
-        () => CapabilityDefaults.forCapability(Capability.storage)['json']!,
-      );
-    }
-    return DartloomConfig(
-      app: base.$1,
-      platforms: base.$2,
-      capabilities: capabilities,
-      capabilitySource: _capabilitySource(root['sources']),
-      githubRelease: (root['release'] as YamlMap?)?['github'] != false,
-    );
   }
 
   (AppConfig, Set<TargetPlatform>) _base(YamlMap root) {

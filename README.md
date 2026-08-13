@@ -77,7 +77,8 @@ conflicts by default, and accepts an application-specific merge factory.
 
 ## Configuration and secrets
 
-Schema version 2 stores named instances and adapter options. Dartloom-owned
+Schema version 3 stores named instances, typed sync policies, platform
+overrides, and adapter options. Dartloom-owned
 storage categories are intentionally generic: `text`, `json`, and `database`.
 Business-specific names such as “notes” do not appear in the framework catalog.
 
@@ -97,14 +98,14 @@ capabilities:
   sync:
     instances:
       default:
-        implementation: etag_object
+        implementation: etag
+        policy:
+          mode: automatic
         stores: [storage.json]
         backend:
           implementation: webdav
           options:
-            base_url: "${WEBDAV_URL}"
-            username: "${WEBDAV_USERNAME}"
-            password: "${WEBDAV_PASSWORD}"
+            root_path: Dartloom
 ```
 
 `${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
