@@ -107,10 +107,10 @@ final class TrayResidentService
   }
 
   Future<void> _handleClick(ResidentClickAction action) => switch (action) {
-    ResidentClickAction.restore => restore(),
-    ResidentClickAction.showMenu => trayManager.popUpContextMenu(),
-    ResidentClickAction.ignore => Future<void>.value(),
-  };
+        ResidentClickAction.restore => restore(),
+        ResidentClickAction.showMenu => trayManager.popUpContextMenu(),
+        ResidentClickAction.ignore => Future<void>.value(),
+      };
 
   Future<void> _handleMenuSelection(String id) async {
     if (id == _configuration.exitMenuItemId) {
