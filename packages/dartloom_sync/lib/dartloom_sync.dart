@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:dartloom_storage/dartloom_storage.dart';
+
 enum SyncMode { manual, automatic }
 
 enum SyncPhase {
@@ -186,9 +188,16 @@ abstract interface class SyncProfileRepository {
 }
 
 final class LocalObjectMetadata {
-  const LocalObjectMetadata({required this.key, required this.version});
+  const LocalObjectMetadata({
+    required this.key,
+    required this.version,
+    this.exists = true,
+    this.observation = ReplicaObservation.trusted,
+  });
   final String key;
   final String version;
+  final bool exists;
+  final ReplicaObservation observation;
 }
 
 final class LocalObject {
@@ -210,8 +219,8 @@ abstract interface class LocalReplica {
   bool acceptsKey(String key);
   Stream<LocalReplicaChange> get changes;
   Future<List<LocalObjectMetadata>> scan();
-  Future<Set<String>> deletedKeys();
-  Future<void> forgetDeletedKey(String key);
+  Future<List<StoreIntent>> intents();
+  Future<void> forgetIntent(String operationId);
   Future<LocalObject?> read(String key);
   Future<bool> write(
     String key,
@@ -332,7 +341,13 @@ final class SyncConflict {
   final Uint8List? base;
 }
 
-enum SyncConflictChoice { local, remote, delete, merged }
+enum SyncConflictChoice {
+  useLocal,
+  useRemote,
+  deleteBoth,
+  useMerged,
+  postpone,
+}
 
 final class SyncConflictResolution {
   const SyncConflictResolution(this.choice, {this.merged});
@@ -341,11 +356,74 @@ final class SyncConflictResolution {
 }
 
 abstract interface class ReconciliationStateRepository {
-  Future<Map<String, Object?>> load(String profileId);
-  Future<void> save(String profileId, Map<String, Object?> state);
+  Future<SyncState> load(String profileId);
+  Future<void> save(String profileId, SyncState state);
   Future<List<SyncConflict>> conflicts(String profileId);
   Future<void> resolve(
       String profileId, String conflictId, SyncConflictResolution resolution);
+}
+
+final class SyncRecord {
+  const SyncRecord({
+    this.remoteVersion,
+    this.baseHash,
+    this.base,
+    this.deletedAt,
+  });
+
+  final String? remoteVersion;
+  final String? baseHash;
+  final Uint8List? base;
+  final DateTime? deletedAt;
+  bool get isTombstone => deletedAt != null;
+}
+
+final class StoredConflict {
+  const StoredConflict(this.value);
+  final SyncConflict value;
+}
+
+final class StoredResolution {
+  const StoredResolution(this.value);
+  final SyncConflictResolution value;
+}
+
+final class SyncState {
+  const SyncState({
+    this.version = 1,
+    this.fingerprint,
+    this.cursor,
+    this.records = const {},
+    this.remoteVersions = const {},
+    this.conflicts = const {},
+    this.resolutions = const {},
+  });
+
+  final int version;
+  final String? fingerprint;
+  final String? cursor;
+  final Map<String, SyncRecord> records;
+  final Map<String, String> remoteVersions;
+  final Map<String, StoredConflict> conflicts;
+  final Map<String, StoredResolution> resolutions;
+
+  SyncState copyWith({
+    String? fingerprint,
+    String? cursor,
+    Map<String, SyncRecord>? records,
+    Map<String, String>? remoteVersions,
+    Map<String, StoredConflict>? conflicts,
+    Map<String, StoredResolution>? resolutions,
+  }) =>
+      SyncState(
+        version: version,
+        fingerprint: fingerprint ?? this.fingerprint,
+        cursor: cursor ?? this.cursor,
+        records: records ?? this.records,
+        remoteVersions: remoteVersions ?? this.remoteVersions,
+        conflicts: conflicts ?? this.conflicts,
+        resolutions: resolutions ?? this.resolutions,
+      );
 }
 
 typedef SyncMergePolicy = Future<Uint8List?> Function(SyncConflict conflict);

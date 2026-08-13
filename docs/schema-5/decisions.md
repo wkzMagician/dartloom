@@ -136,6 +136,26 @@ The Stage 2 storage API is fixed as follows:
 - External filesystem notifications are reported as replica-origin changes;
   they do not create authorized local intent.
 
+The Stage 3 synchronization API is fixed as follows:
+
+- `LocalReplica` consumes typed `StoreIntent` values through `intents()` and
+  acknowledges them by operation ID with `forgetIntent()`; it no longer has a
+  deletion-only journal API.
+- `ReplicaStoreLocalReplicaFactory` adapts any generic `ReplicaStore` to sync.
+  `JsonLocalReplicaFactory` is a temporary deprecated typedef for source
+  compatibility and is removed from schema-5 generated code.
+- Persisted reconciliation state is `SyncState` version 1 with typed
+  `SyncRecord`, `StoredConflict`, and `StoredResolution`. Unknown or corrupt
+  versions fail safely and cannot be treated as empty state.
+- Conflict choices are `useLocal`, `useRemote`, `deleteBoth`, `useMerged`, and
+  `postpone`. Conflict IDs are always `<profileId>::<key>`.
+- Only authorized intents can create, update, or delete remote objects.
+  External edits, external deletions, unexpected root loss, and unregistered
+  files are observed state; they never become remote mutations.
+- Incomplete or delta scans preserve known remote metadata and never authorize
+  absence-based local or remote deletion. Merge policies receive raw
+  base/local/remote bytes.
+
 Each choice must be recorded in this file or a linked application ADR before
 the corresponding gate is marked passed.
 

@@ -38,15 +38,15 @@ final class SyncProfileScope {
   Future<void> dispose() => _changes.close();
 }
 
-/// Opens one local replica. Keys are passed through unchanged: a key is the
-/// relative path on both the local filesystem and the remote backend.
-final class JsonLocalReplicaFactory implements LocalReplicaFactory {
-  const JsonLocalReplicaFactory(this.store);
+/// Opens one local replica. Keys are the same relative paths in local and
+/// remote replicas; profiles never namespace or delete the shared local root.
+final class ReplicaStoreLocalReplicaFactory implements LocalReplicaFactory {
+  const ReplicaStoreLocalReplicaFactory(this.store);
 
-  final ReplicaJsonStore store;
+  final ReplicaStore store;
 
   @override
-  Future<LocalReplica> open(String profileId) async => _JsonReplica(store);
+  Future<LocalReplica> open(String profileId) async => _StoreReplica(store);
 
   @override
   Future<void> deleteProfile(String profileId) async {
@@ -55,53 +55,58 @@ final class JsonLocalReplicaFactory implements LocalReplicaFactory {
   }
 }
 
-final class _JsonReplica implements LocalReplica {
-  _JsonReplica(this.store) {
+@Deprecated('Use ReplicaStoreLocalReplicaFactory.')
+typedef JsonLocalReplicaFactory = ReplicaStoreLocalReplicaFactory;
+
+final class _StoreReplica implements LocalReplica {
+  _StoreReplica(this.store) {
     _subscription = store.changes.listen((change) {
       _changes.add(LocalReplicaChange(
         change.key,
-        change.origin == JsonStoreMutationOrigin.local
+        change.origin.isAuthorizedIntent
             ? SyncMutationOrigin.local
             : SyncMutationOrigin.remote,
       ));
     });
   }
 
-  final ReplicaJsonStore store;
+  final ReplicaStore store;
   final StreamController<LocalReplicaChange> _changes =
       StreamController.broadcast();
-  late final StreamSubscription<JsonStoreChange> _subscription;
+  late final StreamSubscription<StoreChange> _subscription;
 
   @override
-  String get identity => store.replicaIdentity;
+  String get identity => store.identity;
 
   @override
-  bool acceptsKey(String key) => store.acceptsReplicaKey(key);
+  bool acceptsKey(String key) => store.acceptsKey(key);
 
   @override
   Stream<LocalReplicaChange> get changes => _changes.stream;
 
   @override
-  Future<Set<String>> deletedKeys() => store.deletedKeys();
+  Future<List<StoreIntent>> intents() => store.explicitIntents();
 
   @override
-  Future<void> forgetDeletedKey(String key) => store.forgetDeletedKey(key);
+  Future<void> forgetIntent(String operationId) =>
+      store.forgetExplicitIntent(operationId);
 
   @override
   Future<List<LocalObjectMetadata>> scan() async {
-    final result = <LocalObjectMetadata>[];
-    for (final key in await store.list()) {
-      if (!acceptsKey(key)) continue;
-      final data = await store.readReplicaBytes(key);
-      if (data == null) continue;
-      result.add(LocalObjectMetadata(key: key, version: _hash(data)));
-    }
-    return result..sort((a, b) => a.key.compareTo(b.key));
+    return [
+      for (final item in await store.scan())
+        LocalObjectMetadata(
+          key: item.key,
+          version: item.contentHash ?? '',
+          exists: item.exists,
+          observation: item.observation,
+        ),
+    ];
   }
 
   @override
   Future<LocalObject?> read(String key) async {
-    final data = await store.readReplicaBytes(key);
+    final data = await store.readBytes(key);
     if (data == null) return null;
     return LocalObject(key: key, data: data, version: _hash(data));
   }
@@ -118,12 +123,13 @@ final class _JsonReplica implements LocalReplica {
       return false;
     }
     if (expectedVersion == null && current != null) return false;
-    final value = jsonDecode(utf8.decode(data));
-    if (origin == SyncMutationOrigin.remote) {
-      await store.writeReplicaBytes(key, data);
-    } else {
-      await store.write(key, value);
-    }
+    await store.writeBytes(
+      key,
+      data,
+      origin: origin == SyncMutationOrigin.remote
+          ? StoreMutationOrigin.recovery
+          : StoreMutationOrigin.application,
+    );
     return true;
   }
 
@@ -136,18 +142,19 @@ final class _JsonReplica implements LocalReplica {
     final current = await read(key);
     if (current == null) {
       if (origin == SyncMutationOrigin.remote) {
-        await store.deleteFromReplica(key);
+        await store.delete(key, origin: StoreMutationOrigin.recovery);
       }
       return true;
     }
     if (expectedVersion != null && current.version != expectedVersion) {
       return false;
     }
-    if (origin == SyncMutationOrigin.remote) {
-      await store.deleteFromReplica(key);
-    } else {
-      await store.delete(key);
-    }
+    await store.delete(
+      key,
+      origin: origin == SyncMutationOrigin.remote
+          ? StoreMutationOrigin.recovery
+          : StoreMutationOrigin.application,
+    );
     return true;
   }
 
@@ -309,36 +316,113 @@ final class SettingsReconciliationStateRepository
   final String instanceName;
 
   String _key(String profileId) =>
-      'sync.$instanceName.v4.state.${Uri.encodeComponent(profileId)}';
+      'sync.$instanceName.v5.state.${Uri.encodeComponent(profileId)}';
 
   @override
-  Future<Map<String, Object?>> load(String profileId) async {
+  Future<SyncState> load(String profileId) async {
     final value = await settings.read(_key(profileId));
-    if (value is! String || value.isEmpty) return <String, Object?>{};
+    if (value == null) return const SyncState();
+    if (value is! String || value.isEmpty) {
+      throw const FormatException('Sync state must be encoded JSON.');
+    }
     final decoded = jsonDecode(value);
-    return decoded is Map
-        ? decoded.cast<String, Object?>()
-        : <String, Object?>{};
-  }
-
-  @override
-  Future<void> save(String profileId, Map<String, Object?> state) =>
-      settings.write(_key(profileId), jsonEncode(state));
-
-  @override
-  Future<List<SyncConflict>> conflicts(String profileId) async {
-    final values = (await load(profileId))['conflicts'];
-    if (values is! Map) return const [];
-    return values.values.whereType<Map>().map((value) {
-      final map = value.cast<String, Object?>();
-      return SyncConflict(
-        id: map['id'] as String,
-        key: map['key'] as String,
+    if (decoded is! Map || decoded['version'] != 1) {
+      throw const FormatException('Unsupported or corrupt sync state.');
+    }
+    final root = decoded.cast<String, Object?>();
+    final records = <String, SyncRecord>{};
+    for (final entry in _map(root['records']).entries) {
+      final record = _map(entry.value);
+      records[entry.key] = SyncRecord(
+        remoteVersion: record['remoteVersion'] as String?,
+        baseHash: record['baseHash'] as String?,
+        base: _decodeStateBytes(record['base']),
+        deletedAt: record['deletedAt'] is String
+            ? DateTime.parse(record['deletedAt']! as String).toUtc()
+            : null,
+      );
+    }
+    final conflicts = <String, StoredConflict>{};
+    for (final entry in _map(root['conflicts']).entries) {
+      final map = _map(entry.value);
+      final conflict = SyncConflict(
+        id: map['id']! as String,
+        key: map['key']! as String,
         local: _decodeStateBytes(map['local']),
         remote: _decodeStateBytes(map['remote']),
         base: _decodeStateBytes(map['base']),
       );
-    }).toList(growable: false);
+      conflicts[entry.key] = StoredConflict(conflict);
+    }
+    final resolutions = <String, StoredResolution>{};
+    for (final entry in _map(root['resolutions']).entries) {
+      final map = _map(entry.value);
+      resolutions[entry.key] = StoredResolution(SyncConflictResolution(
+        SyncConflictChoice.values.byName(map['choice']! as String),
+        merged: _decodeStateBytes(map['merged']),
+      ));
+    }
+    return SyncState(
+      fingerprint: root['fingerprint'] as String?,
+      cursor: root['cursor'] as String?,
+      records: Map.unmodifiable(records),
+      remoteVersions: Map.unmodifiable(
+        _map(root['remoteVersions']).map(
+          (key, value) => MapEntry(key, value! as String),
+        ),
+      ),
+      conflicts: Map.unmodifiable(conflicts),
+      resolutions: Map.unmodifiable(resolutions),
+    );
+  }
+
+  @override
+  Future<void> save(String profileId, SyncState state) => settings.write(
+        _key(profileId),
+        jsonEncode({
+          'version': state.version,
+          'fingerprint': state.fingerprint,
+          'cursor': state.cursor,
+          'records': {
+            for (final entry in state.records.entries)
+              entry.key: {
+                'remoteVersion': entry.value.remoteVersion,
+                'baseHash': entry.value.baseHash,
+                if (entry.value.base != null)
+                  'base': base64Encode(entry.value.base!),
+                if (entry.value.deletedAt != null)
+                  'deletedAt': entry.value.deletedAt!.toIso8601String(),
+              },
+          },
+          'remoteVersions': state.remoteVersions,
+          'conflicts': {
+            for (final entry in state.conflicts.entries)
+              entry.key: {
+                'id': entry.value.value.id,
+                'key': entry.value.value.key,
+                'local': _encodeStateBytes(entry.value.value.local),
+                'remote': _encodeStateBytes(entry.value.value.remote),
+                'base': _encodeStateBytes(entry.value.value.base),
+              },
+          },
+          'resolutions': {
+            for (final entry in state.resolutions.entries)
+              entry.key: {
+                'choice': entry.value.value.choice.name,
+                if (entry.value.value.merged != null)
+                  'merged': base64Encode(entry.value.value.merged!),
+              },
+          },
+        }),
+      );
+
+  @override
+  Future<List<SyncConflict>> conflicts(String profileId) async {
+    return (await load(profileId))
+        .conflicts
+        .values
+        .map((value) => value.value)
+        .toList(growable: false);
   }
 
   @override
@@ -348,17 +432,15 @@ final class SettingsReconciliationStateRepository
     SyncConflictResolution resolution,
   ) async {
     final state = await load(profileId);
-    final resolutions = state['resolutions'] is Map
-        ? (state['resolutions'] as Map).cast<String, Object?>()
-        : <String, Object?>{};
-    resolutions[conflictId] = {
-      'choice': resolution.choice.name,
-      if (resolution.merged != null) 'merged': base64Encode(resolution.merged!),
-    };
-    state['resolutions'] = resolutions;
-    await save(profileId, state);
+    final resolutions = Map<String, StoredResolution>.of(state.resolutions)
+      ..[conflictId] = StoredResolution(resolution);
+    await save(profileId, state.copyWith(resolutions: resolutions));
   }
 
+  Map<String, Object?> _map(Object? value) =>
+      value is Map ? value.cast<String, Object?>() : const {};
+  String? _encodeStateBytes(Uint8List? value) =>
+      value == null ? null : base64Encode(value);
   Uint8List? _decodeStateBytes(Object? value) =>
       value is String ? base64Decode(value) : null;
 }

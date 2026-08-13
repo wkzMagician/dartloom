@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 
 final class EtagReconciler implements SyncReconciler {
@@ -14,237 +15,300 @@ final class EtagReconciler implements SyncReconciler {
     var downloaded = 0;
     var deletedLocally = 0;
     var deletedRemotely = 0;
-    final conflicts = <String, Map<String, Object?>>{};
     try {
+      var state = await request.state.load(request.profileId);
       await request.remote.initialize();
-      final state = await request.state.load(request.profileId);
       final fingerprint = _hash(Uint8List.fromList(utf8.encode(
-        'dartloom-sync-v4\n${request.local.identity}\n${request.remote.identity}',
-      )))!;
-      if (state['fingerprint'] != fingerprint) {
-        state
-          ..clear()
-          ..['fingerprint'] = fingerprint;
+        'dartloom-sync-v5\n${request.local.identity}\n${request.remote.identity}',
+      )));
+      if (state.fingerprint != null && state.fingerprint != fingerprint) {
+        state = SyncState(fingerprint: fingerprint);
       }
-      final records = _map(state['records']);
-      final resolutions = _map(state['resolutions']);
-      final localDeletedKeys = await request.local.deletedKeys();
-      final localMetadata = {
+
+      final records = Map<String, SyncRecord>.of(state.records);
+      final conflicts = <String, StoredConflict>{};
+      final resolutions = Map<String, StoredResolution>.of(state.resolutions);
+      final remoteVersions = Map<String, String>.of(state.remoteVersions);
+      final intents = await request.local.intents();
+      final intentsByKey = <String, List<StoreIntent>>{};
+      for (final intent in intents) {
+        (intentsByKey[intent.key] ??= []).add(intent);
+      }
+      final localScan = {
         for (final item in await request.local.scan()) item.key: item,
       };
-      final remoteScan =
-          await request.remote.scan(cursor: state['cursor'] as String?);
-      final remoteMetadata = {
+      final remoteScan = await request.remote.scan(cursor: state.cursor);
+      final remoteMetadata = <String, RemoteObjectMetadata>{
         for (final item in remoteScan.objects)
           if (request.local.acceptsKey(item.key)) item.key: item,
       };
       if (remoteScan.kind == SyncScanKind.delta || !remoteScan.complete) {
-        final known = _map(state['remote']);
-        for (final entry in known.entries) {
-          final item = _mapOrNull(entry.value);
-          final version = item?['version'];
-          if (version is String && !remoteMetadata.containsKey(entry.key)) {
-            remoteMetadata[entry.key] =
-                RemoteObjectMetadata(key: entry.key, version: version);
-          }
-        }
-        for (final key in remoteScan.deletedKeys) {
-          if (!request.local.acceptsKey(key)) continue;
-          remoteMetadata.remove(key);
+        for (final entry in remoteVersions.entries) {
+          remoteMetadata.putIfAbsent(
+            entry.key,
+            () => RemoteObjectMetadata(key: entry.key, version: entry.value),
+          );
         }
       }
+      for (final key in remoteScan.deletedKeys) {
+        remoteMetadata.remove(key);
+      }
+
       final keys = <String>{
-        ...localMetadata.keys,
-        ...localDeletedKeys,
+        ...localScan.keys,
+        ...intentsByKey.keys,
         ...remoteMetadata.keys,
-        ...records.keys
+        ...records.keys,
       }.toList()
         ..sort();
 
       for (final key in keys) {
-        final localObject = await request.local.read(key);
+        if (!request.local.acceptsKey(key)) continue;
+        final localMeta = localScan[key];
+        final local =
+            localMeta?.exists == false ? null : await request.local.read(key);
         final remoteMeta = remoteMetadata[key];
-        final record = _mapOrNull(records[key]);
-        if (record?['tombstone'] == true &&
-            localObject == null &&
-            remoteMeta == null) {
-          final deletedAt =
-              DateTime.tryParse(record?['deletedAt'] as String? ?? '');
-          if (deletedAt == null ||
-              request.now.difference(deletedAt) >=
-                  request.policy.state.tombstoneRetention) {
-            records.remove(key);
-            await request.local.forgetDeletedKey(key);
-          }
-          continue;
-        }
-        final localHash = _hash(localObject?.data);
-        final baseHash = record?['baseHash'] as String?;
-        final previousRemoteVersion = record?['remoteVersion'] as String?;
-        final localDeleted = localDeletedKeys.contains(key);
-        final localChanged = record == null
-            ? localObject != null || localDeleted
-            : localDeleted || (localObject != null && localHash != baseHash);
-        final authoritativeRemoteAbsence =
+        final record = records[key];
+        final keyIntents = intentsByKey[key] ?? const <StoreIntent>[];
+        final intent = keyIntents.isEmpty ? null : keyIntents.last;
+        final remoteAbsenceAuthoritative =
             remoteScan.deletedKeys.contains(key) ||
                 (remoteScan.kind == SyncScanKind.full && remoteScan.complete);
         final remoteChanged = record == null
             ? remoteMeta != null
             : remoteMeta != null
-                ? remoteMeta.version != previousRemoteVersion
-                : authoritativeRemoteAbsence;
+                ? remoteMeta.version != record.remoteVersion
+                : remoteAbsenceAuthoritative && !record.isTombstone;
 
-        // A missing local file is not a deletion unless it is present in the
-        // persistent local deletion journal. Restore it from the replica even
-        // when the server ETag itself has not changed.
-        if (localObject == null &&
-            !localDeleted &&
-            record != null &&
-            remoteMeta != null) {
-          final remoteObject = await request.remote.read(key);
-          if (remoteObject != null) {
-            _checkObjectSize(key, remoteObject.data, request.policy);
-            if (await request.local.write(key, remoteObject.data)) {
-              records[key] = _record(
-                  remoteObject.version, remoteObject.data, request.policy);
-              downloaded++;
-              continue;
-            }
+        if (record?.isTombstone == true &&
+            local == null &&
+            remoteMeta == null &&
+            intent == null) {
+          if (record!.deletedAt == null ||
+              request.now.difference(record.deletedAt!) >=
+                  request.policy.state.tombstoneRetention) {
+            records.remove(key);
           }
+          continue;
         }
 
-        if (!localChanged && !remoteChanged) continue;
-        if (localChanged && !remoteChanged) {
-          if (localObject == null) {
-            if (!localDeleted) continue;
-            try {
-              await request.remote.delete(key,
-                  condition: previousRemoteVersion == null
-                      ? null
-                      : RemoteWriteCondition.version(previousRemoteVersion));
-              records[key] = _tombstone(request.now);
-              remoteMetadata.remove(key);
-              deletedRemotely++;
-            } on RemotePreconditionException {
-              await _recordConflict(
-                  conflicts, key, null, await request.remote.read(key), record);
-            }
-          } else {
-            _checkObjectSize(key, localObject.data, request.policy);
-            try {
-              final version = await request.remote.write(
+        // No authorized local intent means local bytes are observed only.
+        // Restore known/remote data, ignore unregistered new files, and never
+        // derive a remote mutation from absence or an incomplete scan.
+        if (intent == null) {
+          if (remoteMeta != null) {
+            final remote = await request.remote.read(key);
+            if (remote == null) continue;
+            _checkObjectSize(key, remote.data, request.policy);
+            if (local == null || _hash(local.data) != _hash(remote.data)) {
+              final written = await request.local.write(
                 key,
-                localObject.data,
-                condition: record == null
-                    ? const RemoteWriteCondition.create()
-                    : previousRemoteVersion == null
-                        ? null
-                        : RemoteWriteCondition.version(previousRemoteVersion),
+                remote.data,
+                expectedVersion: local?.version,
               );
-              records[key] = _record(version, localObject.data, request.policy);
-              remoteMetadata[key] =
-                  RemoteObjectMetadata(key: key, version: version);
-              uploaded++;
-            } on RemotePreconditionException {
-              await _recordConflict(conflicts, key, localObject.data,
-                  await request.remote.read(key), record);
+              if (!written) {
+                conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+                  _conflict(
+                      request.profileId, key, local?.data, remote, record),
+                );
+                continue;
+              }
+              downloaded++;
+            }
+            records[key] = _record(remote.version, remote.data, request.policy);
+            remoteVersions[key] = remote.version;
+          } else if (record != null &&
+              remoteAbsenceAuthoritative &&
+              local != null) {
+            // Remote deletion is authoritative only after a complete scan.
+            final deleted = await request.local.delete(
+              key,
+              expectedVersion: local.version,
+            );
+            if (deleted) {
+              records[key] = _tombstone(request.now);
+              remoteVersions.remove(key);
+              deletedLocally++;
             }
           }
           continue;
         }
 
-        if (!localChanged && remoteChanged) {
-          final remoteObject = await request.remote.read(key);
-          if (remoteObject == null) {
-            final deleted = await request.local
-                .delete(key, expectedVersion: localObject?.version);
-            if (!deleted) {
-              await _recordConflict(conflicts, key,
-                  (await request.local.read(key))?.data, null, record);
-              continue;
-            }
+        if (intent.kind == StoreIntentKind.delete) {
+          if (remoteMeta == null) {
+            if (!remoteAbsenceAuthoritative) continue;
             records[key] = _tombstone(request.now);
-            deletedLocally++;
-          } else {
-            _checkObjectSize(key, remoteObject.data, request.policy);
-            if (_hash(remoteObject.data) == localHash) {
-              records[key] = _record(
-                  remoteObject.version, remoteObject.data, request.policy);
-              continue;
+            await _forget(request, keyIntents);
+            continue;
+          }
+          if (remoteChanged) {
+            switch (request.policy.conflicts.deleteVsUpdate) {
+              case SyncDeleteConflictStrategy.conflict:
+                conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+                  _conflict(
+                    request.profileId,
+                    key,
+                    null,
+                    await request.remote.read(key),
+                    record,
+                  ),
+                );
+                continue;
+              case SyncDeleteConflictStrategy.deleteWins:
+                try {
+                  await request.remote.delete(
+                    key,
+                    condition: RemoteWriteCondition.version(remoteMeta.version),
+                  );
+                  records[key] = _tombstone(request.now);
+                  remoteVersions.remove(key);
+                  await _forget(request, keyIntents);
+                  deletedRemotely++;
+                } on RemotePreconditionException {
+                  conflicts[_conflictId(request.profileId, key)] =
+                      StoredConflict(_conflict(
+                    request.profileId,
+                    key,
+                    null,
+                    await request.remote.read(key),
+                    record,
+                  ));
+                }
+                continue;
+              case SyncDeleteConflictStrategy.updateWins:
+                final remote = await request.remote.read(key);
+                if (remote != null &&
+                    await request.local.write(key, remote.data)) {
+                  records[key] =
+                      _record(remote.version, remote.data, request.policy);
+                  remoteVersions[key] = remote.version;
+                  await _forget(request, keyIntents);
+                  downloaded++;
+                  continue;
+                }
+                conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+                  _conflict(request.profileId, key, null, remote, record),
+                );
+                continue;
             }
-            final written = await request.local.write(key, remoteObject.data,
-                expectedVersion: localObject?.version);
-            if (!written) {
-              await _recordConflict(conflicts, key,
-                  (await request.local.read(key))?.data, remoteObject, record);
-              continue;
-            }
-            records[key] = _record(
-                remoteObject.version, remoteObject.data, request.policy);
-            downloaded++;
+          }
+          try {
+            await request.remote.delete(
+              key,
+              condition: record?.remoteVersion == null
+                  ? null
+                  : RemoteWriteCondition.version(record!.remoteVersion!),
+            );
+            records[key] = _tombstone(request.now);
+            remoteVersions.remove(key);
+            await _forget(request, keyIntents);
+            deletedRemotely++;
+          } on RemotePreconditionException {
+            conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+              _conflict(
+                request.profileId,
+                key,
+                null,
+                await request.remote.read(key),
+                record,
+              ),
+            );
           }
           continue;
         }
 
-        final remoteObject = await request.remote.read(key);
-        if (localObject == null && remoteObject == null) {
-          records[key] = _tombstone(request.now);
+        if (local == null) {
+          // An intent without its payload is corrupt/incomplete. Preserve both
+          // sides and surface a conflict instead of deleting anything.
+          conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+            _conflict(
+              request.profileId,
+              key,
+              null,
+              await request.remote.read(key),
+              record,
+            ),
+          );
           continue;
         }
-        if (localObject != null &&
-            remoteObject != null &&
-            _hash(remoteObject.data) == localHash) {
-          records[key] =
-              _record(remoteObject.version, localObject.data, request.policy);
+
+        if (!remoteChanged) {
+          _checkObjectSize(key, local.data, request.policy);
+          try {
+            final version = await request.remote.write(
+              key,
+              local.data,
+              condition: record?.remoteVersion == null
+                  ? const RemoteWriteCondition.create()
+                  : RemoteWriteCondition.version(record!.remoteVersion!),
+            );
+            records[key] = _record(version, local.data, request.policy);
+            remoteVersions[key] = version;
+            await _forget(request, keyIntents);
+            uploaded++;
+          } on RemotePreconditionException {
+            conflicts[_conflictId(request.profileId, key)] = StoredConflict(
+              _conflict(
+                request.profileId,
+                key,
+                local.data,
+                await request.remote.read(key),
+                record,
+              ),
+            );
+          }
           continue;
         }
-        final conflict = SyncConflict(
-          id: _conflictId(request.profileId, key),
-          key: key,
-          local: localObject?.data,
-          remote: remoteObject?.data,
-          base: _decode(record?['base']),
+
+        final remote = await request.remote.read(key);
+        final conflict = _conflict(
+          request.profileId,
+          key,
+          local.data,
+          remote,
+          record,
         );
         final resolution = await _resolve(
           conflict,
           request,
-          _mapOrNull(resolutions[conflict.id]),
+          resolutions[conflict.id]?.value,
         );
-        if (resolution == null) {
-          conflicts[conflict.id] = _conflictMap(conflict);
+        if (resolution == null ||
+            resolution.choice == SyncConflictChoice.postpone) {
+          conflicts[conflict.id] = StoredConflict(conflict);
           continue;
         }
         resolutions.remove(conflict.id);
-        if (resolution.$1 == null) {
-          if (localObject != null) {
-            if (!await request.local
-                .delete(key, expectedVersion: localObject.version)) {
-              conflicts[conflict.id] = _conflictMap(conflict);
-              continue;
-            }
-            deletedLocally++;
-          }
-          if (remoteObject != null) {
-            try {
-              await request.remote.delete(key,
-                  condition:
-                      RemoteWriteCondition.version(remoteObject.version));
-              remoteMetadata.remove(key);
-              deletedRemotely++;
-            } on RemotePreconditionException {
-              conflicts[conflict.id] = _conflictMap(conflict);
-              continue;
-            }
+        if (resolution.choice == SyncConflictChoice.deleteBoth) {
+          await request.local.delete(key, expectedVersion: local.version);
+          deletedLocally++;
+          if (remote != null) {
+            await request.remote.delete(
+              key,
+              condition: RemoteWriteCondition.version(remote.version),
+            );
+            deletedRemotely++;
           }
           records[key] = _tombstone(request.now);
+          remoteVersions.remove(key);
+          await _forget(request, keyIntents);
           continue;
         }
-        final data = resolution.$1!;
+        final data = switch (resolution.choice) {
+          SyncConflictChoice.useLocal => conflict.local,
+          SyncConflictChoice.useRemote => conflict.remote,
+          SyncConflictChoice.useMerged => resolution.merged,
+          SyncConflictChoice.deleteBoth || SyncConflictChoice.postpone => null,
+        };
+        if (data == null) {
+          conflicts[conflict.id] = StoredConflict(conflict);
+          continue;
+        }
         _checkObjectSize(key, data, request.policy);
-        if (localObject == null || _hash(localObject.data) != _hash(data)) {
+        if (_hash(local.data) != _hash(data)) {
           if (!await request.local
-              .write(key, data, expectedVersion: localObject?.version)) {
-            conflicts[conflict.id] = _conflictMap(conflict);
+              .write(key, data, expectedVersion: local.version)) {
+            conflicts[conflict.id] = StoredConflict(conflict);
             continue;
           }
           downloaded++;
@@ -253,28 +317,30 @@ final class EtagReconciler implements SyncReconciler {
           final version = await request.remote.write(
             key,
             data,
-            condition: remoteObject == null
+            condition: remote == null
                 ? const RemoteWriteCondition.create()
-                : RemoteWriteCondition.version(remoteObject.version),
+                : RemoteWriteCondition.version(remote.version),
           );
           records[key] = _record(version, data, request.policy);
-          remoteMetadata[key] =
-              RemoteObjectMetadata(key: key, version: version);
+          remoteVersions[key] = version;
+          await _forget(request, keyIntents);
           uploaded++;
         } on RemotePreconditionException {
-          conflicts[conflict.id] = _conflictMap(conflict);
+          conflicts[conflict.id] = StoredConflict(conflict);
         }
       }
 
-      state['records'] = records;
-      state['resolutions'] = resolutions;
-      state['remote'] = {
-        for (final entry in remoteMetadata.entries)
-          entry.key: {'version': entry.value.version},
-      };
-      state['cursor'] = remoteScan.cursor;
-      state['conflicts'] = conflicts;
-      await request.state.save(request.profileId, state);
+      await request.state.save(
+        request.profileId,
+        SyncState(
+          fingerprint: fingerprint,
+          cursor: remoteScan.cursor,
+          records: Map.unmodifiable(records),
+          remoteVersions: Map.unmodifiable(remoteVersions),
+          conflicts: Map.unmodifiable(conflicts),
+          resolutions: Map.unmodifiable(resolutions),
+        ),
+      );
       return SyncRunReport(
         trigger: request.trigger,
         uploaded: uploaded,
@@ -285,62 +351,116 @@ final class EtagReconciler implements SyncReconciler {
       );
     } on SyncOperationException catch (error) {
       return SyncRunReport(trigger: request.trigger, failure: error.failure);
+    } on FormatException catch (error) {
+      return SyncRunReport(
+        trigger: request.trigger,
+        failure: SyncFailure(
+          SyncFailureKind.configuration,
+          error.message,
+          retryable: false,
+        ),
+      );
     } on TimeoutException {
       return SyncRunReport(
         trigger: request.trigger,
         failure: const SyncFailure(
-            SyncFailureKind.timeout, 'Remote operation timed out.',
-            retryable: true),
+          SyncFailureKind.timeout,
+          'Remote operation timed out.',
+          retryable: true,
+        ),
       );
     } on Object catch (error) {
       return SyncRunReport(
         trigger: request.trigger,
-        failure: SyncFailure(SyncFailureKind.unknown, error.toString(),
-            retryable: true),
+        failure: SyncFailure(
+          SyncFailureKind.unknown,
+          error.toString(),
+          retryable: true,
+        ),
       );
     }
   }
 
-  Future<(Uint8List?, bool)?> _resolve(
+  Future<SyncConflictResolution?> _resolve(
     SyncConflict conflict,
     SyncReconcileRequest request,
-    Map<String, Object?>? storedResolution,
+    SyncConflictResolution? stored,
   ) async {
-    if (storedResolution != null) {
-      final choice = storedResolution['choice'];
-      if (choice == 'local') return (conflict.local, true);
-      if (choice == 'remote') return (conflict.remote, true);
-      if (choice == 'delete') return (null, true);
-      if (choice == 'merged') {
-        final merged = _decode(storedResolution['merged']);
-        if (merged != null) return (merged, true);
-      }
-      return null;
-    }
+    if (stored != null) return stored;
     if ((conflict.local == null) != (conflict.remote == null)) {
-      switch (request.policy.conflicts.deleteVsUpdate) {
-        case SyncDeleteConflictStrategy.conflict:
-          return null;
-        case SyncDeleteConflictStrategy.deleteWins:
-          return (null, true);
-        case SyncDeleteConflictStrategy.updateWins:
-          return (conflict.local ?? conflict.remote, true);
-      }
+      return switch (request.policy.conflicts.deleteVsUpdate) {
+        SyncDeleteConflictStrategy.conflict => null,
+        SyncDeleteConflictStrategy.deleteWins =>
+          const SyncConflictResolution(SyncConflictChoice.deleteBoth),
+        SyncDeleteConflictStrategy.updateWins => SyncConflictResolution(
+            conflict.local == null
+                ? SyncConflictChoice.useRemote
+                : SyncConflictChoice.useLocal,
+          ),
+      };
     }
-    switch (request.policy.conflicts.strategy) {
-      case SyncConflictStrategy.preserve:
-        return null;
-      case SyncConflictStrategy.localWins:
-        return (conflict.local, true);
-      case SyncConflictStrategy.remoteWins:
-        return (conflict.remote, true);
-      case SyncConflictStrategy.merge:
-        final merge = request.merge;
-        if (merge == null) return null;
-        final value = await merge(conflict);
-        return value == null ? null : (value, true);
+    return switch (request.policy.conflicts.strategy) {
+      SyncConflictStrategy.preserve => null,
+      SyncConflictStrategy.localWins =>
+        const SyncConflictResolution(SyncConflictChoice.useLocal),
+      SyncConflictStrategy.remoteWins =>
+        const SyncConflictResolution(SyncConflictChoice.useRemote),
+      SyncConflictStrategy.merge => await _merge(conflict, request.merge),
+    };
+  }
+
+  Future<SyncConflictResolution?> _merge(
+    SyncConflict conflict,
+    SyncMergePolicy? merge,
+  ) async {
+    if (merge == null) return null;
+    final value = await merge(conflict);
+    return value == null
+        ? null
+        : SyncConflictResolution(SyncConflictChoice.useMerged, merged: value);
+  }
+
+  SyncConflict _conflict(
+    String profileId,
+    String key,
+    Uint8List? local,
+    RemoteObject? remote,
+    SyncRecord? record,
+  ) =>
+      SyncConflict(
+        id: _conflictId(profileId, key),
+        key: key,
+        local: local,
+        remote: remote?.data,
+        base: record?.base,
+      );
+
+  Future<void> _forget(
+    SyncReconcileRequest request,
+    List<StoreIntent> intents,
+  ) async {
+    for (final intent in intents) {
+      await request.local.forgetIntent(intent.operationId);
     }
   }
+
+  SyncRecord _record(
+    String remoteVersion,
+    Uint8List data,
+    ResolvedSyncPolicy policy,
+  ) =>
+      SyncRecord(
+        remoteVersion: remoteVersion,
+        baseHash: _hash(data),
+        base: policy.state.basePayload == SyncBasePayloadPolicy.never
+            ? null
+            : Uint8List.fromList(data),
+      );
+
+  SyncRecord _tombstone(DateTime now) => SyncRecord(
+        baseHash: '__deleted__',
+        deletedAt: now.toUtc(),
+      );
 
   void _checkObjectSize(String key, Uint8List data, ResolvedSyncPolicy policy) {
     if (data.lengthInBytes <= policy.execution.maxObjectSize) return;
@@ -350,54 +470,6 @@ final class EtagReconciler implements SyncReconciler {
     ));
   }
 
-  Future<void> _recordConflict(
-    Map<String, Map<String, Object?>> conflicts,
-    String key,
-    Uint8List? local,
-    RemoteObject? remote,
-    Map<String, Object?>? record,
-  ) async {
-    final conflict = SyncConflict(
-      id: key,
-      key: key,
-      local: local,
-      remote: remote?.data,
-      base: _decode(record?['base']),
-    );
-    conflicts[conflict.id] = _conflictMap(conflict);
-  }
-
-  Map<String, Object?> _record(
-          String remoteVersion, Uint8List data, ResolvedSyncPolicy policy) =>
-      {
-        'remoteVersion': remoteVersion,
-        'baseHash': _hash(data),
-        if (policy.state.basePayload == SyncBasePayloadPolicy.always)
-          'base': base64Encode(data),
-      };
-
-  Map<String, Object?> _tombstone(DateTime now) => {
-        'tombstone': true,
-        'baseHash': '__deleted__',
-        'deletedAt': now.toUtc().toIso8601String(),
-      };
-
-  Map<String, Object?> _conflictMap(SyncConflict conflict) => {
-        'id': conflict.id,
-        'key': conflict.key,
-        'local': _encode(conflict.local),
-        'remote': _encode(conflict.remote),
-        'base': _encode(conflict.base),
-      };
-
   String _conflictId(String profileId, String key) => '$profileId::$key';
-  String? _hash(Uint8List? data) =>
-      data == null ? null : sha256.convert(data).toString();
-  String? _encode(Uint8List? data) => data == null ? null : base64Encode(data);
-  Uint8List? _decode(Object? data) =>
-      data is String ? base64Decode(data) : null;
-  Map<String, Object?> _map(Object? value) =>
-      value is Map ? value.cast<String, Object?>() : <String, Object?>{};
-  Map<String, Object?>? _mapOrNull(Object? value) =>
-      value is Map ? value.cast<String, Object?>() : null;
+  String _hash(Uint8List data) => sha256.convert(data).toString();
 }

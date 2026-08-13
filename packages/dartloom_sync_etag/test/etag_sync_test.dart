@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:dartloom_sync_etag/dartloom_sync_etag.dart';
 import 'package:test/test.dart';
@@ -12,13 +13,13 @@ void main() {
     final remote = _Remote();
     final state = _State();
     const reconciler = EtagReconciler();
-    local.externalWrite('a', _bytes('local'));
+    local.authorizedWrite('a', _bytes('local'));
     var result = await reconciler.reconcile(_request(local, remote, state));
     expect(result.uploaded, 1);
     remote.externalWrite('a', _bytes('remote'));
     result = await reconciler.reconcile(_request(local, remote, state));
     expect(result.downloaded, 1);
-    local.externalWrite('a', _bytes('local edit'));
+    local.authorizedWrite('a', _bytes('local edit'));
     remote.externalWrite('a', _bytes('remote edit'));
     result = await reconciler.reconcile(_request(local, remote, state));
     expect(result.conflicts, 1);
@@ -26,7 +27,7 @@ void main() {
     await state.resolve(
       'default',
       'default::a',
-      const SyncConflictResolution(SyncConflictChoice.remote),
+      const SyncConflictResolution(SyncConflictChoice.useRemote),
     );
     result = await reconciler.reconcile(_request(local, remote, state));
     expect(result.conflicts, 0);
@@ -34,7 +35,7 @@ void main() {
   });
 
   test('enforces the configured maximum object size', () async {
-    final local = _Local()..externalWrite('large', _bytes('too large'));
+    final local = _Local()..authorizedWrite('large', _bytes('too large'));
     final policy = <String, Object?>{
       ..._policy,
       'execution': {
@@ -52,7 +53,7 @@ void main() {
 
   test('restores a missing local object without an explicit deletion',
       () async {
-    final local = _Local()..externalWrite('a', _bytes('value'));
+    final local = _Local()..authorizedWrite('a', _bytes('value'));
     final remote = _Remote();
     final state = _State();
     const reconciler = EtagReconciler();
@@ -67,20 +68,13 @@ void main() {
   });
 
   test('retains tombstones and applies delete-versus-update policy', () async {
-    final local = _Local()..externalWrite('a', _bytes('value'));
+    final local = _Local()..authorizedWrite('a', _bytes('value'));
     final remote = _Remote();
     final state = _State();
     const reconciler = EtagReconciler();
     await reconciler.reconcile(_request(local, remote, state));
-    local.externalDelete('a');
-    await reconciler.reconcile(_request(local, remote, state));
-    expect(remote.values, isEmpty);
-    expect(
-      ((state.value['records'] as Map)['a'] as Map)['tombstone'],
-      isTrue,
-    );
-
     remote.externalWrite('a', _bytes('stale update'));
+    local.authorizedDelete('a');
     final deleteWins = <String, Object?>{
       ..._policy,
       'conflicts': {'strategy': 'preserve', 'delete_vs_update': 'delete_wins'},
@@ -90,6 +84,7 @@ void main() {
     );
     expect(report.conflicts, 0);
     expect(remote.values, isEmpty);
+    expect(state.value.records['a']?.isTombstone, isTrue);
 
     await reconciler.reconcile(
       _request(
@@ -100,7 +95,85 @@ void main() {
         now: DateTime.utc(2026, 2, 1),
       ),
     );
-    expect((state.value['records'] as Map).containsKey('a'), isFalse);
+    expect(state.value.records.containsKey('a'), isFalse);
+  });
+
+  test('unregistered external files are neither uploaded nor deleted',
+      () async {
+    final local = _Local()..externalWrite('outside.bin', _bytes('external'));
+    final remote = _Remote();
+    final report = await const EtagReconciler().reconcile(
+      _request(local, remote, _State()),
+    );
+    expect(report.uploaded, 0);
+    expect(report.deletedLocally, 0);
+    expect(local.values, contains('outside.bin'));
+    expect(remote.values, isEmpty);
+  });
+
+  test('external edits and deletions restore the remote baseline', () async {
+    final local = _Local()..authorizedWrite('a', _bytes('baseline'));
+    final remote = _Remote();
+    final state = _State();
+    const reconciler = EtagReconciler();
+    await reconciler.reconcile(_request(local, remote, state));
+
+    local.externalWrite('a', _bytes('outside edit'));
+    var report = await reconciler.reconcile(_request(local, remote, state));
+    expect(report.uploaded, 0);
+    expect(String.fromCharCodes(local.values['a']!), 'baseline');
+    local.externalDelete('a');
+    report = await reconciler.reconcile(_request(local, remote, state));
+    expect(report.deletedRemotely, 0);
+    expect(String.fromCharCodes(local.values['a']!), 'baseline');
+  });
+
+  test('incomplete remote scans never delete local or remote data', () async {
+    final local = _Local()..authorizedWrite('a', _bytes('value'));
+    final remote = _Remote();
+    final state = _State();
+    const reconciler = EtagReconciler();
+    await reconciler.reconcile(_request(local, remote, state));
+    remote.complete = false;
+    remote.hideFromScan = true;
+    final report = await reconciler.reconcile(_request(local, remote, state));
+    expect(report.deletedLocally, 0);
+    expect(report.deletedRemotely, 0);
+    expect(local.values, contains('a'));
+    expect(remote.values, contains('a'));
+  });
+
+  test('merge receives raw base local and remote bytes with normalized id',
+      () async {
+    final local = _Local()..authorizedWrite('folder/a', _bytes('base'));
+    final remote = _Remote();
+    final state = _State();
+    const reconciler = EtagReconciler();
+    await reconciler.reconcile(_request(local, remote, state));
+    local.authorizedWrite('folder/a', _bytes('local'));
+    remote.externalWrite('folder/a', _bytes('remote'));
+    SyncConflict? seen;
+    final mergePolicy = <String, Object?>{
+      ..._policy,
+      'conflicts': {'strategy': 'merge', 'delete_vs_update': 'conflict'},
+    };
+    final report = await reconciler.reconcile(
+      _request(
+        local,
+        remote,
+        state,
+        policy: mergePolicy,
+        merge: (conflict) async {
+          seen = conflict;
+          return _bytes('merged');
+        },
+      ),
+    );
+    expect(report.conflicts, 0);
+    expect(seen?.id, 'default::folder/a');
+    expect(String.fromCharCodes(seen!.base!), 'base');
+    expect(String.fromCharCodes(seen!.local!), 'local');
+    expect(String.fromCharCodes(seen!.remote!), 'remote');
   });
 }
 
@@ -110,6 +183,7 @@ SyncReconcileRequest _request(
   _State state, {
   Map<String, Object?>? policy,
   DateTime? now,
+  SyncMergePolicy? merge,
 }) =>
     SyncReconcileRequest(
       profileId: 'default',
@@ -119,6 +193,7 @@ SyncReconcileRequest _request(
       state: state,
       policy: SyncPolicyCodec.resolve(policy ?? _policy, 'windows'),
       now: now ?? DateTime.utc(2026),
+      merge: merge,
     );
 
 final _policy = <String, Object?>{
@@ -160,16 +235,27 @@ String _version(Uint8List value) => sha256.convert(value).toString();
 
 final class _Local implements LocalReplica {
   final values = <String, Uint8List>{};
-  final deletions = <String>{};
+  final pendingIntents = <StoreIntent>[];
   final controller = StreamController<LocalReplicaChange>.broadcast();
   void externalWrite(String key, Uint8List data) {
     values[key] = data;
-    deletions.remove(key);
+  }
+
+  void authorizedWrite(String key, Uint8List data) {
+    final kind = values.containsKey(key)
+        ? StoreIntentKind.update
+        : StoreIntentKind.create;
+    values[key] = data;
+    pendingIntents.add(_intent(key, kind));
   }
 
   void externalDelete(String key) {
     values.remove(key);
-    deletions.add(key);
+  }
+
+  void authorizedDelete(String key) {
+    values.remove(key);
+    pendingIntents.add(_intent(key, StoreIntentKind.delete));
   }
 
   @override
@@ -177,9 +263,10 @@ final class _Local implements LocalReplica {
   @override
   bool acceptsKey(String key) => true;
   @override
-  Future<Set<String>> deletedKeys() async => Set.of(deletions);
+  Future<List<StoreIntent>> intents() async => List.of(pendingIntents);
   @override
-  Future<void> forgetDeletedKey(String key) async => deletions.remove(key);
+  Future<void> forgetIntent(String operationId) async =>
+      pendingIntents.removeWhere((intent) => intent.operationId == operationId);
   @override
   Stream<LocalReplicaChange> get changes => controller.stream;
   @override
@@ -194,11 +281,6 @@ final class _Local implements LocalReplica {
       return false;
     }
     values.remove(key);
-    if (origin == SyncMutationOrigin.remote) {
-      deletions.remove(key);
-    } else {
-      deletions.add(key);
-    }
     return true;
   }
 
@@ -224,12 +306,22 @@ final class _Local implements LocalReplica {
     values[key] = data;
     return true;
   }
+
+  StoreIntent _intent(String key, StoreIntentKind kind) => StoreIntent(
+        operationId: '${pendingIntents.length}::$key',
+        key: key,
+        kind: kind,
+        origin: StoreMutationOrigin.application,
+        createdAt: DateTime.utc(2026),
+      );
 }
 
 final class _Remote implements RemoteReplica {
   final values = <String, Uint8List>{};
   final versions = <String, String>{};
   int revision = 0;
+  bool complete = true;
+  bool hideFromScan = false;
   @override
   String get identity => 'test-remote';
   void externalWrite(String key, Uint8List data) {
@@ -260,10 +352,10 @@ final class _Remote implements RemoteReplica {
   Future<RemoteScan> scan({String? cursor}) async => RemoteScan(
       kind: SyncScanKind.full,
       objects: [
-        for (final key in values.keys)
+        for (final key in hideFromScan ? const <String>[] : values.keys)
           RemoteObjectMetadata(key: key, version: versions[key]!)
       ],
-      complete: true);
+      complete: complete);
   @override
   Future<String> write(String key, Uint8List data,
       {RemoteWriteCondition? condition}) async {
@@ -273,25 +365,19 @@ final class _Remote implements RemoteReplica {
 }
 
 final class _State implements ReconciliationStateRepository {
-  Map<String, Object?> value = {};
+  SyncState value = const SyncState();
   @override
   Future<List<SyncConflict>> conflicts(String profileId) async => const [];
   @override
-  Future<Map<String, Object?>> load(String profileId) async => value;
+  Future<SyncState> load(String profileId) async => value;
   @override
   Future<void> resolve(String profileId, String conflictId,
       SyncConflictResolution resolution) async {
-    final resolutions = value['resolutions'] is Map
-        ? (value['resolutions'] as Map).cast<String, Object?>()
-        : <String, Object?>{};
-    resolutions[conflictId] = {
-      'choice': resolution.choice.name,
-      if (resolution.merged != null) 'merged': resolution.merged,
-    };
-    value['resolutions'] = resolutions;
+    final resolutions = Map<String, StoredResolution>.of(value.resolutions)
+      ..[conflictId] = StoredResolution(resolution);
+    value = value.copyWith(resolutions: resolutions);
   }
 
   @override
-  Future<void> save(String profileId, Map<String, Object?> state) async =>
-      value = state;
+  Future<void> save(String profileId, SyncState state) async => value = state;
 }

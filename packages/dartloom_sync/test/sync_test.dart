@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:test/test.dart';
 
@@ -154,9 +155,9 @@ final class _Local implements LocalReplica {
   @override
   bool acceptsKey(String key) => true;
   @override
-  Future<Set<String>> deletedKeys() async => const {};
+  Future<List<StoreIntent>> intents() async => const [];
   @override
-  Future<void> forgetDeletedKey(String key) async {}
+  Future<void> forgetIntent(String operationId) async {}
   @override
   Future<void> close() => _changes.close();
   @override
@@ -218,10 +219,10 @@ final class _State implements ReconciliationStateRepository {
   @override
   Future<List<SyncConflict>> conflicts(String profileId) async => const [];
   @override
-  Future<Map<String, Object?>> load(String profileId) async => {};
+  Future<SyncState> load(String profileId) async => const SyncState();
   @override
   Future<void> resolve(String profileId, String conflictId,
       SyncConflictResolution resolution) async {}
   @override
-  Future<void> save(String profileId, Map<String, Object?> state) async {}
+  Future<void> save(String profileId, SyncState state) async {}
 }

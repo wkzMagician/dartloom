@@ -32,14 +32,30 @@ void main() {
       settings,
       instanceName: 'default',
     );
-    await state.save('profile', {
-      'fingerprint': 'v4',
-      'records': {
-        'todo-1': {'baseHash': 'hash'}
-      },
-    });
+    await state.save(
+      'profile',
+      const SyncState(
+        fingerprint: 'v5',
+        records: {'todo-1': SyncRecord(baseHash: 'hash')},
+      ),
+    );
 
-    expect((await state.load('profile'))['fingerprint'], 'v4');
-    expect(await settings.read('sync.default.v4.state.profile'), isA<String>());
+    expect((await state.load('profile')).fingerprint, 'v5');
+    expect(await settings.read('sync.default.v5.state.profile'), isA<String>());
+  });
+
+  test('corrupt and unknown state fail safely', () async {
+    final settings = MemorySettingsStore();
+    final state = SettingsReconciliationStateRepository(
+      settings,
+      instanceName: 'default',
+    );
+    await settings.write('sync.default.v5.state.profile', '{');
+    await expectLater(state.load('profile'), throwsFormatException);
+    await settings.write(
+      'sync.default.v5.state.profile',
+      '{"version":99}',
+    );
+    await expectLater(state.load('profile'), throwsFormatException);
   });
 }
