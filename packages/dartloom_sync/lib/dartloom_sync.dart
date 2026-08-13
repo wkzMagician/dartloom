@@ -206,8 +206,12 @@ final class LocalReplicaChange {
 }
 
 abstract interface class LocalReplica {
+  String get identity;
+  bool acceptsKey(String key);
   Stream<LocalReplicaChange> get changes;
   Future<List<LocalObjectMetadata>> scan();
+  Future<Set<String>> deletedKeys();
+  Future<void> forgetDeletedKey(String key);
   Future<LocalObject?> read(String key);
   Future<bool> write(
     String key,
@@ -246,11 +250,15 @@ final class RemoteScan {
   const RemoteScan({
     required this.kind,
     required this.objects,
+    required this.complete,
     this.deletedKeys = const [],
     this.cursor,
   });
   final SyncScanKind kind;
   final List<RemoteObjectMetadata> objects;
+
+  /// Whether absence from this scan is authoritative.
+  final bool complete;
   final List<String> deletedKeys;
   final String? cursor;
 }
@@ -290,6 +298,7 @@ final class RemotePreconditionException implements Exception {
 }
 
 abstract interface class RemoteReplica {
+  String get identity;
   RemoteReplicaCapabilities get capabilities;
   Stream<void>? get changeHints;
   Future<void> initialize();

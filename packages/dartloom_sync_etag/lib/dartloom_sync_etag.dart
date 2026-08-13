@@ -18,17 +18,27 @@ final class EtagReconciler implements SyncReconciler {
     try {
       await request.remote.initialize();
       final state = await request.state.load(request.profileId);
+      final fingerprint = _hash(Uint8List.fromList(utf8.encode(
+        'dartloom-sync-v4\n${request.local.identity}\n${request.remote.identity}',
+      )))!;
+      if (state['fingerprint'] != fingerprint) {
+        state
+          ..clear()
+          ..['fingerprint'] = fingerprint;
+      }
       final records = _map(state['records']);
       final resolutions = _map(state['resolutions']);
+      final localDeletedKeys = await request.local.deletedKeys();
       final localMetadata = {
         for (final item in await request.local.scan()) item.key: item,
       };
       final remoteScan =
           await request.remote.scan(cursor: state['cursor'] as String?);
       final remoteMetadata = {
-        for (final item in remoteScan.objects) item.key: item,
+        for (final item in remoteScan.objects)
+          if (request.local.acceptsKey(item.key)) item.key: item,
       };
-      if (remoteScan.kind == SyncScanKind.delta) {
+      if (remoteScan.kind == SyncScanKind.delta || !remoteScan.complete) {
         final known = _map(state['remote']);
         for (final entry in known.entries) {
           final item = _mapOrNull(entry.value);
@@ -39,11 +49,13 @@ final class EtagReconciler implements SyncReconciler {
           }
         }
         for (final key in remoteScan.deletedKeys) {
+          if (!request.local.acceptsKey(key)) continue;
           remoteMetadata.remove(key);
         }
       }
       final keys = <String>{
         ...localMetadata.keys,
+        ...localDeletedKeys,
         ...remoteMetadata.keys,
         ...records.keys
       }.toList()
@@ -62,21 +74,49 @@ final class EtagReconciler implements SyncReconciler {
               request.now.difference(deletedAt) >=
                   request.policy.state.tombstoneRetention) {
             records.remove(key);
+            await request.local.forgetDeletedKey(key);
           }
           continue;
         }
         final localHash = _hash(localObject?.data);
         final baseHash = record?['baseHash'] as String?;
         final previousRemoteVersion = record?['remoteVersion'] as String?;
-        final localChanged =
-            record == null ? localObject != null : localHash != baseHash;
+        final localDeleted = localDeletedKeys.contains(key);
+        final localChanged = record == null
+            ? localObject != null || localDeleted
+            : localDeleted || (localObject != null && localHash != baseHash);
+        final authoritativeRemoteAbsence =
+            remoteScan.deletedKeys.contains(key) ||
+                (remoteScan.kind == SyncScanKind.full && remoteScan.complete);
         final remoteChanged = record == null
             ? remoteMeta != null
-            : remoteMeta?.version != previousRemoteVersion;
+            : remoteMeta != null
+                ? remoteMeta.version != previousRemoteVersion
+                : authoritativeRemoteAbsence;
+
+        // A missing local file is not a deletion unless it is present in the
+        // persistent local deletion journal. Restore it from the replica even
+        // when the server ETag itself has not changed.
+        if (localObject == null &&
+            !localDeleted &&
+            record != null &&
+            remoteMeta != null) {
+          final remoteObject = await request.remote.read(key);
+          if (remoteObject != null) {
+            _checkObjectSize(key, remoteObject.data, request.policy);
+            if (await request.local.write(key, remoteObject.data)) {
+              records[key] = _record(
+                  remoteObject.version, remoteObject.data, request.policy);
+              downloaded++;
+              continue;
+            }
+          }
+        }
 
         if (!localChanged && !remoteChanged) continue;
         if (localChanged && !remoteChanged) {
           if (localObject == null) {
+            if (!localDeleted) continue;
             try {
               await request.remote.delete(key,
                   condition: previousRemoteVersion == null
@@ -127,6 +167,11 @@ final class EtagReconciler implements SyncReconciler {
             deletedLocally++;
           } else {
             _checkObjectSize(key, remoteObject.data, request.policy);
+            if (_hash(remoteObject.data) == localHash) {
+              records[key] = _record(
+                  remoteObject.version, remoteObject.data, request.policy);
+              continue;
+            }
             final written = await request.local.write(key, remoteObject.data,
                 expectedVersion: localObject?.version);
             if (!written) {

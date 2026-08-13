@@ -1,5 +1,5 @@
 name: dartloom_storage_json_file
-description: Atomic JSON file adapter for the Dartloom JsonStore contract.
+description: Atomic JSON file and isomorphic directory adapters for Dartloom JsonStore.
 version: 0.1.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom

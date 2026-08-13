@@ -1,5 +1,5 @@
 name: dartloom_sync_webdav
-description: WebDAV RemoteReplica backend for Dartloom Sync v3.
+description: WebDAV RemoteReplica backend for Dartloom Sync v4.
 version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
@@ -11,6 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.3
   dartloom_sync: ^0.3.0
   http: ^1.2.0
   xml: ^6.5.0

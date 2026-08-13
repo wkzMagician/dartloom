@@ -581,6 +581,44 @@ abstract final class SyncOptionSchemas {
         type: OptionValueType.boolean,
         defaultValue: true,
         group: 'backend'),
+    OptionField(
+        path: 'hierarchical',
+        label: 'Hierarchical replica',
+        description: 'Recursively discover nested replica paths with Depth 1.',
+        type: OptionValueType.boolean,
+        defaultValue: false,
+        group: 'backend'),
+    OptionField(
+        path: 'probe_depth_infinity',
+        label: 'Probe Depth infinity',
+        description:
+            'Classify optional infinity support without relying on it.',
+        type: OptionValueType.boolean,
+        defaultValue: false,
+        group: 'backend'),
+    OptionField(
+        path: 'legacy_collection',
+        label: 'Legacy collection',
+        description:
+            'Optional v3 child collection copied into the replica root.',
+        type: OptionValueType.string,
+        defaultValue: '',
+        group: 'migration'),
+    OptionField(
+        path: 'legacy_key_prefix',
+        label: 'Legacy key prefix',
+        description: 'Only matching legacy files are copied.',
+        type: OptionValueType.string,
+        defaultValue: '',
+        group: 'migration'),
+    OptionField(
+        path: 'listing_limit_hint',
+        label: 'Listing limit hint',
+        description: 'Treat listings at this size as potentially incomplete.',
+        type: OptionValueType.integer,
+        defaultValue: 750,
+        minimum: 1,
+        group: 'backend'),
   ]);
 
   static List<String> validateSync(

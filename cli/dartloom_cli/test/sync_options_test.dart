@@ -27,7 +27,7 @@ void main() {
     };
     final instance = CapabilityInstanceConfig(
       implementation: 'etag',
-      stores: const ['storage.json'],
+      replica: 'storage.json',
       backend: const AdapterConfig(
         implementation: 'webdav',
         options: {
@@ -53,7 +53,7 @@ void main() {
   test('rejects Android background intervals below fifteen minutes', () {
     final instance = CapabilityInstanceConfig(
       implementation: 'etag',
-      stores: const ['storage.json'],
+      replica: 'storage.json',
       backend: AdapterConfig(
         implementation: 'webdav',
         options: SyncOptionSchemas.webDav.defaults(),

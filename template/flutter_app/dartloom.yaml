@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 
 app:
   name: example_app
@@ -22,9 +22,11 @@ capabilities:
   storage:
     instances:
       json:
-        implementation: json_file
+        implementation: json_directory
         options:
-          path: dartloom/data.json
+          path: Dartloom
+          metadata_path: dartloom/sync-metadata/Dartloom
+          hierarchical: false
   logging:
     instances:
       default:

@@ -104,6 +104,6 @@ class CapabilityManager {
         for (final capability in capabilities.entries)
           for (final instance in capability.value.entries)
             '${capability.key.name}.${instance.key}':
-                '${instance.value.implementation}|${instance.value.factory}|${instance.value.options}|${instance.value.dependsOn}|${instance.value.stores}|${instance.value.backend?.implementation}|${instance.value.backend?.options}|${instance.value.mergeFactory}|${instance.value.policy}',
+                '${instance.value.implementation}|${instance.value.factory}|${instance.value.options}|${instance.value.dependsOn}|${instance.value.replica}|${instance.value.backend?.implementation}|${instance.value.backend?.options}|${instance.value.mergeFactory}|${instance.value.policy}',
       };
 }

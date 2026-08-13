@@ -43,7 +43,7 @@ void main() {
         await Directory.systemTemp.createTemp('dartloom_legacy_name_test');
     addTearDown(() => directory.delete(recursive: true));
     await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
-        .writeAsString('''schema_version: 3
+        .writeAsString('''schema_version: 4
 app:
   name: mini_todo
   organization: com.example
@@ -157,7 +157,7 @@ capabilities:
         await Directory.systemTemp.createTemp('dartloom_bad_test');
     addTearDown(() => directory.delete(recursive: true));
     await File('${directory.path}${Platform.pathSeparator}dartloom.yaml')
-        .writeAsString('''schema_version: 3
+        .writeAsString('''schema_version: 4
 app:
   name: demo
   organization: com.example

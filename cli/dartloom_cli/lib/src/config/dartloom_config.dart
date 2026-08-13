@@ -61,7 +61,7 @@ class CapabilityInstanceConfig {
     this.platforms,
     this.options = const {},
     this.dependsOn = const [],
-    this.stores = const [],
+    this.replica,
     this.backend,
     this.mergeFactory,
     this.policy = const {},
@@ -72,7 +72,9 @@ class CapabilityInstanceConfig {
   final Set<TargetPlatform>? platforms;
   final Map<String, Object?> options;
   final List<String> dependsOn;
-  final List<String> stores;
+
+  /// The single storage capability whose keys are replica-relative paths.
+  final String? replica;
   final AdapterConfig? backend;
   final String? mergeFactory;
   final Map<String, Object?> policy;
@@ -85,7 +87,7 @@ class CapabilityInstanceConfig {
       _setEquals(other.platforms, platforms) &&
       _mapEquals(other.options, options) &&
       _listEquals(other.dependsOn, dependsOn) &&
-      _listEquals(other.stores, stores) &&
+      other.replica == replica &&
       other.backend == backend &&
       other.mergeFactory == mergeFactory &&
       _mapEquals(other.policy, policy);
@@ -96,7 +98,7 @@ class CapabilityInstanceConfig {
         platforms == null ? null : Object.hashAllUnordered(platforms!),
         _mapHash(options),
         Object.hashAll(dependsOn),
-        Object.hashAll(stores),
+        replica,
         backend,
         mergeFactory,
         _mapHash(policy),
@@ -137,7 +139,7 @@ class DartloomConfig {
 
   String toYaml() {
     final buffer = StringBuffer()
-      ..writeln('schema_version: 3')
+      ..writeln('schema_version: 4')
       ..writeln()
       ..writeln('app:')
       ..writeln('  name: ${_scalar(app.name)}')
@@ -155,7 +157,7 @@ class DartloomConfig {
     if (enabledCapabilities.isEmpty) {
       buffer
         ..clear()
-        ..write('schema_version: 3\n\n')
+        ..write('schema_version: 4\n\n')
         ..write('app:\n')
         ..write('  name: ${_scalar(app.name)}\n')
         ..write('  package_name: ${_scalar(app.packageName)}\n')
@@ -197,11 +199,8 @@ class DartloomConfig {
             buffer.writeln('          - ${_scalar(dependency)}');
           }
         }
-        if (instance.stores.isNotEmpty) {
-          buffer.writeln('        stores:');
-          for (final store in instance.stores) {
-            buffer.writeln('          - ${_scalar(store)}');
-          }
+        if (instance.replica != null) {
+          buffer.writeln('        replica: ${_scalar(instance.replica!)}');
         }
         if (instance.backend case final backend?) {
           buffer
@@ -350,8 +349,12 @@ abstract final class CapabilityDefaults {
           },
         Capability.storage => const {
             'json': CapabilityInstanceConfig(
-              implementation: 'json_file',
-              options: {'path': 'dartloom/data.json'},
+              implementation: 'json_directory',
+              options: {
+                'path': 'Dartloom',
+                'metadata_path': 'dartloom/sync-metadata/Dartloom',
+                'hierarchical': false,
+              },
             ),
           },
         Capability.logging => const {
@@ -365,7 +368,7 @@ abstract final class CapabilityDefaults {
         Capability.sync => const {
             'default': CapabilityInstanceConfig(
               implementation: 'etag',
-              stores: ['storage.json'],
+              replica: 'storage.json',
               backend: AdapterConfig(
                 implementation: 'webdav',
                 options: {
@@ -374,6 +377,8 @@ abstract final class CapabilityDefaults {
                   'request_timeout': '30s',
                   'max_parallel_requests': 4,
                   'create_missing_collections': true,
+                  'hierarchical': false,
+                  'probe_depth_infinity': false,
                 },
               ),
               policy: {

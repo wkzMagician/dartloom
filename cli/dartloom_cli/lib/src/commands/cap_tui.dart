@@ -253,20 +253,15 @@ class CapTui {
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
         .toList();
-    var stores = current.stores;
+    var replica = current.replica;
     AdapterConfig? backend = current.backend;
     String? mergeFactory = current.mergeFactory;
     var policy = _deepCopy(current.policy);
     if (capability == Capability.sync) {
-      final rawStores = _prompt(
-        'Stores (comma separated: storage.text/storage.json/storage.database)',
-        stores.isEmpty ? 'storage.json' : stores.join(','),
-      );
-      stores = rawStores
-          .split(',')
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toList();
+      replica = _prompt(
+        'Replica (one directory-backed storage capability)',
+        replica ?? 'storage.json',
+      ).trim();
       _console.writeLine('\nSync backends');
       for (var index = 0;
           index < CapabilityRegistry.syncBackends.length;
@@ -389,7 +384,7 @@ class CapTui {
       platforms: current.platforms,
       options: options,
       dependsOn: dependsOn,
-      stores: stores,
+      replica: replica,
       backend: backend,
       mergeFactory: mergeFactory,
       policy: policy,
