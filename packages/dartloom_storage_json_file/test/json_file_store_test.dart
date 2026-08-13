@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_storage_json_file/dartloom_storage_json_file.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,15 +30,20 @@ void main() {
     addTearDown(store.close);
 
     final remoteBytes = Uint8List.fromList('{ "id": "42" }'.codeUnits);
-    await store.writeReplicaBytes('todo-42', remoteBytes);
+    await store.writeBytes(
+      'todo-42',
+      remoteBytes,
+      origin: StoreMutationOrigin.remote,
+    );
 
     expect(
         await File('${data.path}${Platform.pathSeparator}todo-42')
             .readAsBytes(),
         remoteBytes);
     expect(await store.read('todo-42'), {'id': '42'});
-    expect(store.acceptsReplicaKey('other-app-file'), isFalse);
+    expect(store.acceptsKey('other-app-file'), isFalse);
     expect(await metadata.list().isEmpty, isFalse);
+    expect(await store.explicitIntents(), isEmpty);
   });
 
   test('directory store persists local deletions outside the replica',
@@ -52,10 +58,10 @@ void main() {
     );
     await store.write('todo-1', {'id': '1'});
     await store.delete('todo-1');
-    expect(await store.deletedKeys(), {'todo-1'});
+    expect(await store.explicitDeletedKeys(), {'todo-1'});
     expect(await data.list().isEmpty, isTrue);
-    await store.forgetDeletedKey('todo-1');
-    expect(await store.deletedKeys(), isEmpty);
+    await store.forgetExplicitDelete('todo-1');
+    expect(await store.explicitDeletedKeys(), isEmpty);
     await store.close();
   });
 

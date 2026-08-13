@@ -122,12 +122,17 @@ The Stage 2 storage API is fixed as follows:
 
 - `ReplicaStore` is the generic raw-byte contract, with `StoreChange`,
   `ReplicaObjectMetadata`, and `StoreMutationOrigin`.
-- `FileDirectoryStore` is the generic directory implementation in
-  `dartloom_storage_text_file`; applications pass its absolute root through
-  `openAt`.
-- Existing `TextStore`, `JsonStore`, and `ReplicaJsonStore` remain available
-  as compatibility contracts. JSON-specific codecs stay in
-  `dartloom_storage_json_file`.
+- `FileDirectoryStore` is the generic directory implementation in the new
+  `dartloom_storage_file` package. Applications pass absolute `root` and
+  `metadataRoot` directories, and metadata is rejected if it is nested inside
+  the business root.
+- Existing `TextStore` and `JsonStore` remain available as business-level
+  compatibility contracts. `ReplicaJsonStore`, `JsonStoreMutationOrigin`, and
+  `JsonStoreChange` are removed; `JsonDirectoryStore` composes the generic
+  replica and keeps JSON codecs in `dartloom_storage_json_file`.
+- Authorized origins are `application`, `migration`, and
+  `conflictResolution`; `remote`, `recovery`, and `external` observations do
+  not create intent.
 - External filesystem notifications are reported as replica-origin changes;
   they do not create authorized local intent.
 

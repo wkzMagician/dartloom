@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 abstract interface class TextStore {
@@ -9,14 +8,67 @@ abstract interface class TextStore {
   Future<void> delete(String key);
 }
 
-enum StoreMutationOrigin { local, replica }
+enum StoreMutationOrigin {
+  application,
+  migration,
+  conflictResolution,
+  remote,
+  recovery,
+  external;
+
+  bool get isAuthorizedIntent => switch (this) {
+        application || migration || conflictResolution => true,
+        remote || recovery || external => false,
+      };
+}
+
+enum StoreChangeKind {
+  mutation,
+  untrustedLocalChange,
+  unexpectedMissing,
+  unregisteredLocalObject,
+  rootMissing,
+}
 
 final class StoreChange {
-  const StoreChange(this.key, this.origin, {this.deleted = false});
+  const StoreChange(
+    this.key,
+    this.origin, {
+    this.kind = StoreChangeKind.mutation,
+    this.deleted = false,
+  });
 
   final String key;
   final StoreMutationOrigin origin;
+  final StoreChangeKind kind;
   final bool deleted;
+}
+
+enum StoreIntentKind { create, update, delete }
+
+final class StoreIntent {
+  const StoreIntent({
+    required this.operationId,
+    required this.key,
+    required this.kind,
+    required this.origin,
+    required this.createdAt,
+    this.contentHash,
+  });
+
+  final String operationId;
+  final String key;
+  final StoreIntentKind kind;
+  final StoreMutationOrigin origin;
+  final DateTime createdAt;
+  final String? contentHash;
+}
+
+enum ReplicaObservation {
+  trusted,
+  untrustedLocalChange,
+  unexpectedMissing,
+  unregisteredLocalObject,
 }
 
 final class ReplicaObjectMetadata {
@@ -24,17 +76,23 @@ final class ReplicaObjectMetadata {
     required this.key,
     required this.size,
     this.modifiedAt,
+    this.contentHash,
+    this.exists = true,
+    this.observation = ReplicaObservation.trusted,
   });
 
   final String key;
   final int size;
   final DateTime? modifiedAt;
+  final String? contentHash;
+  final bool exists;
+  final ReplicaObservation observation;
 }
 
 /// Raw-byte storage contract for isomorphic local replicas.
 ///
 /// Implementations must treat keys as relative paths inside the store root.
-/// External filesystem changes are reported as [StoreMutationOrigin.replica]
+/// External filesystem changes are reported as [StoreMutationOrigin.external]
 /// changes and never imply an authorized local intent.
 abstract interface class ReplicaStore {
   String get identity;
@@ -51,6 +109,10 @@ abstract interface class ReplicaStore {
     String key, {
     StoreMutationOrigin origin,
   });
+  Future<List<StoreIntent>> explicitIntents();
+  Future<void> forgetExplicitIntent(String operationId);
+  Future<Set<String>> explicitDeletedKeys();
+  Future<void> forgetExplicitDelete(String key);
   Future<void> close();
 }
 
@@ -59,32 +121,6 @@ abstract interface class JsonStore {
   Future<Object?> read(String key);
   Future<void> write(String key, Object? value);
   Future<void> delete(String key);
-}
-
-enum JsonStoreMutationOrigin { local, replica }
-
-final class JsonStoreChange {
-  const JsonStoreChange(this.key, this.origin);
-
-  final String key;
-  final JsonStoreMutationOrigin origin;
-}
-
-/// A JSON store whose keys are also the stable relative paths of a replica.
-///
-/// Implementations must keep sync metadata, including deletion journals,
-/// outside the directory returned by [replicaIdentity].
-abstract interface class ReplicaJsonStore implements JsonStore {
-  String get replicaIdentity;
-  bool acceptsReplicaKey(String key);
-  Stream<JsonStoreChange> get changes;
-  Future<Set<String>> deletedKeys();
-  Future<void> forgetDeletedKey(String key);
-  Future<Uint8List?> readReplicaBytes(String key);
-  Future<void> writeReplicaBytes(String key, Uint8List data);
-  Future<void> writeFromReplica(String key, Object? value);
-  Future<void> deleteFromReplica(String key);
-  Future<void> close();
 }
 
 abstract interface class DatabaseStore {
@@ -127,6 +163,7 @@ final class MemoryReplicaStore implements ReplicaStore {
   final Map<String, Uint8List> _values = {};
   final StreamController<StoreChange> _changes =
       StreamController<StoreChange>.broadcast();
+  final List<StoreIntent> _intents = [];
 
   @override
   String get identity => 'memory-replica';
@@ -149,48 +186,76 @@ final class MemoryReplicaStore implements ReplicaStore {
       _values[key] == null ? null : Uint8List.fromList(_values[key]!);
   @override
   Future<void> writeBytes(String key, Uint8List data,
-      {StoreMutationOrigin origin = StoreMutationOrigin.local}) async {
+      {StoreMutationOrigin origin = StoreMutationOrigin.application}) async {
     if (!acceptsKey(key)) {
       throw ArgumentError.value(key, 'key', 'Invalid replica key.');
     }
+    final kind = _values.containsKey(key)
+        ? StoreIntentKind.update
+        : StoreIntentKind.create;
     _values[key] = Uint8List.fromList(data);
+    if (origin.isAuthorizedIntent) {
+      _intents.add(_intent(key, kind, origin));
+    }
     _changes.add(StoreChange(key, origin));
   }
 
   @override
   Future<void> delete(String key,
-      {StoreMutationOrigin origin = StoreMutationOrigin.local}) async {
+      {StoreMutationOrigin origin = StoreMutationOrigin.application}) async {
     if (!acceptsKey(key)) {
       throw ArgumentError.value(key, 'key', 'Invalid replica key.');
     }
     _values.remove(key);
+    if (origin.isAuthorizedIntent) {
+      _intents.add(_intent(key, StoreIntentKind.delete, origin));
+    }
     _changes.add(StoreChange(key, origin, deleted: true));
   }
 
   @override
   Future<void> close() => _changes.close();
+
+  @override
+  Future<List<StoreIntent>> explicitIntents() async => List.of(_intents);
+
+  @override
+  Future<void> forgetExplicitIntent(String operationId) async =>
+      _intents.removeWhere((intent) => intent.operationId == operationId);
+
+  @override
+  Future<Set<String>> explicitDeletedKeys() async => _intents
+      .where((intent) => intent.kind == StoreIntentKind.delete)
+      .map((intent) => intent.key)
+      .toSet();
+
+  @override
+  Future<void> forgetExplicitDelete(String key) async => _intents.removeWhere(
+        (intent) => intent.key == key && intent.kind == StoreIntentKind.delete,
+      );
+
+  StoreIntent _intent(
+    String key,
+    StoreIntentKind kind,
+    StoreMutationOrigin origin,
+  ) {
+    final now = DateTime.now().toUtc();
+    return StoreIntent(
+      operationId: '${now.microsecondsSinceEpoch}::$key',
+      key: key,
+      kind: kind,
+      origin: origin,
+      createdAt: now,
+    );
+  }
 }
 
-class MemoryJsonStore implements ReplicaJsonStore {
+class MemoryJsonStore implements JsonStore {
   final Map<String, Object?> _values = {};
-  final Set<String> _deletedKeys = {};
-  final StreamController<JsonStoreChange> _changes =
-      StreamController<JsonStoreChange>.broadcast();
-
-  @override
-  String get replicaIdentity => 'memory-json-store';
-
-  @override
-  bool acceptsReplicaKey(String key) => true;
-
-  @override
-  Stream<JsonStoreChange> get changes => _changes.stream;
 
   @override
   Future<void> delete(String key) async {
     _values.remove(key);
-    _deletedKeys.add(key);
-    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.local));
   }
 
   @override
@@ -204,45 +269,7 @@ class MemoryJsonStore implements ReplicaJsonStore {
       throw ArgumentError.value(value, 'value', 'Value must be valid JSON.');
     }
     _values[key] = value;
-    _deletedKeys.remove(key);
-    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.local));
   }
-
-  @override
-  Future<Set<String>> deletedKeys() async => Set.unmodifiable(_deletedKeys);
-
-  @override
-  Future<void> forgetDeletedKey(String key) async => _deletedKeys.remove(key);
-
-  @override
-  Future<Uint8List?> readReplicaBytes(String key) async {
-    if (!_values.containsKey(key)) return null;
-    return Uint8List.fromList(utf8.encode(jsonEncode(_values[key])));
-  }
-
-  @override
-  Future<void> writeReplicaBytes(String key, Uint8List data) =>
-      writeFromReplica(key, jsonDecode(utf8.decode(data)));
-
-  @override
-  Future<void> writeFromReplica(String key, Object? value) async {
-    if (!isJsonValue(value)) {
-      throw ArgumentError.value(value, 'value', 'Value must be valid JSON.');
-    }
-    _values[key] = value;
-    _deletedKeys.remove(key);
-    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.replica));
-  }
-
-  @override
-  Future<void> deleteFromReplica(String key) async {
-    _values.remove(key);
-    _deletedKeys.remove(key);
-    _changes.add(JsonStoreChange(key, JsonStoreMutationOrigin.replica));
-  }
-
-  @override
-  Future<void> close() => _changes.close();
 }
 
 class MemoryDatabaseStore implements DatabaseStore {

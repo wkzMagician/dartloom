@@ -1,5 +1,6 @@
-import 'package:dartloom_storage/dartloom_storage.dart';
 import 'dart:typed_data';
+
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -24,11 +25,12 @@ void main() {
     final subscription = store.changes.listen(changes.add);
     await store.writeBytes('note.md', Uint8List.fromList([1, 2]));
     expect(await store.readBytes('note.md'), [1, 2]);
-    await store.delete('note.md', origin: StoreMutationOrigin.replica);
+    await store.delete('note.md', origin: StoreMutationOrigin.recovery);
     expect(changes.map((change) => change.origin), [
-      StoreMutationOrigin.local,
-      StoreMutationOrigin.replica,
+      StoreMutationOrigin.application,
+      StoreMutationOrigin.recovery,
     ]);
+    expect((await store.explicitIntents()).single.kind, StoreIntentKind.create);
     await subscription.cancel();
     await store.close();
   });

@@ -1,19 +1,16 @@
-name: dartloom_storage_json_file
-description: Atomic JSON file and isomorphic directory adapters for Dartloom JsonStore.
+name: dartloom_storage_file
+description: Binary-safe application-path directory replica for Dartloom.
 version: 0.1.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
-topics: [flutter, json, storage, dartloom]
+topics: [flutter, storage, files, sync]
 environment:
   sdk: ^3.5.0
-  flutter: '>=3.24.0'
 dependencies:
+  crypto: ^3.0.3
   dartloom_storage: ^0.2.0
-  dartloom_storage_file: ^0.1.0
   path: ^1.9.0
-  path_provider: ^2.1.0
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
   lints: ^5.1.1
+  test: ^1.25.8

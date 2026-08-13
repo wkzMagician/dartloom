@@ -1,24 +1,14 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dartloom_storage/dartloom_storage.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:dartloom_storage_file/dartloom_storage_file.dart';
 
 final class JsonFileStore implements JsonStore {
   JsonFileStore(this.file);
 
   final File file;
-
-  static Future<JsonFileStore> open(
-      {String path = 'dartloom/data.json'}) async {
-    final base = await getApplicationSupportDirectory();
-    final store = JsonFileStore(File(p.join(base.path, path)));
-    await store._withLock((values) async {});
-    return store;
-  }
 
   @override
   Future<void> delete(String key) async {
@@ -77,8 +67,7 @@ final class JsonFileStore implements JsonStore {
     final handle = await lock.open(mode: FileMode.append);
     try {
       await handle.lock(FileLock.exclusive);
-      final values = await _load();
-      return await action(values);
+      return await action(await _load());
     } finally {
       await handle.unlock();
       await handle.close();
@@ -89,52 +78,20 @@ final class JsonFileStore implements JsonStore {
       value == null ? null : jsonDecode(jsonEncode(value));
 }
 
-/// Stores every JSON value in its own file, using the logical key as the
-/// relative file path. The replica directory therefore has exactly the same
-/// shape and bytes as a remote file replica.
-final class JsonDirectoryStore implements ReplicaJsonStore {
+/// JSON CRUD layered over the generic binary-safe directory replica.
+///
+/// Both directories are resolved and owned by the application. Metadata is
+/// always outside the business-data directory.
+final class JsonDirectoryStore implements JsonStore, ReplicaStore {
   JsonDirectoryStore._({
-    required this.directory,
-    required this.metadataDirectory,
-    required this.hierarchical,
+    required FileDirectoryStore replica,
     required this.allowedKeys,
     required this.allowedPrefixes,
-  });
+  }) : _replica = replica;
 
-  final Directory directory;
-  final Directory metadataDirectory;
-  final bool hierarchical;
+  final FileDirectoryStore _replica;
   final Set<String> allowedKeys;
   final List<String> allowedPrefixes;
-  final StreamController<JsonStoreChange> _changes =
-      StreamController<JsonStoreChange>.broadcast();
-
-  static Future<JsonDirectoryStore> open({
-    String path = 'Dartloom',
-    String? metadataPath,
-    bool hierarchical = false,
-    String? legacyJsonPath,
-    String legacyKeyPrefix = '',
-    Set<String> allowedKeys = const {},
-    List<String> allowedPrefixes = const [],
-    Map<String, Object?> seed = const {},
-  }) async {
-    final base = await getApplicationSupportDirectory();
-    return openAt(
-      directory: Directory(p.join(base.path, path)),
-      metadataDirectory: Directory(
-        p.join(base.path, metadataPath ?? 'dartloom/sync-metadata/$path'),
-      ),
-      hierarchical: hierarchical,
-      legacyJsonFile: legacyJsonPath == null
-          ? null
-          : File(p.join(base.path, legacyJsonPath)),
-      legacyKeyPrefix: legacyKeyPrefix,
-      allowedKeys: allowedKeys,
-      allowedPrefixes: allowedPrefixes,
-      seed: seed,
-    );
-  }
 
   static Future<JsonDirectoryStore> openAt({
     required Directory directory,
@@ -147,23 +104,23 @@ final class JsonDirectoryStore implements ReplicaJsonStore {
     Map<String, Object?> seed = const {},
   }) async {
     final store = JsonDirectoryStore._(
-      directory: directory,
-      metadataDirectory: metadataDirectory,
-      hierarchical: hierarchical,
+      replica: await FileDirectoryStore.open(
+        root: directory,
+        metadataRoot: metadataDirectory,
+        hierarchical: hierarchical,
+      ),
       allowedKeys: Set.unmodifiable(allowedKeys),
       allowedPrefixes: List.unmodifiable(allowedPrefixes),
     );
-    await directory.create(recursive: true);
-    await metadataDirectory.create(recursive: true);
     if (legacyJsonFile != null) {
       await store._migrateLegacy(legacyJsonFile, legacyKeyPrefix);
     }
     for (final entry in seed.entries) {
-      if (!await store._file(entry.key).exists()) {
-        await store._write(
+      if (await store.readBytes(entry.key) == null) {
+        await store._writeJson(
           entry.key,
           entry.value,
-          JsonStoreMutationOrigin.local,
+          StoreMutationOrigin.migration,
         );
       }
     }
@@ -171,189 +128,122 @@ final class JsonDirectoryStore implements ReplicaJsonStore {
   }
 
   @override
-  String get replicaIdentity => p.normalize(directory.absolute.path);
+  String get identity => _replica.identity;
 
   @override
-  bool acceptsReplicaKey(String key) {
-    final normalized = _normalizeKey(key);
-    return allowedKeys.isEmpty && allowedPrefixes.isEmpty ||
-        allowedKeys.contains(normalized) ||
-        allowedPrefixes.any(normalized.startsWith);
+  Stream<StoreChange> get changes => _replica.changes;
+
+  @override
+  bool acceptsKey(String key) =>
+      _replica.acceptsKey(key) &&
+      (allowedKeys.isEmpty && allowedPrefixes.isEmpty ||
+          allowedKeys.contains(key) ||
+          allowedPrefixes.any(key.startsWith));
+
+  void _requireAccepted(String key) {
+    if (!acceptsKey(key)) {
+      throw ArgumentError.value(
+          key, 'key', 'Key is not accepted by this store.');
+    }
   }
 
   @override
-  Stream<JsonStoreChange> get changes => _changes.stream;
-
-  File get _deletionsFile =>
-      File(p.join(metadataDirectory.path, 'deletions.json'));
-  File get _lockFile => File(p.join(metadataDirectory.path, 'replica.lock'));
-
-  String _normalizeKey(String key) {
-    final normalized = key.replaceAll('\\', '/');
-    final parts = normalized.split('/');
-    if (normalized.isEmpty ||
-        normalized.startsWith('/') ||
-        parts.any((part) => part.isEmpty || part == '.' || part == '..') ||
-        (!hierarchical && parts.length != 1)) {
-      throw FormatException('Invalid replica key: $key');
-    }
-    return normalized;
-  }
-
-  File _file(String key) =>
-      File(p.joinAll([directory.path, ..._normalizeKey(key).split('/')]));
+  Future<List<ReplicaObjectMetadata>> scan() async =>
+      (await _replica.scan()).where((item) => acceptsKey(item.key)).toList();
 
   @override
-  Future<List<String>> list({String prefix = ''}) async {
-    if (!await directory.exists()) return const [];
-    final values = <String>[];
-    await for (final entity in directory.list(recursive: hierarchical)) {
-      if (entity is! File) continue;
-      final relative = p
-          .relative(entity.path, from: directory.path)
-          .replaceAll(p.separator, '/');
-      final key = _normalizeKey(relative);
-      if (key.startsWith(prefix)) values.add(key);
-    }
-    return values..sort();
+  Future<List<String>> list({String prefix = ''}) async => (await scan())
+      .where((item) => item.exists && item.key.startsWith(prefix))
+      .map((item) => item.key)
+      .toList()
+    ..sort();
+
+  @override
+  Future<Uint8List?> readBytes(String key) {
+    _requireAccepted(key);
+    return _replica.readBytes(key);
   }
 
   @override
   Future<Object?> read(String key) async {
-    final file = _file(key);
-    if (!await file.exists()) return null;
-    final decoded = jsonDecode(await file.readAsString());
+    if (!acceptsKey(key)) return null;
+    final bytes = await readBytes(key);
+    if (bytes == null) return null;
+    final decoded = jsonDecode(utf8.decode(bytes));
     if (!isJsonValue(decoded)) {
       throw FormatException('Replica object $key is not valid JSON.');
     }
-    return _copyJson(decoded);
-  }
-
-  @override
-  Future<Uint8List?> readReplicaBytes(String key) async {
-    final file = _file(key);
-    return await file.exists() ? file.readAsBytes() : null;
-  }
-
-  @override
-  Future<void> writeReplicaBytes(String key, Uint8List data) async {
-    final decoded = jsonDecode(utf8.decode(data));
-    if (!isJsonValue(decoded)) {
-      throw FormatException('Replica object $key is not valid JSON.');
-    }
-    final normalized = _normalizeKey(key);
-    await _withLock(() async {
-      final file = _file(normalized);
-      await file.parent.create(recursive: true);
-      final temporary = File(
-        '${file.path}.${DateTime.now().microsecondsSinceEpoch}.$pid.tmp',
-      );
-      await temporary.writeAsBytes(data, flush: true);
-      if (await file.exists()) await file.delete();
-      await temporary.rename(file.path);
-      final deletions = await _loadDeletions();
-      if (deletions.remove(normalized)) await _saveDeletions(deletions);
-    });
-    _changes.add(JsonStoreChange(normalized, JsonStoreMutationOrigin.replica));
+    return jsonDecode(jsonEncode(decoded));
   }
 
   @override
   Future<void> write(String key, Object? value) =>
-      _write(key, value, JsonStoreMutationOrigin.local);
+      _writeJson(key, value, StoreMutationOrigin.application);
 
-  @override
   Future<void> writeFromReplica(String key, Object? value) =>
-      _write(key, value, JsonStoreMutationOrigin.replica);
+      _writeJson(key, value, StoreMutationOrigin.remote);
 
-  Future<void> _write(
+  Future<void> _writeJson(
     String key,
     Object? value,
-    JsonStoreMutationOrigin origin,
-  ) async {
+    StoreMutationOrigin origin,
+  ) {
     if (!isJsonValue(value)) {
       throw ArgumentError.value(value, 'value', 'Value must be valid JSON.');
     }
-    final normalized = _normalizeKey(key);
-    await _withLock(() async {
-      final file = _file(normalized);
-      await file.parent.create(recursive: true);
-      final temporary = File(
-        '${file.path}.${DateTime.now().microsecondsSinceEpoch}.$pid.tmp',
-      );
-      await temporary.writeAsString(jsonEncode(value), flush: true);
-      if (await file.exists()) await file.delete();
-      await temporary.rename(file.path);
-      final deletions = await _loadDeletions();
-      if (deletions.remove(normalized)) await _saveDeletions(deletions);
-    });
-    _changes.add(JsonStoreChange(normalized, origin));
+    return writeBytes(
+      key,
+      Uint8List.fromList(utf8.encode(jsonEncode(value))),
+      origin: origin,
+    );
   }
 
   @override
-  Future<void> delete(String key) =>
-      _delete(key, JsonStoreMutationOrigin.local);
+  Future<void> writeBytes(
+    String key,
+    Uint8List data, {
+    StoreMutationOrigin origin = StoreMutationOrigin.application,
+  }) async {
+    _requireAccepted(key);
+    final decoded = jsonDecode(utf8.decode(data));
+    if (!isJsonValue(decoded)) {
+      throw FormatException('Replica object $key is not valid JSON.');
+    }
+    await _replica.writeBytes(key, data, origin: origin);
+  }
 
   @override
+  Future<void> delete(
+    String key, {
+    StoreMutationOrigin origin = StoreMutationOrigin.application,
+  }) {
+    _requireAccepted(key);
+    return _replica.delete(key, origin: origin);
+  }
+
   Future<void> deleteFromReplica(String key) =>
-      _delete(key, JsonStoreMutationOrigin.replica);
-
-  Future<void> _delete(String key, JsonStoreMutationOrigin origin) async {
-    final normalized = _normalizeKey(key);
-    await _withLock(() async {
-      final file = _file(normalized);
-      if (await file.exists()) await file.delete();
-      final deletions = await _loadDeletions();
-      final changed = origin == JsonStoreMutationOrigin.local
-          ? deletions.add(normalized)
-          : deletions.remove(normalized);
-      if (changed) await _saveDeletions(deletions);
-    });
-    _changes.add(JsonStoreChange(normalized, origin));
-  }
+      delete(key, origin: StoreMutationOrigin.remote);
 
   @override
-  Future<Set<String>> deletedKeys() => _withLock(_loadDeletions);
+  Future<List<StoreIntent>> explicitIntents() => _replica.explicitIntents();
 
   @override
-  Future<void> forgetDeletedKey(String key) => _withLock(() async {
-        final deletions = await _loadDeletions();
-        if (deletions.remove(_normalizeKey(key))) {
-          await _saveDeletions(deletions);
-        }
-      });
+  Future<void> forgetExplicitIntent(String operationId) =>
+      _replica.forgetExplicitIntent(operationId);
 
-  Future<Set<String>> _loadDeletions() async {
-    if (!await _deletionsFile.exists()) return <String>{};
-    final decoded = jsonDecode(await _deletionsFile.readAsString());
-    if (decoded is! List) {
-      throw const FormatException('Replica deletion journal must be a list.');
-    }
-    return decoded.whereType<String>().map(_normalizeKey).toSet();
-  }
+  @override
+  Future<Set<String>> explicitDeletedKeys() => _replica.explicitDeletedKeys();
 
-  Future<void> _saveDeletions(Set<String> values) async {
-    final sorted = values.toList()..sort();
-    await _deletionsFile.parent.create(recursive: true);
-    final temporary = File('${_deletionsFile.path}.$pid.tmp');
-    await temporary.writeAsString(jsonEncode(sorted), flush: true);
-    if (await _deletionsFile.exists()) await _deletionsFile.delete();
-    await temporary.rename(_deletionsFile.path);
-  }
+  @override
+  Future<void> forgetExplicitDelete(String key) =>
+      _replica.forgetExplicitDelete(key);
 
-  Future<T> _withLock<T>(Future<T> Function() action) async {
-    await _lockFile.parent.create(recursive: true);
-    final handle = await _lockFile.open(mode: FileMode.append);
-    try {
-      await handle.lock(FileLock.exclusive);
-      return await action();
-    } finally {
-      await handle.unlock();
-      await handle.close();
-    }
-  }
+  @override
+  Future<void> close() => _replica.close();
 
   Future<void> _migrateLegacy(File legacyFile, String prefix) async {
-    final marker = File(p.join(metadataDirectory.path, 'legacy-v3-migrated'));
+    final marker = File(
+        '${_replica.metadataRoot.path}${Platform.pathSeparator}legacy-v3-migrated');
     if (await marker.exists() || !await legacyFile.exists()) return;
     final decoded = jsonDecode(await legacyFile.readAsString());
     if (decoded is! Map) {
@@ -363,23 +253,14 @@ final class JsonDirectoryStore implements ReplicaJsonStore {
       final rawKey = entry.key;
       if (rawKey is! String || !rawKey.startsWith(prefix)) continue;
       final key = Uri.decodeComponent(rawKey.substring(prefix.length));
-      if (key.isEmpty ||
-          key.startsWith('__dartloom_') ||
-          !acceptsReplicaKey(key)) {
+      if (key.isEmpty || key.startsWith('__dartloom_') || !acceptsKey(key)) {
         continue;
       }
-      final destination = _file(key);
-      if (!await destination.exists()) {
-        await _write(key, entry.value, JsonStoreMutationOrigin.replica);
+      if (await readBytes(key) == null) {
+        await _writeJson(key, entry.value, StoreMutationOrigin.migration);
       }
     }
     await marker.writeAsString(DateTime.now().toUtc().toIso8601String(),
         flush: true);
   }
-
-  Object? _copyJson(Object? value) =>
-      value == null ? null : jsonDecode(jsonEncode(value));
-
-  @override
-  Future<void> close() => _changes.close();
 }
