@@ -32,4 +32,9 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      # Recent Flutter versions migrate a package's analysis_options.yaml during
+      # analysis. Restore that generated migration before pub validation so the
+      # dry-run checks the committed package contents rather than a CI-only
+      # workspace mutation.
+      - run: git checkout -- analysis_options.yaml
       - run: flutter pub publish --dry-run
