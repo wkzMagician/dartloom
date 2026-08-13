@@ -351,13 +351,13 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           '      final localStore = context.get<ReplicaStore>(name: replicaName);')
       ..writeln(
-          '      final scope = context.get<SyncProfileScope>(name: context.name);')
+          '      final profileScope = context.get<SyncProfileScope>(name: context.name);')
       ..writeln('      final profiles = SettingsSyncProfileRepository(')
       ..writeln('        instanceName: context.name,')
       ..writeln('        metadata: context.get<SettingsStore>(),')
       ..writeln(
           "        secretsStore: context.get<SettingsStore>(name: 'sync_secrets'),")
-      ..writeln('        scope: scope,')
+      ..writeln('        scope: profileScope,')
       ..writeln('      );')
       ..writeln('      final state = SettingsReconciliationStateRepository(')
       ..writeln(

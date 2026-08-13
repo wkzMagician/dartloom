@@ -84,6 +84,10 @@ void main() {
     final generated = capabilityGlue(config);
     expect(generated, contains('context.get<ReplicaStore>(name: replicaName)'));
     expect(generated, contains('ReplicaStoreLocalReplicaFactory(localStore)'));
+    expect(
+        generated, contains('if (scope != DartloomStartupScope.background)'));
+    expect(generated,
+        contains('final profileScope = context.get<SyncProfileScope>'));
     expect(generated, isNot(contains('ReplicaJsonStore')));
     expect(generated, isNot(contains('JsonLocalReplicaFactory')));
   });
