@@ -118,6 +118,19 @@ The Stage 1 runtime API is now fixed as follows:
   preserves unknown object fields, accepts only JSON-compatible values, and
   reports malformed input with `FormatException`.
 
+The Stage 2 storage API is fixed as follows:
+
+- `ReplicaStore` is the generic raw-byte contract, with `StoreChange`,
+  `ReplicaObjectMetadata`, and `StoreMutationOrigin`.
+- `FileDirectoryStore` is the generic directory implementation in
+  `dartloom_storage_text_file`; applications pass its absolute root through
+  `openAt`.
+- Existing `TextStore`, `JsonStore`, and `ReplicaJsonStore` remain available
+  as compatibility contracts. JSON-specific codecs stay in
+  `dartloom_storage_json_file`.
+- External filesystem notifications are reported as replica-origin changes;
+  they do not create authorized local intent.
+
 Each choice must be recorded in this file or a linked application ADR before
 the corresponding gate is marked passed.
 

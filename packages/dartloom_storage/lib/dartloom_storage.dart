@@ -9,6 +9,51 @@ abstract interface class TextStore {
   Future<void> delete(String key);
 }
 
+enum StoreMutationOrigin { local, replica }
+
+final class StoreChange {
+  const StoreChange(this.key, this.origin, {this.deleted = false});
+
+  final String key;
+  final StoreMutationOrigin origin;
+  final bool deleted;
+}
+
+final class ReplicaObjectMetadata {
+  const ReplicaObjectMetadata({
+    required this.key,
+    required this.size,
+    this.modifiedAt,
+  });
+
+  final String key;
+  final int size;
+  final DateTime? modifiedAt;
+}
+
+/// Raw-byte storage contract for isomorphic local replicas.
+///
+/// Implementations must treat keys as relative paths inside the store root.
+/// External filesystem changes are reported as [StoreMutationOrigin.replica]
+/// changes and never imply an authorized local intent.
+abstract interface class ReplicaStore {
+  String get identity;
+  Stream<StoreChange> get changes;
+  bool acceptsKey(String key);
+  Future<List<ReplicaObjectMetadata>> scan();
+  Future<Uint8List?> readBytes(String key);
+  Future<void> writeBytes(
+    String key,
+    Uint8List data, {
+    StoreMutationOrigin origin,
+  });
+  Future<void> delete(
+    String key, {
+    StoreMutationOrigin origin,
+  });
+  Future<void> close();
+}
+
 abstract interface class JsonStore {
   Future<List<String>> list({String prefix = ''});
   Future<Object?> read(String key);
@@ -76,6 +121,54 @@ class MemoryTextStore implements TextStore {
   Future<String?> read(String key) async => _values[key];
   @override
   Future<void> write(String key, String value) async => _values[key] = value;
+}
+
+final class MemoryReplicaStore implements ReplicaStore {
+  final Map<String, Uint8List> _values = {};
+  final StreamController<StoreChange> _changes =
+      StreamController<StoreChange>.broadcast();
+
+  @override
+  String get identity => 'memory-replica';
+  @override
+  Stream<StoreChange> get changes => _changes.stream;
+  @override
+  bool acceptsKey(String key) =>
+      key.isNotEmpty &&
+      !key.startsWith('/') &&
+      !key
+          .split('/')
+          .any((part) => part.isEmpty || part == '.' || part == '..');
+  @override
+  Future<List<ReplicaObjectMetadata>> scan() async => [
+        for (final entry in _values.entries)
+          ReplicaObjectMetadata(key: entry.key, size: entry.value.length),
+      ];
+  @override
+  Future<Uint8List?> readBytes(String key) async =>
+      _values[key] == null ? null : Uint8List.fromList(_values[key]!);
+  @override
+  Future<void> writeBytes(String key, Uint8List data,
+      {StoreMutationOrigin origin = StoreMutationOrigin.local}) async {
+    if (!acceptsKey(key)) {
+      throw ArgumentError.value(key, 'key', 'Invalid replica key.');
+    }
+    _values[key] = Uint8List.fromList(data);
+    _changes.add(StoreChange(key, origin));
+  }
+
+  @override
+  Future<void> delete(String key,
+      {StoreMutationOrigin origin = StoreMutationOrigin.local}) async {
+    if (!acceptsKey(key)) {
+      throw ArgumentError.value(key, 'key', 'Invalid replica key.');
+    }
+    _values.remove(key);
+    _changes.add(StoreChange(key, origin, deleted: true));
+  }
+
+  @override
+  Future<void> close() => _changes.close();
 }
 
 class MemoryJsonStore implements ReplicaJsonStore {
