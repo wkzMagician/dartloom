@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
+import '../config/schema5_migration.dart';
 import '../process/process_runner.dart';
 import '../templates/managed_templates.dart';
 import 'check_command.dart';
@@ -19,8 +20,18 @@ class UpgradeCommand {
     Directory project, {
     required bool dryRun,
   }) async {
-    final schemaVersion = await _loader.schemaVersion(project);
-    final config = await _loader.loadForMigration(project);
+    final migration = await Schema5ConfigMigrator(loader: _loader).migrate(
+      project,
+      dryRun: dryRun,
+    );
+    stdout.writeln(migration.report.toStructuredJson());
+    if (migration.report.isBlocked) {
+      throw ConfigException(
+        'Schema 5 migration is blocked. Resolve every reported app-owned '
+        'path TODO and run dartloom upgrade again.',
+      );
+    }
+    final config = migration.config;
     final files = <String, String>{
       'AGENTS.md': agentInstructions(config),
       '.github/workflows/ci.yml': ciWorkflow,
@@ -45,16 +56,8 @@ class UpgradeCommand {
           ? 'Application startup must call lib/capabilities/bootstrap.dart.'
           : 'Ensure the application calls bootstrapDartloom() before runApp.',
     );
-    if (schemaVersion == 1) {
-      stdout.writeln(
-        dryRun
-            ? 'Would migrate dartloom.yaml from schema 1 to schema 2'
-            : 'Migrated dartloom.yaml from schema 1 to schema 2',
-      );
-    }
     if (dryRun) return;
 
-    await _loader.save(project, config);
     final pubspec =
         File('${project.path}${Platform.pathSeparator}pubspec.yaml');
     var pubspecContent = rewriteDartloomDependencies(

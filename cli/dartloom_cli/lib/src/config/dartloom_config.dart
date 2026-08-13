@@ -65,6 +65,7 @@ class CapabilityInstanceConfig {
     this.backend,
     this.mergeFactory,
     this.policy = const {},
+    this.migration = const {},
   });
 
   final String implementation;
@@ -79,6 +80,12 @@ class CapabilityInstanceConfig {
   final String? mergeFactory;
   final Map<String, Object?> policy;
 
+  /// Lossless, non-runtime metadata retained by configuration migrations.
+  ///
+  /// Generated registrations must not interpret this payload. In schema 5,
+  /// application-owned factories resolve business and metadata paths.
+  final Map<String, Object?> migration;
+
   @override
   bool operator ==(Object other) =>
       other is CapabilityInstanceConfig &&
@@ -90,7 +97,8 @@ class CapabilityInstanceConfig {
       other.replica == replica &&
       other.backend == backend &&
       other.mergeFactory == mergeFactory &&
-      _mapEquals(other.policy, policy);
+      _mapEquals(other.policy, policy) &&
+      _mapEquals(other.migration, migration);
   @override
   int get hashCode => Object.hash(
         implementation,
@@ -102,6 +110,7 @@ class CapabilityInstanceConfig {
         backend,
         mergeFactory,
         _mapHash(policy),
+        _mapHash(migration),
       );
 }
 
@@ -139,7 +148,7 @@ class DartloomConfig {
 
   String toYaml() {
     final buffer = StringBuffer()
-      ..writeln('schema_version: 4')
+      ..writeln('schema_version: 5')
       ..writeln()
       ..writeln('app:')
       ..writeln('  name: ${_scalar(app.name)}')
@@ -157,7 +166,7 @@ class DartloomConfig {
     if (enabledCapabilities.isEmpty) {
       buffer
         ..clear()
-        ..write('schema_version: 4\n\n')
+        ..write('schema_version: 5\n\n')
         ..write('app:\n')
         ..write('  name: ${_scalar(app.name)}\n')
         ..write('  package_name: ${_scalar(app.packageName)}\n')
@@ -219,6 +228,7 @@ class DartloomConfig {
             );
         }
         _writeMap(buffer, '        ', 'policy', instance.policy);
+        _writeMap(buffer, '        ', 'migration', instance.migration);
       }
     }
     buffer
@@ -349,12 +359,8 @@ abstract final class CapabilityDefaults {
           },
         Capability.storage => const {
             'json': CapabilityInstanceConfig(
-              implementation: 'json_directory',
-              options: {
-                'path': 'Dartloom',
-                'metadata_path': 'dartloom/sync-metadata/Dartloom',
-                'hierarchical': false,
-              },
+              implementation: 'app_file_replica',
+              factory: 'createJsonReplicaStore',
             ),
           },
         Capability.logging => const {

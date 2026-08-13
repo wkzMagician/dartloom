@@ -22,21 +22,52 @@ class ConfigLoader {
 
   Future<DartloomConfig> load(Directory project) async {
     final root = await _root(project);
-    if (root['schema_version'] != 4) {
+    final schemaVersion = root['schema_version'];
+    if (schemaVersion != 4 && schemaVersion != 5) {
       throw ConfigException(
-        'schema_version: 4 is required. Sync v4 uses one isomorphic replica; '
-        'rewrite dartloom.yaml before running project update.',
+        'schema_version: 4 or 5 is required. Run dartloom upgrade to migrate '
+        'a schema 4 configuration.',
       );
     }
-    return _parseV4(root);
+    return _parse(root, schemaVersion: schemaVersion as int);
   }
 
   Future<DartloomConfig> loadForMigration(Directory project) async {
     final root = await _root(project);
-    if (root['schema_version'] != 4) {
-      throw ConfigException('schema_version: 4 is required.');
+    final schemaVersion = root['schema_version'];
+    if (schemaVersion != 4 && schemaVersion != 5) {
+      throw ConfigException('schema_version: 4 or 5 is required.');
     }
-    return _parseV4(root);
+    return _parse(root, schemaVersion: schemaVersion as int);
+  }
+
+  DartloomConfig parse(
+    String source, {
+    Set<int> acceptedSchemaVersions = const {5},
+    bool validateRegistry = true,
+  }) {
+    final Object? document;
+    try {
+      document = loadYaml(source);
+    } on YamlException catch (error) {
+      throw ConfigException('dartloom.yaml is invalid YAML: $error');
+    }
+    if (document is! YamlMap) {
+      throw ConfigException('dartloom.yaml must be a map.');
+    }
+    final schemaVersion = document['schema_version'];
+    if (schemaVersion is! int ||
+        !acceptedSchemaVersions.contains(schemaVersion)) {
+      throw ConfigException(
+        'schema_version must be one of '
+        '${acceptedSchemaVersions.toList()..sort()}.',
+      );
+    }
+    return _parse(
+      document,
+      schemaVersion: schemaVersion,
+      validateRegistry: validateRegistry,
+    );
   }
 
   Future<YamlMap> _root(Directory project) async {
@@ -49,7 +80,11 @@ class ConfigLoader {
     return root;
   }
 
-  DartloomConfig _parseV4(YamlMap root) {
+  DartloomConfig _parse(
+    YamlMap root, {
+    required int schemaVersion,
+    bool validateRegistry = true,
+  }) {
     final base = _base(root);
     final rawCapabilities = root['capabilities'];
     if (rawCapabilities is! YamlMap) {
@@ -100,6 +135,7 @@ class ConfigLoader {
           mergeFactory:
               conflict is YamlMap ? conflict['merge_factory'] as String? : null,
           policy: _stringMap(value['policy']),
+          migration: _stringMap(value['migration']),
         );
       }
       capabilities[capability] = instances;
@@ -111,10 +147,12 @@ class ConfigLoader {
       capabilitySource: _capabilitySource(root['sources']),
       githubRelease: (root['release'] as YamlMap?)?['github'] != false,
     );
-    _validate(config);
-    final registryErrors = CapabilityRegistry.validationErrors(config);
-    if (registryErrors.isNotEmpty) {
-      throw ConfigException(registryErrors.join(' '));
+    _validate(config, schemaVersion: schemaVersion);
+    if (validateRegistry) {
+      final registryErrors = CapabilityRegistry.validationErrors(config);
+      if (registryErrors.isNotEmpty) {
+        throw ConfigException(registryErrors.join(' '));
+      }
     }
     return config;
   }
@@ -142,7 +180,7 @@ class ConfigLoader {
     );
   }
 
-  void _validate(DartloomConfig config) {
+  void _validate(DartloomConfig config, {required int schemaVersion}) {
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(config.app.name)) {
       throw ConfigException(
         'app.name must be a valid Dart package name using lowercase letters, '
@@ -156,11 +194,18 @@ class ConfigLoader {
       );
     }
     final storage = config.capabilities[Capability.storage] ?? const {};
-    for (final name in storage.keys) {
-      if (!const {'text', 'json', 'database'}.contains(name)) {
-        throw ConfigException(
-          'storage instance $name is invalid; use text, json, or database.',
-        );
+    if (schemaVersion == 5) {
+      for (final entry in storage.entries) {
+        final paths = entry.value.migration['app_owned_paths'];
+        if (paths is Map &&
+            paths.values.any(
+              (value) => value is String && value.startsWith('TODO('),
+            )) {
+          throw ConfigException(
+            'storage.${entry.key} migration contains unresolved app-owned '
+            'path TODOs.',
+          );
+        }
       }
     }
     for (final sync in config.capabilities[Capability.sync]?.entries ??
@@ -170,11 +215,15 @@ class ConfigLoader {
       }
       final reference = sync.value.replica;
       final parts = reference?.split('.') ?? const <String>[];
-      if (parts.length != 2 ||
-          parts.first != 'storage' ||
-          !storage.containsKey(parts.last)) {
+      final referencedStorage = parts.length == 2 && parts.first == 'storage'
+          ? storage[parts.last]
+          : null;
+      if (referencedStorage == null ||
+          (schemaVersion == 5 &&
+              referencedStorage.implementation != 'app_file_replica')) {
         throw ConfigException(
-          'sync.${sync.key} requires one existing replica such as storage.json.',
+          'sync.${sync.key} requires an existing ReplicaStore reference such '
+          'as storage.documents.',
         );
       }
     }
