@@ -85,7 +85,10 @@ class CapTui {
             }
           } else {
             selection[capability] = {
-              ...CapabilityDefaults.forCapability(capability),
+              ...CapabilityDefaults.forCapability(
+                capability,
+                platforms: _appPlatforms,
+              ),
             };
             if (capability == Capability.sync) {
               selection.putIfAbsent(
@@ -450,7 +453,10 @@ class CapTui {
 
   CapabilityInstanceConfig _defaultInstance(
       Capability capability, String name) {
-    final defaults = CapabilityDefaults.forCapability(capability);
+    final defaults = CapabilityDefaults.forCapability(
+      capability,
+      platforms: _appPlatforms,
+    );
     if (defaults[name] case final value?) return value;
     return defaults.values.first;
   }

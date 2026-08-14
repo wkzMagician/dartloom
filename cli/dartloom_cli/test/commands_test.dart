@@ -224,6 +224,33 @@ void main() {
     expect(runner.calls, isEmpty);
   });
 
+  test('adding sync only configures enabled platform policies', () async {
+    final project = await Directory.systemTemp.createTemp('dartloom_add_sync');
+    addTearDown(() => project.delete(recursive: true));
+    const loader = ConfigLoader();
+    await loader.save(
+      project,
+      DartloomConfig(
+        app: const AppConfig(
+          name: 'demo',
+          organization: 'com.example',
+          description: '',
+        ),
+        platforms: {TargetPlatform.windows},
+        capabilities: {},
+      ),
+    );
+    await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
+        .writeAsString(
+            'name: demo\ndependencies:\n  flutter:\n    sdk: flutter\n');
+
+    await AddCommand(FakeRunner()).run(project, 'sync');
+
+    final sync =
+        (await loader.load(project)).capabilities[Capability.sync]!['default']!;
+    expect(sync.policy['platforms'], isNull);
+  });
+
   test('removing a capability updates config, dependencies, and glue',
       () async {
     final project =

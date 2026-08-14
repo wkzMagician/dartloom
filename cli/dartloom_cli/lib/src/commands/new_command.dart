@@ -46,7 +46,12 @@ class NewCommand {
     final configuredCapabilities =
         <Capability, Map<String, CapabilityInstanceConfig>>{
       for (final capability in capabilities)
-        capability: {...CapabilityDefaults.forCapability(capability)},
+        capability: {
+          ...CapabilityDefaults.forCapability(
+            capability,
+            platforms: platforms,
+          ),
+        },
     };
     if (capabilities.contains(Capability.sync)) {
       configuredCapabilities.putIfAbsent(

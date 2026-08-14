@@ -26,11 +26,16 @@ class AddCommand {
       stdout.writeln('${capability.name} is already enabled. Nothing to do.');
       return;
     }
-    capabilities[capability] = CapabilityDefaults.forCapability(capability);
+    capabilities[capability] = {
+      ...CapabilityDefaults.forCapability(
+        capability,
+        platforms: current.platforms,
+      ),
+    };
     if (capability == Capability.sync) {
       capabilities.putIfAbsent(
         Capability.settings,
-        () => CapabilityDefaults.forCapability(Capability.settings),
+        () => {...CapabilityDefaults.forCapability(Capability.settings)},
       );
       capabilities[Capability.settings]!.putIfAbsent(
         'sync_secrets',
@@ -38,7 +43,7 @@ class AddCommand {
       );
       capabilities.putIfAbsent(
         Capability.storage,
-        () => CapabilityDefaults.forCapability(Capability.storage),
+        () => {...CapabilityDefaults.forCapability(Capability.storage)},
       );
       capabilities[Capability.storage]!.putIfAbsent(
         'json',

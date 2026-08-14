@@ -349,126 +349,154 @@ int _valueHash(Object? value) {
 
 abstract final class CapabilityDefaults {
   static Map<String, CapabilityInstanceConfig> forCapability(
-    Capability capability,
-  ) =>
-      switch (capability) {
-        Capability.settings => const {
-            'default': CapabilityInstanceConfig(
-              implementation: 'shared_preferences',
-            ),
-          },
-        Capability.storage => const {
-            'json': CapabilityInstanceConfig(
-              implementation: 'app_file_replica',
-              factory: 'createJsonReplicaStore',
-            ),
-          },
-        Capability.logging => const {
-            'default': CapabilityInstanceConfig(implementation: 'logger'),
-          },
-        Capability.autostart => const {
-            'default': CapabilityInstanceConfig(
-              implementation: 'launch_at_startup',
-            ),
-          },
-        Capability.sync => const {
-            'default': CapabilityInstanceConfig(
-              implementation: 'etag',
-              replica: 'storage.json',
-              backend: AdapterConfig(
-                implementation: 'webdav',
-                options: {
-                  'root_path': 'Dartloom',
-                  'connect_timeout': '10s',
-                  'request_timeout': '30s',
-                  'max_parallel_requests': 4,
-                  'create_missing_collections': true,
-                  'hierarchical': false,
-                  'probe_depth_infinity': false,
-                },
-              ),
-              policy: {
-                'mode': 'automatic',
-                'triggers': {
-                  'startup': true,
-                  'resume': true,
-                  'connectivity_restored': true,
-                  'local_write': {
-                    'enabled': true,
-                    'debounce': '2s',
-                    'max_delay': '10s',
-                  },
-                },
-                'discovery': {
-                  'remote_changes': 'auto',
-                  'poll_interval': '60s',
-                  'safety_reconcile_interval': '15m',
-                },
-                'execution': {
-                  'timeout': '2m',
-                  'busy_behavior': 'coalesce_then_rerun',
-                  'max_parallel_transfers': 4,
-                  'max_object_size': '20mb',
-                },
-                'retry': {
-                  'strategy': 'exponential',
-                  'initial_delay': '5s',
-                  'fixed_delay': '30s',
-                  'sequence': ['5s', '30s', '2m', '10m'],
-                  'multiplier': 3,
-                  'max_delay': '10m',
-                  'jitter': '20%',
-                  'max_attempts': 0,
-                },
-                'conflicts': {
-                  'strategy': 'preserve',
-                  'delete_vs_update': 'conflict',
-                },
-                'state': {
-                  'base_payload': 'always',
-                  'tombstone_retention': '30d',
-                },
-                'profiles': {
-                  'sync_on_activate': true,
-                  'existing_data': 'attach_to_default',
-                },
-                'platforms': {
-                  'android': {
-                    'background': {
-                      'enabled': true,
-                      'enqueue_on_pending': true,
-                      'periodic_interval': '15m',
-                      'flex_interval': '5m',
-                      'network': 'connected',
-                      'requires_battery_not_low': true,
-                      'requires_charging': false,
-                      'timeout': '2m',
-                    },
-                  },
-                  'ios': {
-                    'background': {
-                      'enabled': true,
-                      'task': 'app_refresh',
-                      'earliest_begin': '15m',
-                      'requires_network': true,
-                      'timeout': '25s',
-                    },
-                  },
-                },
-              },
-            ),
-          },
-        Capability.localization => const {
-            'default': CapabilityInstanceConfig(implementation: 'gen_l10n'),
-          },
-        Capability.resident => const {
-            'default': CapabilityInstanceConfig(
-              implementation: 'tray',
+    Capability capability, {
+    Set<TargetPlatform>? platforms,
+  }) {
+    final defaults = switch (capability) {
+      Capability.settings => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'shared_preferences',
+          ),
+        },
+      Capability.storage => const {
+          'json': CapabilityInstanceConfig(
+            implementation: 'app_file_replica',
+            factory: 'createJsonReplicaStore',
+          ),
+        },
+      Capability.logging => const {
+          'default': CapabilityInstanceConfig(implementation: 'logger'),
+        },
+      Capability.autostart => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'launch_at_startup',
+          ),
+        },
+      Capability.sync => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'etag',
+            replica: 'storage.json',
+            backend: AdapterConfig(
+              implementation: 'webdav',
               options: {
-                'icon_path': r'${RESIDENT_ICON_PATH}',
-                'tooltip': 'Dartloom application',
+                'root_path': 'Dartloom',
+                'connect_timeout': '10s',
+                'request_timeout': '30s',
+                'max_parallel_requests': 4,
+                'create_missing_collections': true,
+                'hierarchical': false,
+                'probe_depth_infinity': false,
               },
             ),
-          },
-      };
+            policy: {
+              'mode': 'automatic',
+              'triggers': {
+                'startup': true,
+                'resume': true,
+                'connectivity_restored': true,
+                'local_write': {
+                  'enabled': true,
+                  'debounce': '2s',
+                  'max_delay': '10s',
+                },
+              },
+              'discovery': {
+                'remote_changes': 'auto',
+                'poll_interval': '60s',
+                'safety_reconcile_interval': '15m',
+              },
+              'execution': {
+                'timeout': '2m',
+                'busy_behavior': 'coalesce_then_rerun',
+                'max_parallel_transfers': 4,
+                'max_object_size': '20mb',
+              },
+              'retry': {
+                'strategy': 'exponential',
+                'initial_delay': '5s',
+                'fixed_delay': '30s',
+                'sequence': ['5s', '30s', '2m', '10m'],
+                'multiplier': 3,
+                'max_delay': '10m',
+                'jitter': '20%',
+                'max_attempts': 0,
+              },
+              'conflicts': {
+                'strategy': 'preserve',
+                'delete_vs_update': 'conflict',
+              },
+              'state': {
+                'base_payload': 'always',
+                'tombstone_retention': '30d',
+              },
+              'profiles': {
+                'sync_on_activate': true,
+                'existing_data': 'attach_to_default',
+              },
+              'platforms': {
+                'android': {
+                  'background': {
+                    'enabled': true,
+                    'enqueue_on_pending': true,
+                    'periodic_interval': '15m',
+                    'flex_interval': '5m',
+                    'network': 'connected',
+                    'requires_battery_not_low': true,
+                    'requires_charging': false,
+                    'timeout': '2m',
+                  },
+                },
+                'ios': {
+                  'background': {
+                    'enabled': true,
+                    'task': 'app_refresh',
+                    'earliest_begin': '15m',
+                    'requires_network': true,
+                    'timeout': '25s',
+                  },
+                },
+              },
+            },
+          ),
+        },
+      Capability.localization => const {
+          'default': CapabilityInstanceConfig(implementation: 'gen_l10n'),
+        },
+      Capability.resident => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'tray',
+            options: {
+              'icon_path': r'${RESIDENT_ICON_PATH}',
+              'tooltip': 'Dartloom application',
+            },
+          ),
+        },
+    };
+
+    if (capability != Capability.sync || platforms == null) return defaults;
+
+    final instance = defaults['default']!;
+    final policy = Map<String, Object?>.from(instance.policy);
+    final platformPolicies = policy['platforms'] as Map<String, Object?>;
+    policy['platforms'] = Map<String, Object?>.fromEntries(
+      platformPolicies.entries.where(
+        (entry) => platforms.any((platform) => platform.name == entry.key),
+      ),
+    );
+    return {
+      ...defaults,
+      'default': CapabilityInstanceConfig(
+        implementation: instance.implementation,
+        factory: instance.factory,
+        platforms: instance.platforms,
+        options: instance.options,
+        dependsOn: instance.dependsOn,
+        replica: instance.replica,
+        backend: instance.backend,
+        mergeFactory: instance.mergeFactory,
+        policy: policy,
+        migration: instance.migration,
+      ),
+    };
+  }
 }
