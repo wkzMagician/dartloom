@@ -516,13 +516,12 @@ final class WebDavRemoteReplica implements RemoteReplica {
   }
 
   static String _normalizeEtag(String value, {String? key}) {
-    var normalized = value.trim();
-    if (normalized.startsWith('w/')) {
-      normalized = 'W/${normalized.substring(2)}';
-    }
-    final opaque =
-        normalized.startsWith('W/') ? normalized.substring(2) : normalized;
-    if (opaque.length < 2 || !opaque.startsWith('"') || !opaque.endsWith('"')) {
+    // Treat the ETag as an opaque string. Some servers (e.g. Jianguoyun)
+    // return unquoted ETags and match If-Match/If-None-Match verbatim, so
+    // adding or stripping quotes would break conditional requests. Only trim
+    // surrounding whitespace and reject an empty tag.
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
       throw SyncOperationException(SyncFailure(
         SyncFailureKind.invalidResponse,
         'WebDAV server returned an invalid ETag${key == null ? '' : ' for $key'}.',
