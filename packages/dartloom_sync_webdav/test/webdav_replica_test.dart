@@ -81,30 +81,6 @@ void main() {
     expect(methods, ['PUT', 'GET', 'DELETE']);
   });
 
-  test('initialize probes conditional writes and ETag consistency', () async {
-    final methods = <String>[];
-    final replica = _replica(MockClient((request) async {
-      methods.add(request.method);
-      switch (request.method) {
-        case 'PUT':
-          expect(request.headers['if-none-match'], '*');
-          return http.Response('', 201, headers: {'etag': '"probe"'});
-        case 'GET':
-          return http.Response.bytes(const [], 200,
-              headers: {'etag': '"probe"'});
-        case 'DELETE':
-          expect(request.headers['if-match'], '"probe"');
-          return http.Response('', 204);
-        default:
-          return http.Response('', 500);
-      }
-    }));
-
-    await replica.initialize();
-
-    expect(methods, ['PUT', 'GET', 'DELETE']);
-  });
-
   test('update uses If-Match and preserves strong ETag semantics', () async {
     final client = MockClient((request) async {
       expect(request.method, 'PUT');
@@ -202,18 +178,6 @@ void main() {
     final methods = <String>[];
     final client = MockClient((request) async {
       methods.add('${request.method} ${request.url.path}');
-      final isProbe = request.url.path.contains('.dartloom-probe-');
-      if (isProbe && request.method == 'PUT') {
-        expect(request.headers['if-none-match'], '*');
-        return http.Response('', 201, headers: {'etag': '"probe"'});
-      }
-      if (isProbe && request.method == 'GET') {
-        return http.Response.bytes(const [], 200, headers: {'etag': '"probe"'});
-      }
-      if (isProbe && request.method == 'DELETE') {
-        expect(request.headers['if-match'], '"probe"');
-        return http.Response('', 204);
-      }
       if (request.method == 'PROPFIND') {
         return http.Response(
             _multistatus([
@@ -261,16 +225,6 @@ void main() {
     final methods = <String>[];
     final client = MockClient((request) async {
       methods.add('${request.method} ${request.url.path}');
-      final isProbe = request.url.path.contains('.dartloom-probe-');
-      if (isProbe && request.method == 'PUT') {
-        return http.Response('', 201, headers: {'etag': '"probe"'});
-      }
-      if (isProbe && request.method == 'GET') {
-        return http.Response.bytes(const [], 200, headers: {'etag': '"probe"'});
-      }
-      if (isProbe && request.method == 'DELETE') {
-        return http.Response('', 204);
-      }
       if (request.method == 'PROPFIND') {
         return http.Response(
           _multistatus([

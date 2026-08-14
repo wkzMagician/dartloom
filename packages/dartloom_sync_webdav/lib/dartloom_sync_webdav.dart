@@ -149,37 +149,9 @@ final class WebDavRemoteReplica implements RemoteReplica {
   @override
   Future<void> initialize() async {
     await _ensureCollection(rootPath);
-    await _probeConditionalWrites();
     final legacy = legacyCollection;
     if (legacy != null && legacy.isNotEmpty) {
       await _migrateLegacyCollection(legacy);
-    }
-  }
-
-  Future<void> _probeConditionalWrites() async {
-    final key = '.dartloom-probe-${DateTime.now().microsecondsSinceEpoch}';
-    String? version;
-    try {
-      version = await write(
-        key,
-        Uint8List(0),
-        condition: const RemoteWriteCondition.create(),
-      );
-      final object = await read(key);
-      if (object == null || object.version != version) {
-        throw SyncOperationException(SyncFailure(
-          SyncFailureKind.invalidResponse,
-          'WebDAV server returned inconsistent ETags during initialization.',
-        ));
-      }
-      version = object.version;
-    } finally {
-      if (version != null) {
-        await delete(
-          key,
-          condition: RemoteWriteCondition.version(version),
-        );
-      }
     }
   }
 
