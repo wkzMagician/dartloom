@@ -49,15 +49,6 @@ class CapabilityManager {
     return change;
   }
 
-  Future<void> setSource(Directory project, CapabilitySource source) async {
-    final current = await _loader.load(project);
-    await _writeProject(
-      project,
-      current.copyWith(capabilitySource: source),
-      writeTemplates: false,
-    );
-  }
-
   Future<void> _writeProject(
     Directory project,
     DartloomConfig config, {

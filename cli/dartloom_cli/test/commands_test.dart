@@ -120,6 +120,11 @@ void main() {
       ).readAsString(),
       contains('localizationsDelegates: dartloomLocalizationsDelegates'),
     );
+    final releaseWorkflow = await File(
+      '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows${Platform.pathSeparator}release.yml',
+    ).readAsString();
+    expect(releaseWorkflow, contains('branches: [main]'));
+    expect(releaseWorkflow, contains("tags: ['v*']"));
   });
 
   test('new storage sample keeps replica paths in application-owned code',
@@ -498,7 +503,8 @@ void main() {
     expect(value, isNot(contains('dependency_overrides:')));
   });
 
-  test('switching source rewrites enabled capability dependencies', () async {
+  test('project upgrade source rewrites enabled capability dependencies',
+      () async {
     final project =
         await Directory.systemTemp.createTemp('dartloom_source_switch_test');
     addTearDown(() => project.delete(recursive: true));
@@ -518,9 +524,10 @@ void main() {
       'name: demo\ndependencies:\n  dartloom_localization: ^0.1.0\n  flutter:\n    sdk: flutter\n',
     );
     final runner = FakeRunner();
-    await CapabilityManager(runner).setSource(
+    await UpgradeCommand(runner).run(
       project,
-      CapabilitySource.github,
+      source: CapabilitySource.github,
+      dryRun: false,
     );
     final pubspec =
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')

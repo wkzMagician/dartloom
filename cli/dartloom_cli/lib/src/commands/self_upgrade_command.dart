@@ -39,6 +39,6 @@ class SelfUpgradeCommand {
       );
     }
     stdout.writeln(
-        'Dartloom update started. Run dartloom again after it completes.');
+        'Dartloom self-update started. Run dartloom again after it completes.');
   }
 }

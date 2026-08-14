@@ -28,8 +28,6 @@ class DoctorCommand {
     await check('Dart', executableFor('dart'), ['--version'],
         advice: 'Install Dart or Flutter.');
     await check('Git', 'git', ['--version'], advice: 'Install Git.');
-    await check('GitHub CLI', 'gh', ['--version'],
-        advice: 'Install GitHub CLI for releases.');
     final configExists =
         await File('${project.path}${Platform.pathSeparator}dartloom.yaml')
             .exists();

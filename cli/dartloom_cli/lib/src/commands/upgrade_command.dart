@@ -19,6 +19,7 @@ class UpgradeCommand {
   Future<void> run(
     Directory project, {
     required bool dryRun,
+    CapabilitySource? source,
   }) async {
     final migration = await Schema5ConfigMigrator(loader: _loader).migrate(
       project,
@@ -28,10 +29,15 @@ class UpgradeCommand {
     if (migration.report.isBlocked) {
       throw ConfigException(
         'Schema 5 migration is blocked. Resolve every reported app-owned '
-        'path TODO and run dartloom upgrade again.',
+        'path TODO and run dartloom project upgrade again.',
       );
     }
-    final config = migration.config;
+    final config = source == null
+        ? migration.config
+        : migration.config.copyWith(capabilitySource: source);
+    if (source != null && !dryRun) {
+      await _loader.save(project, config);
+    }
     final files = <String, String>{
       'AGENTS.md': agentInstructions(config),
       '.github/workflows/ci.yml': ciWorkflow,

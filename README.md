@@ -18,7 +18,7 @@ After publication:
 dart install dartloom
 ```
 
-Update the installed CLI with `dartloom update`.
+Update the installed CLI with `dartloom self-update`.
 
 ## Create and configure an application
 
@@ -109,7 +109,7 @@ capabilities:
 ```
 
 `${NAME}` becomes a required `--dart-define=NAME=...`; secrets are never copied
-into generated Dart source. Run `dartloom upgrade` to migrate a schema 4
+into generated Dart source. Run `dartloom project upgrade` to migrate a schema 4
 project. The migration preserves legacy settings for the app-owned factory and
 fails with an explicit diagnostic when it cannot prove an absolute business
 path. It only overwrites Dartloom-owned capability glue
@@ -136,11 +136,11 @@ await resident.configure(ResidentConfiguration(
 ));
 ```
 
-## GitHub development and pub.dev release
+## GitHub development and pub.dev dependencies
 
 ```bash
-dartloom source github  # hosted constraints plus Git/path overrides
-dartloom source pub     # hosted pub.dev dependencies, no overrides
+dartloom project upgrade --source=github  # Git/path overrides
+dartloom project upgrade --source=pub     # hosted pub.dev dependencies
 ```
 
 GitHub mode works before the packages are published. For pub.dev, publish
@@ -167,6 +167,17 @@ must run on Linux.
 macOS DMG/PKG, iOS IPA, Android installer packaging, and web installers are not
 currently supported. This installer limitation is separate from capability
 platform support.
+
+## CI and release builds
+
+Projects created by `dartloom new` inherit the reusable workflows from the
+Dartloom repository. The generated `.github/workflows/release.yml` runs on
+every push to `main` (including a merged pull request), builds enabled release
+targets, and uploads the resulting artifacts. Pushing a `v*` tag additionally
+creates a GitHub Release containing those artifacts.
+
+The generated workflow tracks the Dartloom repository's `main` branch, so
+workflow improvements are picked up by existing projects automatically.
 
 ## Repository development
 

@@ -12,10 +12,8 @@ import 'package:dartloom/src/commands/command_support.dart';
 import 'package:dartloom/src/commands/doctor_command.dart';
 import 'package:dartloom/src/commands/new_command.dart';
 import 'package:dartloom/src/commands/package_command.dart';
-import 'package:dartloom/src/commands/release_command.dart';
 import 'package:dartloom/src/commands/remove_command.dart';
 import 'package:dartloom/src/commands/self_upgrade_command.dart';
-import 'package:dartloom/src/commands/source_command.dart';
 import 'package:dartloom/src/commands/upgrade_command.dart';
 import 'package:dartloom/src/config/dartloom_config.dart';
 import 'package:dartloom/src/process/process_runner.dart';
@@ -29,9 +27,7 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('check')
     ..addCommand('build')
     ..addCommand('package')
-    ..addCommand('release')
-    ..addCommand('update')
-    ..addCommand('source')
+    ..addCommand('self-update')
     ..addCommand('project')
     ..addCommand('doctor');
   parser.commands['new']!
@@ -43,10 +39,12 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('add')
     ..addCommand('list')
     ..addCommand('remove');
-  parser.commands['project']!.addCommand('update').addFlag(
-        'dry-run',
-        negatable: false,
-      );
+  parser.commands['project']!.addCommand('upgrade')
+    ..addOption('source', allowed: ['github', 'pub'])
+    ..addFlag(
+      'dry-run',
+      negatable: false,
+    );
   try {
     final results = parser.parse(arguments);
     if (results['help'] == true || results.command == null) {
@@ -106,36 +104,27 @@ Future<void> main(List<String> arguments) async {
           command.rest.first,
           command.rest.last,
         );
-      case 'release':
-        if (command.rest.length != 1) {
-          throw CommandFailure('Usage: dartloom release <version>');
-        }
-        await ReleaseCommand(runner)
-            .run(Directory.current, command.rest.single);
-      case 'update':
+      case 'self-update':
         if (command.rest.isNotEmpty) {
-          throw CommandFailure('Usage: dartloom update');
+          throw CommandFailure('Usage: dartloom self-update');
         }
         await SelfUpgradeCommand(runner).run(Directory.current);
-      case 'source':
-        if (command.rest.length > 1) {
-          throw CommandFailure('Usage: dartloom source [github|pub]');
-        }
-        await SourceCommand(runner).run(
-          Directory.current,
-          command.rest.isEmpty ? null : _source(command.rest.single),
-        );
       case 'project':
         final subcommand = command.command;
-        if (subcommand == null || subcommand.name != 'update') {
-          throw CommandFailure('Usage: dartloom project update [--dry-run]');
+        if (subcommand == null || subcommand.name != 'upgrade') {
+          throw CommandFailure(
+              'Usage: dartloom project upgrade [--source=github|pub] [--dry-run]');
         }
         if (subcommand.rest.isNotEmpty) {
-          throw CommandFailure('Usage: dartloom project update [--dry-run]');
+          throw CommandFailure(
+              'Usage: dartloom project upgrade [--source=github|pub] [--dry-run]');
         }
         await UpgradeCommand(runner).run(
           Directory.current,
           dryRun: subcommand['dry-run'] as bool,
+          source: subcommand['source'] == null
+              ? null
+              : _source(subcommand['source'] as String),
         );
       case 'doctor':
         if (!await DoctorCommand(runner).run(Directory.current)) exitCode = 1;
@@ -179,10 +168,8 @@ Commands:
   check            Format, analyze, and test the current app.
   build [target]   Build enabled targets into dist/.
   package          Create an OS installer or system package.
-  release <ver>    Commit, tag, and push a release.
-  update           Update the Dartloom CLI.
-  source [name]    Show or set capability source: github or pub.
-  project update   Update Dartloom-managed files in the current app.
+  self-update      Update the installed Dartloom CLI.
+  project upgrade  Update Dartloom-managed files in the current app.
   doctor           Check development prerequisites.
 
 Capability commands:
@@ -197,9 +184,10 @@ Capability configuration:
   Values such as \${WEBDAV_PASSWORD} require --dart-define at app build time.
 
 Dependency source:
-  source           Show this project's capability source.
-  source github    Resolve enabled capabilities from GitHub (development).
-  source pub       Resolve enabled capabilities from pub.dev (release).
+  project upgrade --source=github
+                   Resolve enabled capabilities from GitHub (development).
+  project upgrade --source=pub
+                   Resolve enabled capabilities from pub.dev (release).
 
 Package targets:
   package windows exe   Windows Setup.exe (requires Inno Setup/iscc.exe on PATH).
@@ -210,9 +198,11 @@ Package targets:
 
 Not yet supported: macOS DMG/PKG, iOS IPA, Android installer formats, and web installers.
 
-Project update options:
-  project update --dry-run          List managed files that would be overwritten.
-  project update                    Refreshes Dartloom Git/package locks with flutter pub upgrade.
+Project upgrade options:
+  project upgrade --dry-run         List managed files that would be overwritten.
+  project upgrade --source=github   Use GitHub/path dependencies.
+  project upgrade --source=pub      Use hosted pub.dev dependencies.
+  project upgrade                   Refreshes Dartloom dependencies with flutter pub upgrade.
 
 ${parser.usage}''');
 }

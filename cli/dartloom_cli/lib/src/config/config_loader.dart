@@ -25,7 +25,7 @@ class ConfigLoader {
     final schemaVersion = root['schema_version'];
     if (schemaVersion != 4 && schemaVersion != 5) {
       throw ConfigException(
-        'schema_version: 4 or 5 is required. Run dartloom upgrade to migrate '
+        'schema_version: 4 or 5 is required. Run dartloom project upgrade to migrate '
         'a schema 4 configuration.',
       );
     }
