@@ -222,7 +222,12 @@ final class SettingsSyncProfileRepository implements SyncProfileRepository {
   Future<Map<String, String>> secrets(String profileId) async {
     final keysValue = await metadata
         .read('sync.$instanceName.profile.$profileId.secret_keys');
-    final keys = keysValue is List<String> ? keysValue : const <String>[];
+    // SecureSettingsStore decodes JSON values, so a persisted string list is
+    // returned as List<dynamic> rather than List<String>. Normalize the
+    // decoded value instead of requiring the runtime generic type to match.
+    final keys = keysValue is List
+        ? keysValue.whereType<String>().toList(growable: false)
+        : const <String>[];
     final result = <String, String>{};
     for (final key in keys) {
       final value = await secretsStore

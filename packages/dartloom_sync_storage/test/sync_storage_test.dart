@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dartloom_settings/dartloom_settings.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:dartloom_sync_storage/dartloom_sync_storage.dart';
@@ -24,6 +26,26 @@ void main() {
     expect(scope.activeProfileId, second.id);
     expect((await profiles.list()).toString(), isNot(contains('secret')));
     expect(await profiles.secrets(second.id), {'password': 'secret'});
+  });
+
+  test('reads secret keys after a secure-storage JSON round trip', () async {
+    final metadata = _JsonRoundTripSettingsStore();
+    final secure = _JsonRoundTripSettingsStore();
+    final scope = await SyncProfileScope.open(metadata, 'default');
+    final profiles = SettingsSyncProfileRepository(
+      instanceName: 'default',
+      metadata: metadata,
+      secretsStore: secure,
+      scope: scope,
+    );
+
+    final profile = await profiles.save(const SyncProfileDraft(
+      label: 'WebDAV',
+      backend: 'webdav',
+      secrets: {'password': 'secret'},
+    ));
+
+    expect(await profiles.secrets(profile.id), {'password': 'secret'});
   });
 
   test('reconciliation state is stored outside the replica', () async {
@@ -58,4 +80,24 @@ void main() {
     );
     await expectLater(state.load('profile'), throwsFormatException);
   });
+}
+
+/// Models SecureSettingsStore: values are encoded before persistence and
+/// decoded again, which turns List<String> into List<dynamic> at runtime.
+final class _JsonRoundTripSettingsStore implements SettingsStore {
+  final Map<String, String> _values = {};
+
+  @override
+  Future<Object?> read(String key) async {
+    final value = _values[key];
+    return value == null ? null : jsonDecode(value);
+  }
+
+  @override
+  Future<void> remove(String key) async => _values.remove(key);
+
+  @override
+  Future<void> write(String key, Object value) async {
+    _values[key] = jsonEncode(value);
+  }
 }
