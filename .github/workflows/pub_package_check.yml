@@ -29,6 +29,17 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      # The repository is a monorepo and the internal packages may not have
+      # been published yet. Keep publishable pubspecs on hosted constraints,
+      # but resolve the workspace copies during CI validation.
+      - name: Resolve workspace package dependencies
+        if: matrix.package == 'packages/dartloom_sync'
+        run: |
+          cat > pubspec_overrides.yaml <<'EOF'
+          dependency_overrides:
+            dartloom_storage:
+              path: ../dartloom_storage
+          EOF
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test

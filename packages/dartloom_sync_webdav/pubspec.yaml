@@ -12,10 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   crypto: ^3.0.3
-  dartloom_sync:
-    git:
-      url: https://github.com/wkzMagician/dartloom.git
-      path: packages/dartloom_sync
+  dartloom_sync: ^0.3.0
   http: ^1.2.0
   xml: ^6.5.0
 dev_dependencies:
