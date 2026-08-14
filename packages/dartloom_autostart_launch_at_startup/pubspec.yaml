@@ -9,7 +9,10 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_autostart: ^0.2.0
+  dartloom_autostart:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_autostart
   launch_at_startup: ^0.5.0
 dev_dependencies:
   flutter_test:

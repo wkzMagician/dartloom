@@ -7,7 +7,10 @@ environment:
   flutter: '>=3.24.0'
 dependencies:
   connectivity_plus: ^7.3.1
-  dartloom_sync: ^0.3.0
+  dartloom_sync:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_sync
   flutter:
     sdk: flutter
 dev_dependencies:

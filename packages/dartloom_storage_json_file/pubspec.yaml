@@ -9,8 +9,14 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_storage: ^0.2.0
-  dartloom_storage_file: ^0.1.0
+  dartloom_storage:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_storage
+  dartloom_storage_file:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_storage_file
   path: ^1.9.0
   path_provider: ^2.1.0
 dev_dependencies:

@@ -6,7 +6,10 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_sync: ^0.3.0
+  dartloom_sync:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_sync
   flutter:
     sdk: flutter
   workmanager: ^0.10.7

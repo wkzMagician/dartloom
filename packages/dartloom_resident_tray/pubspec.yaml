@@ -9,7 +9,10 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_resident: ^0.3.0
+  dartloom_resident:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      path: packages/dartloom_resident
   flutter:
     sdk: flutter
   tray_manager: ^0.5.0
