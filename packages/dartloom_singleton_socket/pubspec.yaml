@@ -1,5 +1,5 @@
-name: dartloom_singleton_filelock
-description: Pure-Dart file-lock single-instance adapter for the Dartloom singleton contract.
+name: dartloom_singleton_socket
+description: Pure-Dart loopback-socket single-instance adapter for the Dartloom singleton contract.
 version: 0.1.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
@@ -13,7 +13,6 @@ dependencies:
   dartloom_singleton: ^0.1.0
   flutter:
     sdk: flutter
-  path: ^1.9.0
   path_provider: ^2.1.0
 dev_dependencies:
   flutter_test:

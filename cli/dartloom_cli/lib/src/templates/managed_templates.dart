@@ -360,11 +360,11 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln('      );')
       ..writeln('    },');
   }
-  if (_uses(instances, Capability.singleton, 'filelock')) {
+  if (_uses(instances, Capability.singleton, 'socket')) {
     buffer
-      ..writeln("    'filelock': (context) {")
+      ..writeln("    'socket': (context) {")
       ..writeln(
-          "      final value = FileLockSingleInstanceService(resident: context.maybeGet<ResidentService>());")
+          "      final value = SocketSingleInstanceService(resident: context.maybeGet<ResidentService>());")
       ..writeln('      return DartloomBinding<SingleInstanceService>(value);')
       ..writeln('    },');
   }

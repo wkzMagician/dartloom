@@ -486,7 +486,7 @@ abstract final class CapabilityDefaults {
         },
       Capability.singleton => const {
           'default': CapabilityInstanceConfig(
-            implementation: 'filelock',
+            implementation: 'socket',
           ),
         },
     };

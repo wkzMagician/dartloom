@@ -4,7 +4,7 @@ import 'package:dartloom/src/templates/managed_templates.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('singleton generation emits the filelock factory and service type', () {
+  test('singleton generation emits the socket factory and service type', () {
     final config = DartloomConfig(
       app: const AppConfig(
         name: 'custom_singleton',
@@ -14,7 +14,7 @@ void main() {
       platforms: {TargetPlatform.windows},
       capabilities: {
         Capability.singleton: const {
-          'default': CapabilityInstanceConfig(implementation: 'filelock'),
+          'default': CapabilityInstanceConfig(implementation: 'socket'),
         },
       },
     );
@@ -22,8 +22,8 @@ void main() {
     expect(CapabilityRegistry.validationErrors(config), isEmpty);
     final generated = capabilityGlue(config);
     expect(generated, contains('DartloomRegistration<SingleInstanceService>'));
-    expect(generated, contains("'filelock': (context)"));
-    expect(generated, contains('FileLockSingleInstanceService'));
+    expect(generated, contains("'socket': (context)"));
+    expect(generated, contains('SocketSingleInstanceService'));
     expect(generated, contains('context.maybeGet<ResidentService>()'));
   });
 

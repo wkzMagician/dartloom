@@ -219,8 +219,8 @@ abstract final class CapabilityRegistry {
       },
       implementations: [
         ImplementationMetadata(
-          id: 'filelock',
-          packageName: 'dartloom_singleton_filelock',
+          id: 'socket',
+          packageName: 'dartloom_singleton_socket',
           platforms: {
             TargetPlatform.windows,
             TargetPlatform.macos,
@@ -302,7 +302,7 @@ abstract final class CapabilityRegistry {
       'dartloom_messaging': '^0.1.0',
       'dartloom_pairing': '^0.1.0',
       'dartloom_singleton': '^0.1.0',
-      'dartloom_singleton_filelock': '^0.1.0',
+      'dartloom_singleton_socket': '^0.1.0',
     };
     final version = versions[name] ??
         (all.values.any((value) => value.contractPackage == name)
