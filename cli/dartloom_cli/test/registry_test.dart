@@ -11,6 +11,7 @@ void main() {
     expect(CapabilityRegistry.parse('resident'), Capability.resident);
     expect(CapabilityRegistry.parse('messaging'), Capability.messaging);
     expect(CapabilityRegistry.parse('pairing'), Capability.pairing);
+    expect(CapabilityRegistry.parse('singleton'), Capability.singleton);
   });
 
   test('registry rejects invalid capability', () {

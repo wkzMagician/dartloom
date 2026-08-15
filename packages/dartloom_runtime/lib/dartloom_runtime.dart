@@ -29,6 +29,12 @@ final class DartloomFactoryContext {
 
   T get<T extends Object>({String name = 'default'}) =>
       runtime.get<T>(name: name);
+
+  /// Optional dependency lookup. Returns `null` when no instance is
+  /// registered (e.g. the capability is optional on the current target),
+  /// without throwing.
+  T? maybeGet<T extends Object>({String name = 'default'}) =>
+      runtime.maybeGet<T>(name: name);
 }
 
 final class DartloomRegistration<T extends Object> {

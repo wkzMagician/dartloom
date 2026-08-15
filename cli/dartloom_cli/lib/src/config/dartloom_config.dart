@@ -12,6 +12,7 @@ enum Capability {
   resident,
   messaging,
   pairing,
+  singleton,
 }
 
 extension TargetPlatformName on TargetPlatform {
@@ -481,6 +482,11 @@ abstract final class CapabilityDefaults {
       Capability.pairing => const {
           'default': CapabilityInstanceConfig(
             implementation: 'memory_pairing',
+          ),
+        },
+      Capability.singleton => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'filelock',
           ),
         },
     };

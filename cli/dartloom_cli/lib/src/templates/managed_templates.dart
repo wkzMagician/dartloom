@@ -53,6 +53,9 @@ String capabilityGlue(DartloomConfig config) {
   if (enabled.contains(Capability.pairing)) {
     imports.add("import 'package:dartloom_pairing/dartloom_pairing.dart';");
   }
+  if (enabled.contains(Capability.singleton)) {
+    imports.add("import 'package:dartloom_singleton/dartloom_singleton.dart';");
+  }
   for (final capability in config.capabilities.entries) {
     for (final instance in capability.value.values) {
       final metadata = CapabilityRegistry.implementation(
@@ -357,6 +360,14 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln('      );')
       ..writeln('    },');
   }
+  if (_uses(instances, Capability.singleton, 'filelock')) {
+    buffer
+      ..writeln("    'filelock': (context) {")
+      ..writeln(
+          "      final value = FileLockSingleInstanceService(resident: context.maybeGet<ResidentService>());")
+      ..writeln('      return DartloomBinding<SingleInstanceService>(value);')
+      ..writeln('    },');
+  }
   if (instances.containsKey(Capability.sync)) {
     buffer
       ..writeln("    'sync_profile_scope': (context) async {")
@@ -569,6 +580,7 @@ String _serviceType(
       Capability.resident => 'ResidentService',
       Capability.messaging => 'MessagingConnection',
       Capability.pairing => 'PairingCapability',
+      Capability.singleton => 'SingleInstanceService',
     };
 
 bool _uses(

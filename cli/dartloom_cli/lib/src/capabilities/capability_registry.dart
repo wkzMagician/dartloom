@@ -209,6 +209,26 @@ abstract final class CapabilityRegistry {
         ),
       ],
     ),
+    Capability.singleton: CapabilityMetadata(
+      capability: Capability.singleton,
+      contractPackage: 'dartloom_singleton',
+      platforms: {
+        TargetPlatform.windows,
+        TargetPlatform.macos,
+        TargetPlatform.linux,
+      },
+      implementations: [
+        ImplementationMetadata(
+          id: 'filelock',
+          packageName: 'dartloom_singleton_filelock',
+          platforms: {
+            TargetPlatform.windows,
+            TargetPlatform.macos,
+            TargetPlatform.linux,
+          },
+        ),
+      ],
+    ),
   };
 
   static const webDav = ImplementationMetadata(
@@ -281,6 +301,8 @@ abstract final class CapabilityRegistry {
       'dartloom_sync_webdav': '^0.2.0',
       'dartloom_messaging': '^0.1.0',
       'dartloom_pairing': '^0.1.0',
+      'dartloom_singleton': '^0.1.0',
+      'dartloom_singleton_filelock': '^0.1.0',
     };
     final version = versions[name] ??
         (all.values.any((value) => value.contractPackage == name)

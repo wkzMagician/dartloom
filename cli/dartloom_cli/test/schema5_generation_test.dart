@@ -4,6 +4,29 @@ import 'package:dartloom/src/templates/managed_templates.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('singleton generation emits the filelock factory and service type', () {
+    final config = DartloomConfig(
+      app: const AppConfig(
+        name: 'custom_singleton',
+        organization: 'dev.example',
+        description: '',
+      ),
+      platforms: {TargetPlatform.windows},
+      capabilities: {
+        Capability.singleton: const {
+          'default': CapabilityInstanceConfig(implementation: 'filelock'),
+        },
+      },
+    );
+
+    expect(CapabilityRegistry.validationErrors(config), isEmpty);
+    final generated = capabilityGlue(config);
+    expect(generated, contains('DartloomRegistration<SingleInstanceService>'));
+    expect(generated, contains("'filelock': (context)"));
+    expect(generated, contains('FileLockSingleInstanceService'));
+    expect(generated, contains('context.maybeGet<ResidentService>()'));
+  });
+
   test('custom file replica generation delegates paths to an app factory', () {
     final config = DartloomConfig(
       app: const AppConfig(

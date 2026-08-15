@@ -1,0 +1,21 @@
+name: dartloom_singleton_filelock
+description: Pure-Dart file-lock single-instance adapter for the Dartloom singleton contract.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [flutter, dartloom, desktop, single-instance]
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_resident: ^0.3.0
+  dartloom_singleton: ^0.1.0
+  flutter:
+    sdk: flutter
+  path: ^1.9.0
+  path_provider: ^2.1.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1

@@ -132,6 +132,39 @@ void main() {
     await second.dispose();
   });
 
+  test('factory context maybeGet resolves registered and missing instances',
+      () async {
+    final runtime = DartloomRuntime();
+    String? viaGet;
+    String? viaMissing;
+    await runtime.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'service',
+          name: 'other',
+          factory: 'other',
+        ),
+        const DartloomRegistration<Service>(
+          capability: 'service',
+          name: 'default',
+          factory: 'service',
+        ),
+      ],
+      factories: {
+        'other': (_) => DartloomBinding(ServiceImpl('resolved')),
+        'service': (context) {
+          viaGet = context.maybeGet<Service>(name: 'other')?.value;
+          viaMissing = context.maybeGet<Service>(name: 'nope')?.value;
+          return DartloomBinding(ServiceImpl('target'));
+        },
+      },
+    );
+    expect(runtime.get<Service>().value, 'target');
+    expect(viaGet, 'resolved');
+    expect(viaMissing, isNull);
+    await runtime.dispose();
+  });
+
   test('startup scope filters registrations', () async {
     final runtime = DartloomRuntime();
     await runtime.initialize(
