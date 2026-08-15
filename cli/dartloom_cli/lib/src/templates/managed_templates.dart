@@ -47,6 +47,12 @@ String capabilityGlue(DartloomConfig config) {
   if (enabled.contains(Capability.resident)) {
     imports.add("import 'package:dartloom_resident/dartloom_resident.dart';");
   }
+  if (enabled.contains(Capability.messaging)) {
+    imports.add("import 'package:dartloom_messaging/dartloom_messaging.dart';");
+  }
+  if (enabled.contains(Capability.pairing)) {
+    imports.add("import 'package:dartloom_pairing/dartloom_pairing.dart';");
+  }
   for (final capability in config.capabilities.entries) {
     for (final instance in capability.value.values) {
       final metadata = CapabilityRegistry.implementation(
@@ -333,6 +339,24 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           '      return DartloomBinding<ResidentService>(value, dispose: value.dispose);')
       ..writeln('    },');
   }
+  if (_uses(instances, Capability.messaging, 'memory_messaging')) {
+    buffer
+      ..writeln("    'memory_messaging': (_) {")
+      ..writeln('      final value = MemoryMessagingConnection();')
+      ..writeln('      return DartloomBinding<MessagingConnection>(')
+      ..writeln('        value, dispose: value.close,')
+      ..writeln('      );')
+      ..writeln('    },');
+  }
+  if (_uses(instances, Capability.pairing, 'memory_pairing')) {
+    buffer
+      ..writeln("    'memory_pairing': (_) {")
+      ..writeln('      final value = MemoryPairingCapability();')
+      ..writeln('      return DartloomBinding<PairingCapability>(')
+      ..writeln('        value, dispose: value.close,')
+      ..writeln('      );')
+      ..writeln('    },');
+  }
   if (instances.containsKey(Capability.sync)) {
     buffer
       ..writeln("    'sync_profile_scope': (context) async {")
@@ -543,6 +567,8 @@ String _serviceType(
       Capability.sync => 'SyncService',
       Capability.localization => 'LocalizationService',
       Capability.resident => 'ResidentService',
+      Capability.messaging => 'MessagingConnection',
+      Capability.pairing => 'PairingCapability',
     };
 
 bool _uses(

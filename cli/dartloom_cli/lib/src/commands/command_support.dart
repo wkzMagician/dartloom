@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../capabilities/capability_registry.dart';
 import '../config/dartloom_config.dart';
 import '../process/process_runner.dart';
@@ -96,9 +98,11 @@ String rewriteDartloomDependencies(
             );
       overrideBlock.writeln('  ${package.name}:');
       if (local != null && local.existsSync()) {
-        overrideBlock.writeln(
-          '    path: ${local.path.replaceAll('\\', '/')}',
-        );
+        final projectRoot = packagesDirectory!.parent.path;
+        overrideBlock.writeln('    path: ${p.relative(
+              local.path,
+              from: projectRoot,
+            ).replaceAll('\\', '/')}');
       } else {
         overrideBlock
           ..writeln('    git:')

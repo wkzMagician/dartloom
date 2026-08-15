@@ -9,6 +9,8 @@ void main() {
     expect(CapabilityRegistry.parse('autostart'), Capability.autostart);
     expect(CapabilityRegistry.parse('localization'), Capability.localization);
     expect(CapabilityRegistry.parse('resident'), Capability.resident);
+    expect(CapabilityRegistry.parse('messaging'), Capability.messaging);
+    expect(CapabilityRegistry.parse('pairing'), Capability.pairing);
   });
 
   test('registry rejects invalid capability', () {

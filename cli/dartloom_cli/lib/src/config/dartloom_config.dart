@@ -10,6 +10,8 @@ enum Capability {
   sync,
   localization,
   resident,
+  messaging,
+  pairing,
 }
 
 extension TargetPlatformName on TargetPlatform {
@@ -469,6 +471,16 @@ abstract final class CapabilityDefaults {
               'icon_path': r'${RESIDENT_ICON_PATH}',
               'tooltip': 'Dartloom application',
             },
+          ),
+        },
+      Capability.messaging => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'memory_messaging',
+          ),
+        },
+      Capability.pairing => const {
+          'default': CapabilityInstanceConfig(
+            implementation: 'memory_pairing',
           ),
         },
     };

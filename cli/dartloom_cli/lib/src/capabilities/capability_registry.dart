@@ -177,6 +177,38 @@ abstract final class CapabilityRegistry {
         ),
       ],
     ),
+    Capability.messaging: CapabilityMetadata(
+      capability: Capability.messaging,
+      contractPackage: 'dartloom_messaging',
+      platforms: {
+        TargetPlatform.android,
+        TargetPlatform.windows,
+        TargetPlatform.macos,
+        TargetPlatform.linux,
+      },
+      implementations: [
+        ImplementationMetadata(
+          id: 'memory_messaging',
+          packageName: 'dartloom_messaging',
+        ),
+      ],
+    ),
+    Capability.pairing: CapabilityMetadata(
+      capability: Capability.pairing,
+      contractPackage: 'dartloom_pairing',
+      platforms: {
+        TargetPlatform.android,
+        TargetPlatform.windows,
+        TargetPlatform.macos,
+        TargetPlatform.linux,
+      },
+      implementations: [
+        ImplementationMetadata(
+          id: 'memory_pairing',
+          packageName: 'dartloom_pairing',
+        ),
+      ],
+    ),
   };
 
   static const webDav = ImplementationMetadata(
@@ -247,6 +279,8 @@ abstract final class CapabilityRegistry {
       'dartloom_sync': '^0.3.0',
       'dartloom_sync_etag': '^0.2.0',
       'dartloom_sync_webdav': '^0.2.0',
+      'dartloom_messaging': '^0.1.0',
+      'dartloom_pairing': '^0.1.0',
     };
     final version = versions[name] ??
         (all.values.any((value) => value.contractPackage == name)

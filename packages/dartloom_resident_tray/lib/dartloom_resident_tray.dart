@@ -21,6 +21,7 @@ final class TrayResidentService
   final String? macosIconPath;
   final String? windowsIconPath;
   bool _initialized = false;
+  bool _quitting = false;
   ResidentConfiguration _configuration = const ResidentConfiguration();
 
   @override
@@ -74,10 +75,30 @@ final class TrayResidentService
 
   @override
   Future<void> quit() async {
-    final shouldQuit = await _configuration.onExitRequested?.call() ?? true;
-    if (!shouldQuit) return;
-    await windowManager.setPreventClose(false);
-    await windowManager.destroy();
+    if (_quitting) return;
+    _quitting = true;
+    try {
+      final shouldQuit = await Future<bool>.sync(
+        () => _configuration.onExitRequested?.call() ?? true,
+      ).timeout(const Duration(milliseconds: 800), onTimeout: () => true);
+      if (!shouldQuit) {
+        _quitting = false;
+        return;
+      }
+      windowManager.removeListener(this);
+      trayManager.removeListener(this);
+      await trayManager.destroy().timeout(const Duration(milliseconds: 250));
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    } on Object {
+      // A tray/window plugin must not strand the process during exit.
+      try {
+        await windowManager.setPreventClose(false);
+        await windowManager.destroy();
+      } on Object {
+        // The native process is already on the exit path.
+      }
+    }
   }
 
   @override
@@ -87,10 +108,12 @@ final class TrayResidentService
     trayManager.removeListener(this);
     await trayManager.destroy();
     _initialized = false;
+    _quitting = false;
   }
 
   @override
-  Future<void> onWindowClose() => windowManager.hide();
+  Future<void> onWindowClose() =>
+      _quitting ? windowManager.destroy() : windowManager.hide();
 
   @override
   void onTrayIconMouseDown() =>
