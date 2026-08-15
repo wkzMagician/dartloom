@@ -74,4 +74,21 @@ void main() {
     await second.dispose();
     await first.dispose();
   });
+
+  test('a duplicate does not skip the primary deterministic port', () async {
+    final first = SocketSingleInstanceService(
+      identity: 'test.deterministic-duplicate',
+      exitHandler: (int _) async {},
+    );
+    final second = SocketSingleInstanceService(
+      port: null,
+      identity: 'test.deterministic-duplicate',
+      exitHandler: (int _) async {},
+    );
+    expect(await first.acquirePrimary(), isTrue);
+    expect(await second.acquirePrimary(), isFalse);
+    expect(second.port, first.port);
+    await second.dispose();
+    await first.dispose();
+  });
 }

@@ -72,8 +72,13 @@ final class SocketSingleInstanceService implements SingleInstanceService {
         server.listen(_handleConnection, onError: (_) {});
         return true;
       } on SocketException {
-        // An unrelated process may occupy a candidate. Continue looking; if
-        // it is a Dartloom primary, _deliverArguments will find it later.
+        // A different process may occupy a candidate. Probe it before moving
+        // on: the primary instance owns the deterministic first port, and a
+        // duplicate must not silently claim a later candidate.
+        if (await _isDartloomPrimary(candidate)) {
+          _port = candidate;
+          return false;
+        }
       }
     }
     return false;
@@ -123,7 +128,8 @@ final class SocketSingleInstanceService implements SingleInstanceService {
 
   Future<void> _handleConnection(Socket socket) async {
     try {
-      final payload = await utf8.decoder.bind(socket).join();
+      final payload =
+          await utf8.decoder.bind(socket).transform(const LineSplitter()).first;
       final decoded = jsonDecode(payload);
       if (decoded is! Map || decoded['identity'] != _identity) return;
       final kind = decoded['kind'];
@@ -181,13 +187,38 @@ final class SocketSingleInstanceService implements SingleInstanceService {
           candidate,
           timeout: const Duration(milliseconds: 150),
         );
-        socket.write(message);
+        socket.write('$message\n');
         await socket.flush();
         await socket.close();
         return;
       } on Object {
         socket?.destroy();
       }
+    }
+  }
+
+  Future<bool> _isDartloomPrimary(int candidate) async {
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        candidate,
+        timeout: const Duration(milliseconds: 150),
+      );
+      socket.write('${jsonEncode({'kind': 'ping', 'identity': _identity})}\n');
+      await socket.flush();
+      final response = await utf8.decoder
+          .bind(socket)
+          .transform(const LineSplitter())
+          .first
+          .timeout(
+            const Duration(milliseconds: 500),
+          );
+      return response == '{"ok":true}';
+    } on Object {
+      return false;
+    } finally {
+      socket?.destroy();
     }
   }
 
