@@ -10,4 +10,27 @@ code in application-owned files under `lib/features`. Call
 running the application's widget tree. Dartloom only owns files in
 `lib/capabilities`; application widgets and ARB files remain application-owned.
 
+Dartloom repository: https://github.com/wkzMagician/dartloom
+
+## Dartloom commands
+
+Install or refresh the CLI:
+
+```bash
+dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+```
+
+Upgrade Dartloom-managed project files and dependencies:
+
+```bash
+dartloom project upgrade
+```
+
+Check the project and build a Windows release package:
+
+```bash
+dartloom check
+dartloom package windows exe
+```
+
 Before finishing, run `dart format .`, `flutter analyze`, and `flutter test`.

@@ -771,6 +771,29 @@ ${syncRows.join('\n')}
 
 This project is managed by Dartloom.
 
+Dartloom repository: https://github.com/wkzMagician/dartloom
+
+## Dartloom commands
+
+Install or refresh the CLI:
+
+```bash
+dart install --overwrite https://github.com/wkzMagician/dartloom.git --git-path cli/dartloom_cli
+```
+
+Upgrade Dartloom-managed project files and dependencies:
+
+```bash
+dartloom project upgrade
+```
+
+Check the project and build a Windows release package:
+
+```bash
+dartloom check
+dartloom package windows exe
+```
+
 1. Read `dartloom.yaml` before changing infrastructure.
 2. Feature code depends on capability contracts and obtains implementations with
    `Dartloom.get<T>(name: ...)`; do not import adapter packages in feature code.

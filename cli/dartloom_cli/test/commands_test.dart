@@ -103,6 +103,12 @@ void main() {
         await File('${project.path}${Platform.pathSeparator}AGENTS.md')
             .exists(),
         isTrue);
+    final agents = await File(
+      '${project.path}${Platform.pathSeparator}AGENTS.md',
+    ).readAsString();
+    expect(agents, contains('https://github.com/wkzMagician/dartloom'));
+    expect(agents, contains('dartloom project upgrade'));
+    expect(agents, contains('dartloom package windows exe'));
     final generatedPubspec =
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
             .readAsString();
