@@ -38,13 +38,27 @@ jobs:
       # been published yet. Keep publishable pubspecs on hosted constraints,
       # but resolve the workspace copies during CI validation.
       - name: Resolve workspace package dependencies
-        if: matrix.package == 'packages/dartloom_sync'
+        env:
+          PACKAGE: ${{ matrix.package }}
         run: |
-          cat > pubspec_overrides.yaml <<'EOF'
+          case "$PACKAGE" in
+            packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_text_file|packages/dartloom_storage_drift)
+              cat > pubspec_overrides.yaml <<EOF
           dependency_overrides:
             dartloom_storage:
-              path: ../dartloom_storage
+              path: $GITHUB_WORKSPACE/packages/dartloom_storage
           EOF
+              ;;
+            packages/dartloom_storage_json_file)
+              cat > pubspec_overrides.yaml <<EOF
+          dependency_overrides:
+            dartloom_storage:
+              path: $GITHUB_WORKSPACE/packages/dartloom_storage
+            dartloom_storage_file:
+              path: $GITHUB_WORKSPACE/packages/dartloom_storage_file
+          EOF
+              ;;
+          esac
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
