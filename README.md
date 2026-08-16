@@ -73,8 +73,21 @@ After confirmation, Dartloom:
 5. runs `flutter pub get`;
 6. generates the managed Dartloom section in `AGENTS.md`.
 
-It does not generate service locators, factories, registration code, feature
-code, or CI workflows.
+It also creates `.github/workflows/ci.yml` and
+`.github/workflows/release.yml`. The release workflow builds every Flutter
+platform selected for the project and publishes a GitHub Release for `v*`
+version tags. It does not generate service locators, factories, registration
+code, or feature code.
+
+These are the two generally useful workflows for a new Flutter project:
+
+- `ci.yml` checks formatting, analysis, and tests on pushes and pull requests.
+- `release.yml` builds the selected Flutter platforms and publishes tagged
+  releases.
+
+Additional workflows such as Dependabot, CodeQL, Pages, or a dedicated
+localization workflow are optional and depend on the project; Dartloom does
+not add them by default.
 
 ## Commands
 

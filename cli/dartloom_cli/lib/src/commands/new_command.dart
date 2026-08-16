@@ -7,6 +7,7 @@ import '../process/process_runner.dart';
 import 'command_support.dart';
 import 'configuration_tui.dart';
 import 'documentation.dart';
+import 'workflow_templates.dart';
 
 class NewCommand {
   NewCommand(this.runner,
@@ -59,5 +60,12 @@ class NewCommand {
     final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
     await agents.writeAsString(await updateAgents(agents, config, catalog));
     await updateDependencies(project, config);
+    final workflows = Directory(
+        '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows');
+    await workflows.create(recursive: true);
+    await File('${workflows.path}${Platform.pathSeparator}ci.yml')
+        .writeAsString(ciWorkflow());
+    await File('${workflows.path}${Platform.pathSeparator}release.yml')
+        .writeAsString(releaseWorkflow(config));
   }
 }
