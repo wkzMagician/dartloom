@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:crypto/crypto.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:drift/drift.dart';
 import 'src/database_connection.dart';
@@ -50,11 +51,13 @@ final class DriftObjectStore implements ObjectStore {
   Future<void> write(String key, Uint8List data) async {
     if (!acceptsKey(key)) throw ArgumentError.value(key, 'key');
     await initialize();
+    final existed = await read(key) != null;
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     await _database.customStatement(
         'INSERT INTO dartloom_objects(key,data,content_hash,modified_at) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET data=excluded.data, content_hash=excluded.content_hash, modified_at=excluded.modified_at',
-        [key, data, data.length.toString(), now]);
-    _changes.add(StorageChange(key, StorageChangeKind.updated));
+        [key, data, sha256.convert(data).toString(), now]);
+    _changes.add(StorageChange(
+        key, existed ? StorageChangeKind.updated : StorageChangeKind.created));
   }
 
   @override

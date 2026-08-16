@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dartloom_settings/dartloom_settings.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
@@ -38,29 +39,283 @@ final class SyncProfileScope {
 }
 
 final class JournaledObjectStore implements ObjectStore {
-  JournaledObjectStore._(this.objects, this.metadata);
+  JournaledObjectStore._(this.objects, this.metadata)
+      : _changes = StreamController.broadcast();
   final ObjectStore objects;
   final ObjectStore metadata;
-  static Future<JournaledObjectStore> open(
-          {required ObjectStore objects,
-          required ObjectStore metadata}) async =>
-      JournaledObjectStore._(objects, metadata);
+  final StreamController<StorageChange> _changes;
+  final StreamController<LocalReplicaChange> _mutationChanges =
+      StreamController.broadcast();
+  final Map<String, SyncMutationOrigin> _pendingOrigins = {};
+  bool _closed = false;
+
+  static Future<JournaledObjectStore> open({
+    required ObjectStore objects,
+    required ObjectStore metadata,
+  }) async {
+    if (identical(objects, metadata)) {
+      throw ArgumentError(
+          'Object data and journal metadata must be separate stores.');
+    }
+    final store = JournaledObjectStore._(objects, metadata);
+    store._subscription = objects.changes.listen(store._onObjectChange);
+    await store._recoverPrepared();
+    return store;
+  }
+
+  late final StreamSubscription<StorageChange> _subscription;
   @override
   String get identity => objects.identity;
   @override
   bool acceptsKey(String key) => objects.acceptsKey(key);
   @override
-  Stream<StorageChange> get changes => objects.changes;
+  Stream<StorageChange> get changes => _changes.stream;
+  Stream<LocalReplicaChange> get mutationChanges => _mutationChanges.stream;
   @override
   Future<List<StoredObject>> scan() => objects.scan();
   @override
   Future<Uint8List?> read(String key) => objects.read(key);
   @override
-  Future<void> write(String key, Uint8List data) => objects.write(key, data);
+  Future<void> write(String key, Uint8List data) =>
+      _mutate(key, data, deleted: false, origin: SyncMutationOrigin.local);
+
+  Future<void> writeRemote(String key, Uint8List data) => _mutate(key, data,
+      deleted: false, origin: SyncMutationOrigin.remote, journal: false);
   @override
-  Future<void> delete(String key) => objects.delete(key);
+  Future<void> delete(String key) =>
+      _mutate(key, null, deleted: true, origin: SyncMutationOrigin.local);
+
+  Future<void> deleteRemote(String key) => _mutate(key, null,
+      deleted: true, origin: SyncMutationOrigin.remote, journal: false);
+
+  Future<List<PendingLocalMutation>> intents() async {
+    final operations = await _operations();
+    return [
+      for (final operation in operations.values)
+        if (operation['state'] != 'acknowledged' &&
+            operation['origin'] == 'local')
+          PendingLocalMutation(
+            operationId: operation['id']! as String,
+            key: operation['key']! as String,
+            kind: (operation['kind'] == 'delete')
+                ? LocalMutationKind.delete
+                : (operation['kind'] == 'create')
+                    ? LocalMutationKind.create
+                    : LocalMutationKind.update,
+            createdAt: DateTime.parse(operation['createdAt']! as String),
+            contentHash: operation['resultHash'] as String?,
+          ),
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<void> forgetIntent(String operationId) async {
+    await _exclusive(() async {
+      final operation = (await _operations())[operationId];
+      if (operation == null) return;
+      await _writeEvent(operation, 'acknowledged');
+      await _compactLocked(DateTime.now().toUtc());
+    });
+  }
+
+  /// Removes acknowledged journal events while retaining delete tombstones
+  /// for the configured conflict window.
+  Future<void> compact({DateTime? now}) =>
+      _exclusive(() => _compactLocked(now?.toUtc() ?? DateTime.now().toUtc()));
+
+  Future<void> _mutate(
+    String key,
+    Uint8List? data, {
+    required bool deleted,
+    required SyncMutationOrigin origin,
+    bool journal = true,
+  }) async {
+    if (!acceptsKey(key)) throw ArgumentError.value(key, 'key');
+    await _exclusive(() async {
+      final before = await objects.read(key);
+      final beforeHash = _hash(before);
+      final afterHash = deleted ? null : _hash(data);
+      final operation = <String, Object?>{
+        'id': _operationId(key),
+        'key': key,
+        'kind': deleted
+            ? 'delete'
+            : before == null
+                ? 'create'
+                : 'update',
+        'origin': origin == SyncMutationOrigin.local ? 'local' : 'remote',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'expectedHash': beforeHash,
+        'resultHash': afterHash,
+        if (!deleted) 'payload': base64Encode(data!),
+        'state': 'prepared',
+      };
+      if (journal && origin == SyncMutationOrigin.local) {
+        await _writeEvent(operation, 'prepared');
+      }
+      _pendingOrigins[key] = origin;
+      try {
+        if (deleted) {
+          await objects.delete(key);
+        } else {
+          await objects.write(key, data!);
+        }
+      } catch (_) {
+        _pendingOrigins.remove(key);
+        rethrow;
+      }
+      if (journal && origin == SyncMutationOrigin.local) {
+        await _writeEvent(operation, 'applied');
+      }
+      await Future<void>.delayed(Duration.zero);
+      _pendingOrigins.remove(key);
+    });
+  }
+
+  Future<T> _exclusive<T>(Future<T> Function() action) {
+    final store = metadata;
+    if (store is ExclusiveObjectStore) {
+      return (store as ExclusiveObjectStore).withExclusiveLock(action);
+    }
+    return action();
+  }
+
+  Future<void> _recoverPrepared() async {
+    await _exclusive(() async {
+      for (final operation in (await _operations()).values) {
+        if (operation['state'] != 'prepared' ||
+            operation['origin'] != 'local') {
+          continue;
+        }
+        final key = operation['key']! as String;
+        final current = await objects.read(key);
+        final currentHash = _hash(current);
+        final resultHash = operation['resultHash'] as String?;
+        if (currentHash == resultHash) {
+          await _writeEvent(operation, 'applied');
+          continue;
+        }
+        if (currentHash != operation['expectedHash']) {
+          throw StateError('Journal recovery conflict for $key.');
+        }
+        final kind = operation['kind'];
+        _pendingOrigins[key] = SyncMutationOrigin.local;
+        if (kind == 'delete') {
+          await objects.delete(key);
+        } else {
+          await objects.write(
+              key,
+              Uint8List.fromList(
+                  base64Decode(operation['payload']! as String)));
+        }
+        await _writeEvent(operation, 'applied');
+      }
+    });
+  }
+
+  Future<Map<String, Map<String, Object?>>> _operations() async {
+    final values = <String, Map<String, Object?>>{};
+    final sequences = <int>{};
+    for (final item in await metadata.scan()) {
+      if (!item.key.startsWith(_eventPrefix) || !item.key.endsWith('.json')) {
+        continue;
+      }
+      final bytes = await metadata.read(item.key);
+      if (bytes == null) continue;
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map) {
+        throw const FormatException('Invalid journal event.');
+      }
+      final event = decoded.cast<String, Object?>();
+      final id = event['id'];
+      if (id is! String ||
+          event['sequence'] is! int ||
+          event['checksum'] != _checksum(event)) {
+        throw const FormatException('Corrupt journal event.');
+      }
+      if (!sequences.add(event['sequence']! as int)) {
+        throw const FormatException('Duplicate journal sequence.');
+      }
+      final previous = values[id];
+      final previousState = previous?['state'];
+      final rank = {'prepared': 0, 'applied': 1, 'acknowledged': 2};
+      if (previous == null ||
+          (rank[event['state']] ?? -1) >= (rank[previousState] ?? -1)) {
+        values[id] = event;
+      }
+    }
+    return values;
+  }
+
+  Future<void> _writeEvent(Map<String, Object?> operation, String state) async {
+    final event = <String, Object?>{...operation, 'state': state};
+    event['sequence'] = await _nextSequence();
+    event['checksum'] = _checksum(event);
+    final id = event['id']! as String;
+    final sequence = event['sequence']! as int;
+    final eventKey =
+        '$_eventPrefix${sequence.toString().padLeft(20, '0')}-$id-$state.json';
+    await metadata.write(
+        eventKey, Uint8List.fromList(utf8.encode(jsonEncode(event))));
+  }
+
+  void _onObjectChange(StorageChange change) {
+    final origin = _pendingOrigins.remove(change.key);
+    _changes
+        .add(StorageChange(change.key, change.kind, deleted: change.deleted));
+    _mutationChanges.add(
+        LocalReplicaChange(change.key, origin ?? SyncMutationOrigin.local));
+  }
+
+  Future<int> _nextSequence() async {
+    final bytes = await metadata.read(_sequenceKey);
+    final current = bytes == null ? 0 : int.tryParse(utf8.decode(bytes));
+    if (current == null) {
+      throw const FormatException('Corrupt journal sequence.');
+    }
+    final next = current + 1;
+    await metadata.write(
+        _sequenceKey, Uint8List.fromList(utf8.encode('$next')));
+    return next;
+  }
+
+  Future<void> _compactLocked(DateTime now) async {
+    final cutoff = now.subtract(const Duration(days: 30));
+    for (final operation in (await _operations()).values) {
+      if (operation['state'] != 'acknowledged') continue;
+      final created = DateTime.parse(operation['createdAt']! as String);
+      if (operation['kind'] == 'delete' && created.isAfter(cutoff)) continue;
+      for (final item in await metadata.scan()) {
+        if (!item.key.startsWith(_eventPrefix) || !item.key.endsWith('.json')) {
+          continue;
+        }
+        final bytes = await metadata.read(item.key);
+        if (bytes == null) continue;
+        final decoded = jsonDecode(utf8.decode(bytes));
+        if (decoded is Map && decoded['id'] == operation['id']) {
+          await metadata.delete(item.key);
+        }
+      }
+    }
+  }
+
+  String _operationId(String key) =>
+      '${DateTime.now().microsecondsSinceEpoch}-${key.hashCode.abs()}';
+  String? _hash(Uint8List? value) =>
+      value == null ? null : sha256.convert(value).toString();
+  String _checksum(Map<String, Object?> value) {
+    final copy = Map<String, Object?>.from(value)..remove('checksum');
+    return sha256.convert(utf8.encode(jsonEncode(copy))).toString();
+  }
+
+  static const _eventPrefix = '__dartloom_journal/v1/events/';
+  static const _sequenceKey = '__dartloom_journal/v1/sequence';
   @override
   Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    await _subscription.cancel();
+    await _changes.close();
+    await _mutationChanges.close();
     await objects.close();
     if (!identical(objects, metadata)) await metadata.close();
   }
@@ -68,13 +323,12 @@ final class JournaledObjectStore implements ObjectStore {
 
 final class _JournaledLocalReplica implements LocalReplica {
   _JournaledLocalReplica(this.store) {
-    _subscription = store.changes.listen((change) =>
-        _changes.add(LocalReplicaChange(change.key, SyncMutationOrigin.local)));
+    _subscription = store.mutationChanges.listen(_changes.add);
   }
   final JournaledObjectStore store;
   final StreamController<LocalReplicaChange> _changes =
       StreamController.broadcast();
-  late final StreamSubscription<StorageChange> _subscription;
+  late final StreamSubscription<LocalReplicaChange> _subscription;
   @override
   String get identity => store.identity;
   @override
@@ -82,9 +336,10 @@ final class _JournaledLocalReplica implements LocalReplica {
   @override
   Stream<LocalReplicaChange> get changes => _changes.stream;
   @override
-  Future<List<PendingLocalMutation>> intents() async => const [];
+  Future<List<PendingLocalMutation>> intents() => store.intents();
   @override
-  Future<void> forgetIntent(String operationId) async {}
+  Future<void> forgetIntent(String operationId) =>
+      store.forgetIntent(operationId);
   @override
   Future<List<LocalObjectMetadata>> scan() async => [
         for (final item in await store.scan())
@@ -95,7 +350,7 @@ final class _JournaledLocalReplica implements LocalReplica {
     final data = await store.read(key);
     return data == null
         ? null
-        : LocalObject(key: key, data: data, version: data.length.toString());
+        : LocalObject(key: key, data: data, version: _hash(data));
   }
 
   @override
@@ -104,8 +359,14 @@ final class _JournaledLocalReplica implements LocalReplica {
       SyncMutationOrigin origin = SyncMutationOrigin.remote}) async {
     final current = await read(key);
     if ((expectedVersion != null && current?.version != expectedVersion) ||
-        (expectedVersion == null && current != null)) return false;
-    await store.write(key, data);
+        (expectedVersion == null && current != null)) {
+      return false;
+    }
+    if (origin == SyncMutationOrigin.remote) {
+      await store.writeRemote(key, data);
+    } else {
+      await store.write(key, data);
+    }
     return true;
   }
 
@@ -115,9 +376,14 @@ final class _JournaledLocalReplica implements LocalReplica {
       SyncMutationOrigin origin = SyncMutationOrigin.remote}) async {
     final current = await read(key);
     if (current == null) return true;
-    if (expectedVersion != null && current.version != expectedVersion)
+    if (expectedVersion != null && current.version != expectedVersion) {
       return false;
-    await store.delete(key);
+    }
+    if (origin == SyncMutationOrigin.remote) {
+      await store.deleteRemote(key);
+    } else {
+      await store.delete(key);
+    }
     return true;
   }
 
@@ -127,14 +393,18 @@ final class _JournaledLocalReplica implements LocalReplica {
     await _changes.close();
     await store.close();
   }
+
+  String _hash(Uint8List data) => sha256.convert(data).toString();
 }
 
 final class ObjectStoreLocalReplicaFactory implements LocalReplicaFactory {
-  const ObjectStoreLocalReplicaFactory(this.store);
-  final ObjectStore store;
+  const ObjectStoreLocalReplicaFactory(
+      {required this.objects, required this.metadata});
+  final ObjectStore objects;
+  final ObjectStore metadata;
   @override
   Future<LocalReplica> open(String profileId) async => _JournaledLocalReplica(
-      await JournaledObjectStore.open(objects: store, metadata: store));
+      await JournaledObjectStore.open(objects: objects, metadata: metadata));
   @override
   Future<void> deleteProfile(String profileId) async {}
 }

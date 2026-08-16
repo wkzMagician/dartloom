@@ -33,7 +33,14 @@ abstract interface class ObjectStore {
   Future<void> close();
 }
 
-final class MemoryObjectStore implements ObjectStore {
+/// Optional cross-process critical section used by durable metadata layers.
+/// File-backed implementations must hold this lock across the whole action;
+/// in-memory and browser stores may serialize it within the current context.
+abstract interface class ExclusiveObjectStore {
+  Future<T> withExclusiveLock<T>(Future<T> Function() action);
+}
+
+final class MemoryObjectStore implements ObjectStore, ExclusiveObjectStore {
   MemoryObjectStore({this.identity = 'memory'});
   @override
   final String identity;
@@ -81,6 +88,9 @@ final class MemoryObjectStore implements ObjectStore {
   Stream<StorageChange> get changes => _changes.stream;
   @override
   Future<void> close() => _changes.close();
+
+  @override
+  Future<T> withExclusiveLock<T>(Future<T> Function() action) => action();
   void _checkKey(String key) {
     if (!acceptsKey(key)) {
       throw ArgumentError.value(key, 'key', 'Invalid object key.');

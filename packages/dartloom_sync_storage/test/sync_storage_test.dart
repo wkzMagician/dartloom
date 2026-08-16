@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dartloom_settings/dartloom_settings.dart';
+import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:dartloom_sync_storage/dartloom_sync_storage.dart';
 import 'package:test/test.dart';
@@ -79,6 +81,34 @@ void main() {
       '{"version":99}',
     );
     await expectLater(state.load('profile'), throwsFormatException);
+  });
+
+  test(
+      'journal records local intent, excludes remote recovery, and acknowledges',
+      () async {
+    final objects = MemoryObjectStore(identity: 'objects');
+    final metadata = MemoryObjectStore(identity: 'metadata');
+    final journal = await JournaledObjectStore.open(
+      objects: objects,
+      metadata: metadata,
+    );
+    await journal.write('todo-1', Uint8List.fromList([1, 2, 3]));
+    expect((await journal.intents()).single.key, 'todo-1');
+
+    await journal.writeRemote('todo-1', Uint8List.fromList([4, 5]));
+    expect((await journal.intents()).single.key, 'todo-1');
+    await journal.forgetIntent((await journal.intents()).single.operationId);
+    expect(await journal.intents(), isEmpty);
+    await journal.close();
+  });
+
+  test('journal requires separate object and metadata stores', () async {
+    final store = MemoryObjectStore();
+    await expectLater(
+      JournaledObjectStore.open(objects: store, metadata: store),
+      throwsArgumentError,
+    );
+    await store.close();
   });
 }
 

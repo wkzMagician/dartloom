@@ -6,13 +6,14 @@ import 'package:crypto/crypto.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:path/path.dart' as p;
 
-final class FileObjectStore implements ObjectStore {
+final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   FileObjectStore._({required this.root, required this.hierarchical});
   final Directory root;
   final bool hierarchical;
   final StreamController<StorageChange> _changes = StreamController.broadcast();
   StreamSubscription<FileSystemEvent>? _watcher;
   Future<void> _serial = Future.value();
+  final Map<String, int> _expectedWatchEvents = {};
   bool _closed = false;
 
   static Future<FileObjectStore> open(
@@ -80,6 +81,7 @@ final class FileObjectStore implements ObjectStore {
         final target = await _safeFile(key);
         final existed = await target.exists();
         await _atomicWrite(target, data);
+        _expectWatchEvent(_normalizeKey(key));
         _emit(StorageChange(_normalizeKey(key),
             existed ? StorageChangeKind.updated : StorageChangeKind.created));
       });
@@ -88,6 +90,7 @@ final class FileObjectStore implements ObjectStore {
         final target = await _safeFile(key);
         if (await target.exists()) {
           await target.delete();
+          _expectWatchEvent(_normalizeKey(key));
           _emit(StorageChange(_normalizeKey(key), StorageChangeKind.deleted,
               deleted: true));
         }
@@ -98,6 +101,20 @@ final class FileObjectStore implements ObjectStore {
     await _watcher?.cancel();
     await _serial;
     await _changes.close();
+  }
+
+  @override
+  Future<T> withExclusiveLock<T>(Future<T> Function() action) async {
+    final lock = File('${root.path}.dartloom.lock');
+    await lock.parent.create(recursive: true);
+    final handle = await lock.open(mode: FileMode.append);
+    try {
+      await handle.lock(FileLock.exclusive);
+      return await action();
+    } finally {
+      await handle.unlock();
+      await handle.close();
+    }
   }
 
   Future<T> _enqueue<T>(Future<T> Function() action) {
@@ -169,12 +186,34 @@ final class FileObjectStore implements ObjectStore {
 
   bool _isTemporary(String value) =>
       value.endsWith('.dartloom-tmp') || value.endsWith('.dartloom-old');
+
+  void _expectWatchEvent(String key) {
+    _expectedWatchEvents[key] = (_expectedWatchEvents[key] ?? 0) + 1;
+    Future<void>.delayed(const Duration(seconds: 1), () {
+      final pending = _expectedWatchEvents[key];
+      if (pending == null) return;
+      if (pending == 1) {
+        _expectedWatchEvents.remove(key);
+      } else {
+        _expectedWatchEvents[key] = pending - 1;
+      }
+    });
+  }
   String _keyFor(String path) =>
       p.relative(path, from: root.path).replaceAll(p.separator, '/');
   void _onEvent(FileSystemEvent event) {
     if (_closed || _isTemporary(event.path)) return;
     final key = _keyFor(event.path);
     if (acceptsKey(key)) {
+      final expected = _expectedWatchEvents[key] ?? 0;
+      if (expected > 0) {
+        if (expected == 1) {
+          _expectedWatchEvents.remove(key);
+        } else {
+          _expectedWatchEvents[key] = expected - 1;
+        }
+        return;
+      }
       _emit(StorageChange(
           key,
           event.type == FileSystemEvent.delete

@@ -1,9 +1,11 @@
 name: dartloom_storage_indexeddb
 description: IndexedDB-compatible ObjectStore for Dartloom web applications.
-version: 0.1.0
+version: 0.2.0
 environment:
   sdk: ^3.5.0
 dependencies:
+  crypto: ^3.0.3
   dartloom_storage: ^0.3.0
+  web: ^1.1.1
 dev_dependencies:
   test: ^1.25.8

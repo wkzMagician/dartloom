@@ -1,6 +1,6 @@
 name: dartloom_storage
 description: Text, JSON, and database storage contracts for Dartloom applications.
-version: 0.2.0
+version: 0.3.1
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
