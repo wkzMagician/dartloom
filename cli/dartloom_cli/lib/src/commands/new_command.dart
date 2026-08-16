@@ -7,6 +7,7 @@ import '../process/process_runner.dart';
 import 'command_support.dart';
 import 'configuration_tui.dart';
 import 'documentation.dart';
+import 'generated_tests.dart';
 import 'workflow_templates.dart';
 
 class NewCommand {
@@ -56,6 +57,11 @@ class NewCommand {
     for (final path in ['lib/app', 'lib/features', 'lib/shared', 'test']) {
       await Directory('${project.path}${Platform.pathSeparator}$path')
           .create(recursive: true);
+    }
+    final iconTest = File(
+        '${project.path}${Platform.pathSeparator}test${Platform.pathSeparator}app_icon_test.dart');
+    if (!await iconTest.exists()) {
+      await iconTest.writeAsString(appIconTest(config.platforms));
     }
     final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
     await agents.writeAsString(await updateAgents(agents, config, catalog));
