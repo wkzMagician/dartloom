@@ -152,7 +152,7 @@ class DartloomConfig {
 
   String toYaml() {
     final buffer = StringBuffer()
-      ..writeln('schema_version: 5')
+      ..writeln('schema_version: 6')
       ..writeln()
       ..writeln('app:')
       ..writeln('  name: ${_scalar(app.name)}')
@@ -170,7 +170,7 @@ class DartloomConfig {
     if (enabledCapabilities.isEmpty) {
       buffer
         ..clear()
-        ..write('schema_version: 5\n\n')
+        ..write('schema_version: 6\n\n')
         ..write('app:\n')
         ..write('  name: ${_scalar(app.name)}\n')
         ..write('  package_name: ${_scalar(app.packageName)}\n')
@@ -370,8 +370,7 @@ abstract final class CapabilityDefaults {
             }
           : const {
               'json': CapabilityInstanceConfig(
-                implementation: 'app_file_replica',
-                factory: 'createJsonReplicaStore',
+                implementation: 'app_object_store',
               ),
             },
       Capability.logging => const {

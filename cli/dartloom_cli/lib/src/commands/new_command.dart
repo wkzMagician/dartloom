@@ -103,7 +103,7 @@ class NewCommand {
     await Directory('${project.path}$separator.github${separator}workflows')
         .create(recursive: true);
     final hasAppOwnedReplica = config.capabilities[Capability.storage]?.values
-            .any((value) => value.implementation == 'app_file_replica') ??
+            .any((value) => value.implementation == 'app_object_store') ??
         false;
     final replicaFactoryImport = hasAppOwnedReplica
         ? "import 'features/dartloom_replica_factory.dart';\n"

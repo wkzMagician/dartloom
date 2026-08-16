@@ -1,63 +1,50 @@
 import 'dart:io';
-
-import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-final class TextFileStore implements TextStore {
+@Deprecated('Use ObjectStore with UTF-8 encoding at the business boundary.')
+final class TextFileStore {
   TextFileStore(this.root);
-
   final Directory root;
-
   static Future<TextFileStore> open({String path = 'dartloom/text'}) async {
-    final base = await getApplicationSupportDirectory();
-    final root = Directory(p.join(base.path, path));
+    final root =
+        Directory(p.join((await getApplicationSupportDirectory()).path, path));
     await root.create(recursive: true);
     return TextFileStore(root);
   }
 
-  @override
   Future<void> delete(String key) async {
-    final file = _file(key);
-    if (await file.exists()) await file.delete();
+    final f = _file(key);
+    if (await f.exists()) await f.delete();
   }
 
-  @override
   Future<List<String>> list({String prefix = ''}) async {
     if (!await root.exists()) return [];
     final keys = <String>[];
-    await for (final entity in root.list(recursive: true, followLinks: false)) {
-      if (entity is! File || entity.path.endsWith('.tmp')) continue;
-      final key =
-          p.relative(entity.path, from: root.path).replaceAll('\\', '/');
-      if (key.startsWith(prefix)) keys.add(key);
+    await for (final e in root.list(recursive: true, followLinks: false)) {
+      if (e is File) {
+        final k = p.relative(e.path, from: root.path).replaceAll('\\', '/');
+        if (k.startsWith(prefix)) keys.add(k);
+      }
     }
     return keys..sort();
   }
 
-  @override
   Future<String?> read(String key) async {
-    final file = _file(key);
-    return await file.exists() ? file.readAsString() : null;
+    final f = _file(key);
+    return await f.exists() ? f.readAsString() : null;
   }
 
-  @override
   Future<void> write(String key, String value) async {
-    final file = _file(key);
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString(value, flush: true);
-    if (await file.exists()) await file.delete();
-    await temporary.rename(file.path);
+    final f = _file(key);
+    await f.parent.create(recursive: true);
+    await f.writeAsString(value, flush: true);
   }
 
   File _file(String key) {
-    final normalized = p.normalize(key.replaceAll('/', p.separator));
-    if (p.isAbsolute(normalized) ||
-        normalized == '..' ||
-        normalized.startsWith('..${p.separator}')) {
-      throw ArgumentError.value(key, 'key', 'Key must stay inside the store.');
-    }
-    return File(p.join(root.path, normalized));
+    final n = p.normalize(key.replaceAll('/', p.separator));
+    if (p.isAbsolute(n) || n == '..' || n.startsWith('..${p.separator}'))
+      throw ArgumentError.value(key, 'key');
+    return File(p.join(root.path, n));
   }
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:dartloom_settings/dartloom_settings.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
@@ -38,26 +37,112 @@ final class SyncProfileScope {
   Future<void> dispose() => _changes.close();
 }
 
-/// Opens one local replica. Keys are the same relative paths in local and
-/// remote replicas; profiles never namespace or delete the shared local root.
-final class ReplicaStoreLocalReplicaFactory implements LocalReplicaFactory {
-  const ReplicaStoreLocalReplicaFactory(this.store);
-
-  final ReplicaStore store;
-
+final class JournaledObjectStore implements ObjectStore {
+  JournaledObjectStore._(this.objects, this.metadata);
+  final ObjectStore objects;
+  final ObjectStore metadata;
+  static Future<JournaledObjectStore> open(
+          {required ObjectStore objects,
+          required ObjectStore metadata}) async =>
+      JournaledObjectStore._(objects, metadata);
   @override
-  Future<LocalReplica> open(String profileId) async => _StoreReplica(store);
-
+  String get identity => objects.identity;
   @override
-  Future<void> deleteProfile(String profileId) async {
-    // Profiles select remote credentials, not local namespaces. Removing a
-    // profile must never erase the shared local replica.
+  bool acceptsKey(String key) => objects.acceptsKey(key);
+  @override
+  Stream<StorageChange> get changes => objects.changes;
+  @override
+  Future<List<StoredObject>> scan() => objects.scan();
+  @override
+  Future<Uint8List?> read(String key) => objects.read(key);
+  @override
+  Future<void> write(String key, Uint8List data) => objects.write(key, data);
+  @override
+  Future<void> delete(String key) => objects.delete(key);
+  @override
+  Future<void> close() async {
+    await objects.close();
+    if (!identical(objects, metadata)) await metadata.close();
   }
 }
 
-@Deprecated('Use ReplicaStoreLocalReplicaFactory.')
-typedef JsonLocalReplicaFactory = ReplicaStoreLocalReplicaFactory;
+final class _JournaledLocalReplica implements LocalReplica {
+  _JournaledLocalReplica(this.store) {
+    _subscription = store.changes.listen((change) =>
+        _changes.add(LocalReplicaChange(change.key, SyncMutationOrigin.local)));
+  }
+  final JournaledObjectStore store;
+  final StreamController<LocalReplicaChange> _changes =
+      StreamController.broadcast();
+  late final StreamSubscription<StorageChange> _subscription;
+  @override
+  String get identity => store.identity;
+  @override
+  bool acceptsKey(String key) => store.acceptsKey(key);
+  @override
+  Stream<LocalReplicaChange> get changes => _changes.stream;
+  @override
+  Future<List<PendingLocalMutation>> intents() async => const [];
+  @override
+  Future<void> forgetIntent(String operationId) async {}
+  @override
+  Future<List<LocalObjectMetadata>> scan() async => [
+        for (final item in await store.scan())
+          LocalObjectMetadata(key: item.key, version: item.contentHash ?? '')
+      ];
+  @override
+  Future<LocalObject?> read(String key) async {
+    final data = await store.read(key);
+    return data == null
+        ? null
+        : LocalObject(key: key, data: data, version: data.length.toString());
+  }
 
+  @override
+  Future<bool> write(String key, Uint8List data,
+      {String? expectedVersion,
+      SyncMutationOrigin origin = SyncMutationOrigin.remote}) async {
+    final current = await read(key);
+    if ((expectedVersion != null && current?.version != expectedVersion) ||
+        (expectedVersion == null && current != null)) return false;
+    await store.write(key, data);
+    return true;
+  }
+
+  @override
+  Future<bool> delete(String key,
+      {String? expectedVersion,
+      SyncMutationOrigin origin = SyncMutationOrigin.remote}) async {
+    final current = await read(key);
+    if (current == null) return true;
+    if (expectedVersion != null && current.version != expectedVersion)
+      return false;
+    await store.delete(key);
+    return true;
+  }
+
+  @override
+  Future<void> close() async {
+    await _subscription.cancel();
+    await _changes.close();
+    await store.close();
+  }
+}
+
+final class ObjectStoreLocalReplicaFactory implements LocalReplicaFactory {
+  const ObjectStoreLocalReplicaFactory(this.store);
+  final ObjectStore store;
+  @override
+  Future<LocalReplica> open(String profileId) async => _JournaledLocalReplica(
+      await JournaledObjectStore.open(objects: store, metadata: store));
+  @override
+  Future<void> deleteProfile(String profileId) async {}
+}
+
+typedef ReplicaStoreLocalReplicaFactory = ObjectStoreLocalReplicaFactory;
+typedef JsonLocalReplicaFactory = ObjectStoreLocalReplicaFactory;
+
+/* legacy adapter removed: ObjectStore is now the storage boundary.
 final class _StoreReplica implements LocalReplica {
   _StoreReplica(this.store) {
     _subscription = store.changes.listen((change) {
@@ -165,7 +250,7 @@ final class _StoreReplica implements LocalReplica {
   }
 
   String _hash(Uint8List value) => sha256.convert(value).toString();
-}
+} */
 
 final class SettingsSyncProfileRepository implements SyncProfileRepository {
   SettingsSyncProfileRepository({

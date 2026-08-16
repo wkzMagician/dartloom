@@ -70,35 +70,8 @@ abstract final class CapabilityRegistry {
       platforms: _allPlatforms,
       implementations: [
         ImplementationMetadata(
-          id: 'text_file',
-          packageName: 'dartloom_storage_text_file',
-          instanceNames: {'text'},
-          platforms: {
-            TargetPlatform.android,
-            TargetPlatform.ios,
-            TargetPlatform.windows,
-            TargetPlatform.macos,
-            TargetPlatform.linux,
-          },
-          options: {'path': 'dartloom/text'},
-        ),
-        ImplementationMetadata(
-          id: 'json_file',
-          packageName: 'dartloom_storage_json_file',
-          instanceNames: {'json'},
-          platforms: {
-            TargetPlatform.android,
-            TargetPlatform.ios,
-            TargetPlatform.windows,
-            TargetPlatform.macos,
-            TargetPlatform.linux,
-          },
-          options: {'path': 'dartloom/data.json'},
-        ),
-        ImplementationMetadata(
-          id: 'json_directory',
-          packageName: 'dartloom_storage_json_file',
-          instanceNames: {'json'},
+          id: 'app_object_store',
+          packageName: 'dartloom_storage_file',
           platforms: {
             TargetPlatform.android,
             TargetPlatform.ios,
@@ -109,7 +82,7 @@ abstract final class CapabilityRegistry {
           options: {'path': 'Dartloom'},
         ),
         ImplementationMetadata(
-          id: 'app_file_replica',
+          id: 'file_object_store',
           packageName: 'dartloom_storage_file',
           platforms: {
             TargetPlatform.android,
@@ -120,7 +93,12 @@ abstract final class CapabilityRegistry {
           },
         ),
         ImplementationMetadata(
-          id: 'drift',
+          id: 'indexeddb_object_store',
+          packageName: 'dartloom_storage_indexeddb',
+          platforms: {TargetPlatform.web},
+        ),
+        ImplementationMetadata(
+          id: 'drift_object_store',
           packageName: 'dartloom_storage_drift',
           instanceNames: {'database'},
           options: {'name': 'dartloom'},
@@ -314,7 +292,8 @@ abstract final class CapabilityRegistry {
         final adapter = implementation(entry.key, instance.implementation);
         if (adapter != null) names.add(adapter.packageName);
         if (entry.key == Capability.storage &&
-            instance.implementation == 'app_file_replica') {
+            instance.implementation == 'app_object_store' ||
+            instance.implementation == 'file_object_store') {
           names.add('dartloom_storage_json_file');
         }
         if (entry.key == Capability.sync &&
@@ -385,7 +364,8 @@ abstract final class CapabilityRegistry {
           }
         }
         if (instance.implementation == 'custom' ||
-            instance.implementation == 'app_file_replica') {
+            instance.implementation == 'app_object_store' ||
+            instance.implementation == 'file_object_store') {
           if (instance.factory == null || instance.factory!.isEmpty) {
             errors.add(
               '${capabilityEntry.key.name}.${instanceEntry.key} '

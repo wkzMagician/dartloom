@@ -50,7 +50,7 @@ Generated feature code obtains configured services from the runtime registry:
 
 ```dart
 final settings = Dartloom.get<SettingsStore>();
-final json = Dartloom.get<JsonStore>(name: 'json');
+final objects = Dartloom.get<ObjectStore>(name: 'objects');
 ```
 
 Application-owned adapters use a factory ID in `dartloom.yaml` and are supplied
@@ -63,9 +63,7 @@ Feature code should never import adapter packages directly.
 | Capability | Stable contract | Official implementation |
 | --- | --- | --- |
 | settings | portable settings values | shared_preferences, secure_storage |
-| storage.text | UTF-8 text CRUD | atomic files |
-| storage replica | raw-byte replica or business codec | application-owned path factory |
-| storage.database | collection/id document CRUD | Drift/SQLite |
+| storage | binary `ObjectStore` | file, IndexedDB, or Drift |
 | logging | application logger | logger |
 | autostart | enable/disable startup | launch_at_startup |
 | localization | locales and delegates | Flutter gen-l10n |
@@ -78,7 +76,7 @@ conflicts by default, and accepts an application-specific merge factory.
 
 ## Configuration and secrets
 
-Schema version 5 stores named instances, typed sync policies, platform
+Schema version 6 stores named instances, typed sync policies, platform
 overrides, and factory symbols. Synchronized business directories are owned by
 the application, never selected by Dartloom.
 Business-specific names such as “notes” do not appear in the framework catalog.
@@ -88,8 +86,7 @@ capabilities:
   storage:
     instances:
       json:
-        implementation: app_file_replica
-        factory: createJsonReplicaStore
+        implementation: app_object_store
   autostart:
     instances:
       default:

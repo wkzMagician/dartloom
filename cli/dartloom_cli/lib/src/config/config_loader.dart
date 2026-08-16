@@ -23,9 +23,9 @@ class ConfigLoader {
   Future<DartloomConfig> load(Directory project) async {
     final root = await _root(project);
     final schemaVersion = root['schema_version'];
-    if (schemaVersion != 4 && schemaVersion != 5) {
+    if (schemaVersion != 4 && schemaVersion != 5 && schemaVersion != 6) {
       throw ConfigException(
-        'schema_version: 4 or 5 is required. Run dartloom project upgrade to migrate '
+        'schema_version: 4, 5, or 6 is required. Run dartloom project upgrade to migrate '
         'a schema 4 configuration.',
       );
     }
@@ -35,15 +35,15 @@ class ConfigLoader {
   Future<DartloomConfig> loadForMigration(Directory project) async {
     final root = await _root(project);
     final schemaVersion = root['schema_version'];
-    if (schemaVersion != 4 && schemaVersion != 5) {
-      throw ConfigException('schema_version: 4 or 5 is required.');
+    if (schemaVersion != 4 && schemaVersion != 5 && schemaVersion != 6) {
+      throw ConfigException('schema_version: 4, 5, or 6 is required.');
     }
     return _parse(root, schemaVersion: schemaVersion as int);
   }
 
   DartloomConfig parse(
     String source, {
-    Set<int> acceptedSchemaVersions = const {5},
+    Set<int> acceptedSchemaVersions = const {6},
     bool validateRegistry = true,
   }) {
     final Object? document;
@@ -220,7 +220,9 @@ class ConfigLoader {
           : null;
       if (referencedStorage == null ||
           (schemaVersion == 5 &&
-              referencedStorage.implementation != 'app_file_replica')) {
+              referencedStorage.implementation != 'app_file_replica') ||
+          (schemaVersion == 6 &&
+              referencedStorage.implementation != 'app_object_store')) {
         throw ConfigException(
           'sync.${sync.key} requires an existing ReplicaStore reference such '
           'as storage.documents.',

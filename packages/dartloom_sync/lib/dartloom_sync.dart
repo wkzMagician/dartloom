@@ -4,8 +4,6 @@ export 'sync_scheduler.dart';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:dartloom_storage/dartloom_storage.dart';
-
 enum SyncMode { manual, automatic }
 
 enum SyncPhase {
@@ -43,6 +41,46 @@ enum SyncDeleteConflictStrategy { conflict, deleteWins, updateWins }
 enum SyncBasePayloadPolicy { always, conflictsOnly, never }
 
 enum SyncMutationOrigin { local, remote }
+
+@Deprecated('Use SyncMutationOrigin.')
+enum StoreMutationOrigin {
+  application,
+  migration,
+  conflictResolution,
+  remote,
+  recovery,
+  external
+}
+
+enum LocalMutationKind { create, update, delete }
+
+enum LocalObservation {
+  trusted,
+  untrustedLocalChange,
+  unexpectedMissing,
+  unregisteredLocalObject
+}
+
+final class PendingLocalMutation {
+  const PendingLocalMutation(
+      {required this.operationId,
+      required this.key,
+      required this.kind,
+      required this.createdAt,
+      this.contentHash,
+      this.origin = StoreMutationOrigin.application});
+  final String operationId;
+  final String key;
+  final LocalMutationKind kind;
+  final DateTime createdAt;
+  final String? contentHash;
+  final StoreMutationOrigin origin;
+}
+
+@Deprecated('Use PendingLocalMutation.')
+typedef StoreIntent = PendingLocalMutation;
+@Deprecated('Use LocalMutationKind.')
+typedef StoreIntentKind = LocalMutationKind;
 
 enum SyncScanKind { full, delta }
 
@@ -199,12 +237,12 @@ final class LocalObjectMetadata {
     required this.key,
     required this.version,
     this.exists = true,
-    this.observation = ReplicaObservation.trusted,
+    this.observation = LocalObservation.trusted,
   });
   final String key;
   final String version;
   final bool exists;
-  final ReplicaObservation observation;
+  final LocalObservation observation;
 }
 
 final class LocalObject {
@@ -226,7 +264,7 @@ abstract interface class LocalReplica {
   bool acceptsKey(String key);
   Stream<LocalReplicaChange> get changes;
   Future<List<LocalObjectMetadata>> scan();
-  Future<List<StoreIntent>> intents();
+  Future<List<PendingLocalMutation>> intents();
   Future<void> forgetIntent(String operationId);
   Future<LocalObject?> read(String key);
   Future<bool> write(

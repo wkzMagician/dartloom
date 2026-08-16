@@ -1,9 +1,5 @@
 # Changelog
 
-## 0.2.0
+## 0.3.0
 
-- Split the stable contract from production adapter dependencies.
-
-## 0.1.0
-
-- Initial capability package.
+- Replaced legacy storage contracts with the binary `ObjectStore` API.

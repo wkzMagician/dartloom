@@ -3,6 +3,7 @@ import 'dart:io';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../config/schema5_migration.dart';
+import '../config/schema6_migration.dart';
 import '../process/process_runner.dart';
 import '../templates/managed_templates.dart';
 import 'check_command.dart';
@@ -21,20 +22,32 @@ class UpgradeCommand {
     required bool dryRun,
     CapabilitySource? source,
   }) async {
-    final migration = await Schema5ConfigMigrator(loader: _loader).migrate(
-      project,
-      dryRun: dryRun,
-    );
-    stdout.writeln(migration.report.toStructuredJson());
-    if (migration.report.isBlocked) {
-      throw ConfigException(
-        'Schema 5 migration is blocked. Resolve every reported app-owned '
-        'path TODO and run dartloom project upgrade again.',
+    final schema = await _loader.schemaVersion(project);
+    late DartloomConfig config;
+    if (schema == 6) {
+      config = await _loader.load(project);
+    } else if (schema == 5 && !dryRun) {
+      final file =
+          File('${project.path}${Platform.pathSeparator}dartloom.yaml');
+      await migrateSchema5To6(file);
+      config = await _loader.load(project);
+    } else if (schema == 5 && dryRun) {
+      final file =
+          File('${project.path}${Platform.pathSeparator}dartloom.yaml');
+      config = _loader.parse(
+        migrateSchema5To6Source(await file.readAsString()),
+        acceptedSchemaVersions: const {6},
       );
+    } else {
+      final migration = await Schema5ConfigMigrator(loader: _loader)
+          .migrate(project, dryRun: dryRun);
+      stdout.writeln(migration.report.toStructuredJson());
+      if (migration.report.isBlocked)
+        throw ConfigException(
+            'Schema 5 migration is blocked. Resolve every reported app-owned path TODO and run dartloom project upgrade again.');
+      config = migration.config;
     }
-    final config = source == null
-        ? migration.config
-        : migration.config.copyWith(capabilitySource: source);
+    if (source != null) config = config.copyWith(capabilitySource: source);
     if (source != null && !dryRun) {
       await _loader.save(project, config);
     }

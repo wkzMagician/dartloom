@@ -1,6 +1,6 @@
 name: dartloom_storage_drift
-description: Drift and SQLite adapter for the Dartloom DatabaseStore contract.
-version: 0.1.0
+description: Drift and SQLite ObjectStore adapter for Dartloom.
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -9,7 +9,7 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_storage: ^0.2.0
+  dartloom_storage: ^0.3.0
   drift: ^2.20.0
   drift_flutter: ^0.2.0
   sqlite3: ^2.7.0

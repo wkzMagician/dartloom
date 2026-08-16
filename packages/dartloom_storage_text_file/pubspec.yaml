@@ -1,5 +1,5 @@
 name: dartloom_storage_text_file
-description: Atomic UTF-8 file adapter for the Dartloom TextStore contract.
+description: Deprecated UTF-8 business-layer wrapper for Dartloom ObjectStore.
 version: 0.1.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
@@ -9,7 +9,7 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_storage: ^0.2.0
+  dartloom_storage: ^0.3.0
   path: ^1.9.0
   path_provider: ^2.1.0
 dev_dependencies:

@@ -1,3 +1,5 @@
-## 0.1.0
+# Changelog
 
-- Initial profile-scoped storage and state adapters.
+## 0.2.0
+
+- Added the generic `JournaledObjectStore` bridge.

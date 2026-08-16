@@ -1,6 +1,6 @@
 name: dartloom_sync
 description: Provider-neutral synchronization contracts for Dartloom applications.
-version: 0.3.0
+version: 0.4.0
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -10,8 +10,6 @@ topics:
   - sync
 environment:
   sdk: ^3.5.0
-dependencies:
-  dartloom_storage: ^0.2.0
 dev_dependencies:
   lints: ^5.1.1
   test: ^1.25.8

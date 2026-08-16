@@ -74,7 +74,7 @@ String capabilityGlue(DartloomConfig config) {
         instance.implementation,
       );
       if (metadata != null) {
-        if (instance.implementation == 'app_file_replica') continue;
+        if (instance.implementation == 'app_object_store') continue;
         imports.add(
           "import 'package:${metadata.packageName}/${metadata.packageName}.dart';",
         );
@@ -298,14 +298,24 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           '      return DartloomBinding<JsonStore>(value, dispose: value.close);')
       ..writeln('    },');
   }
-  if (_uses(instances, Capability.storage, 'drift')) {
+  if (_uses(instances, Capability.storage, 'file_object_store') ||
+      _uses(instances, Capability.storage, 'app_object_store')) {
+    buffer
+      ..writeln("    'file_object_store': (context) async {")
+      ..writeln(
+          "      final value = await FileObjectStore.open(root: Directory(context.options['path'] as String? ?? 'Dartloom'));")
+      ..writeln(
+          '      return DartloomBinding<ObjectStore>(value, dispose: value.close);')
+      ..writeln('    },');
+  }
+  if (_uses(instances, Capability.storage, 'drift_object_store')) {
     buffer
       ..writeln("    'drift': (context) async {")
       ..writeln(
-          "      final value = await DriftDocumentStore.open(name: context.options['name'] as String? ?? 'dartloom');")
+          "      final value = await DriftObjectStore.open(name: context.options['name'] as String? ?? 'dartloom');")
       ..writeln('      await value.initialize();')
       ..writeln(
-          '      return DartloomBinding<DatabaseStore>(value, dispose: value.close);')
+          '      return DartloomBinding<ObjectStore>(value, dispose: value.close);')
       ..writeln('    },');
   }
   if (_uses(instances, Capability.logging, 'logger')) {
@@ -397,7 +407,11 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
       ..writeln(
           "      final replicaName = (context.options['replica'] as String).substring('storage.'.length);")
       ..writeln(
-          '      final localStore = context.get<ReplicaStore>(name: replicaName);')
+          '      final localStore = context.get<ObjectStore>(name: replicaName);')
+      ..writeln("      if (localStore is! LocalReplica) {")
+      ..writeln(
+          "        throw DartloomException('The synchronized store must be wrapped with JournaledObjectStore.');")
+      ..writeln('      }')
       ..writeln(
           '      final profileScope = context.get<SyncProfileScope>(name: context.name);')
       ..writeln('      final profiles = SettingsSyncProfileRepository(')
@@ -463,7 +477,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
           "        policy: SyncPolicyCodec.resolve((context.options['policy'] as Map).cast<String, Object?>(), _dartloomCurrentPlatform),")
       ..writeln('        profiles: profiles,')
       ..writeln(
-          '        localFactory: ReplicaStoreLocalReplicaFactory(localStore),')
+          '        localFactory: ObjectStoreLocalReplicaFactory(localStore),')
       ..writeln('        stateRepository: state,')
       ..writeln('        reconciler: const EtagReconciler(),')
       ..writeln("        backends: {'webdav': backend},")
@@ -584,14 +598,7 @@ String _serviceType(
 ) =>
     switch (capability) {
       Capability.settings => 'SettingsStore',
-      Capability.storage when instance.implementation == 'app_file_replica' =>
-        'ReplicaStore',
-      Capability.storage => switch (name) {
-          'text' => 'TextStore',
-          'json' => 'JsonStore',
-          'database' => 'DatabaseStore',
-          _ => 'Object',
-        },
+      Capability.storage => 'ObjectStore',
       Capability.logging => 'AppLogger',
       Capability.autostart => 'AutostartService',
       Capability.sync => 'SyncService',
