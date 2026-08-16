@@ -62,29 +62,26 @@ final class SocketSingleInstanceService implements SingleInstanceService {
     if (_disposed) return false;
     await _resolveIdentity();
 
-    for (final candidate in _candidatePorts()) {
-      try {
-        final server = await ServerSocket.bind(
-          InternetAddress.loopbackIPv4,
-          candidate,
-          shared: false,
-        );
-        _server = server;
+    final candidate = _candidatePort();
+    try {
+      final server = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        candidate,
+        shared: false,
+      );
+      _server = server;
+      _port = candidate;
+      _primary = true;
+      server.listen(_handleConnection, onError: (_) {});
+      return true;
+    } on SocketException {
+      // Never move to a fallback port: that would allow two instances to
+      // become primary. Give the first process a short window to bind.
+      if (await _waitForPrimary(candidate)) {
         _port = candidate;
-        _primary = true;
-        server.listen(_handleConnection, onError: (_) {});
-        return true;
-      } on SocketException {
-        // A different process may occupy a candidate. Probe it before moving
-        // on: the primary instance owns the deterministic first port, and a
-        // duplicate must not silently claim a later candidate.
-        if (await _isDartloomPrimary(candidate)) {
-          _port = candidate;
-          return false;
-        }
       }
+      return false;
     }
-    return false;
   }
 
   @override
@@ -117,16 +114,11 @@ final class SocketSingleInstanceService implements SingleInstanceService {
     _identity = directory.path;
   }
 
-  Iterable<int> _candidatePorts() sync* {
+  int _candidatePort() {
     final configured = _configuredPort;
-    if (configured != null) {
-      yield configured;
-      return;
-    }
+    if (configured != null) return configured;
     final base = _portFor(_identity!);
-    for (var offset = 0; offset < 8; offset++) {
-      yield 49152 + ((base - 49152 + offset) % 14000);
-    }
+    return base;
   }
 
   Future<void> _handleConnection(Socket socket) async {
@@ -143,7 +135,7 @@ final class SocketSingleInstanceService implements SingleInstanceService {
       }
       if (kind != 'args' || decoded['args'] is! List) return;
       final args = (decoded['args'] as List).map((e) => '$e').toList();
-      _handleSecondInstance(args);
+      await _handleSecondInstance(args);
       socket.write('{"ok":true}');
       await socket.flush();
     } catch (_) {
@@ -153,13 +145,12 @@ final class SocketSingleInstanceService implements SingleInstanceService {
     }
   }
 
-  void _handleSecondInstance(List<String> args) {
+  Future<void> _handleSecondInstance(List<String> args) async {
     _secondInstances.add(args);
-    unawaited(_applyWindowAction());
+    await _applyWindowAction();
     final onArgs = _configuration.onArgs;
     if (onArgs != null && args.isNotEmpty) {
-      final result = onArgs(args);
-      if (result is Future<void>) unawaited(result);
+      await onArgs(args);
     }
   }
 
@@ -169,7 +160,7 @@ final class SocketSingleInstanceService implements SingleInstanceService {
     switch (_configuration.windowAction) {
       case SecondInstanceWindowAction.restore:
       case SecondInstanceWindowAction.focusOnly:
-        await resident.restore();
+        await resident.restore().timeout(const Duration(seconds: 2));
       case SecondInstanceWindowAction.ignore:
         break;
     }
@@ -182,22 +173,33 @@ final class SocketSingleInstanceService implements SingleInstanceService {
       'identity': _identity,
       'args': args,
     });
-    for (final candidate in _candidatePorts()) {
-      Socket? socket;
-      try {
-        socket = await Socket.connect(
-          InternetAddress.loopbackIPv4,
-          candidate,
-          timeout: const Duration(milliseconds: 150),
-        );
-        socket.write('$message\n');
-        await socket.flush();
-        await socket.close();
-        return;
-      } on Object {
-        socket?.destroy();
-      }
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        _candidatePort(),
+        timeout: const Duration(milliseconds: 250),
+      );
+      socket.write('$message\n');
+      await socket.flush();
+      await utf8.decoder
+          .bind(socket)
+          .transform(const LineSplitter())
+          .first
+          .timeout(const Duration(seconds: 2));
+    } on Object {
+      // The process remains a duplicate and must not claim a fallback port.
+    } finally {
+      socket?.destroy();
     }
+  }
+
+  Future<bool> _waitForPrimary(int candidate) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (await _isDartloomPrimary(candidate)) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    return false;
   }
 
   Future<bool> _isDartloomPrimary(int candidate) async {
