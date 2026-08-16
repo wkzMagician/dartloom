@@ -36,22 +36,22 @@ class PairingAcceptance {
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'type': 'pairingAccepted',
-        'version': 1,
-        'nonce': nonce,
-        'shortCode': shortCode,
-        'deviceId': deviceId,
-        'publicKey': publicKey,
-        'displayName': displayName,
-        'platform': platform,
-        'relayUrl': relayUrl,
-        'relayTopic': relayTopic,
-        if (lanHost != null) 'lanHost': lanHost,
-        if (lanPort != null) 'lanPort': lanPort,
-        if (certificateSha256 != null) 'certificateSha256': certificateSha256,
-        'proof': proof,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-      };
+    'type': 'pairingAccepted',
+    'version': 1,
+    'nonce': nonce,
+    'shortCode': shortCode,
+    'deviceId': deviceId,
+    'publicKey': publicKey,
+    'displayName': displayName,
+    'platform': platform,
+    'relayUrl': relayUrl,
+    'relayTopic': relayTopic,
+    if (lanHost != null) 'lanHost': lanHost,
+    if (lanPort != null) 'lanPort': lanPort,
+    if (certificateSha256 != null) 'certificateSha256': certificateSha256,
+    'proof': proof,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
 
   factory PairingAcceptance.fromJson(Object? value) {
     final json = _map(value, 'acceptance');
@@ -123,14 +123,14 @@ class PairingConfirmation {
   final String proof;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'type': 'pairingConfirmed',
-        'version': 1,
-        'nonce': nonce,
-        'shortCode': shortCode,
-        'issuerDeviceId': issuerDeviceId,
-        'acceptorDeviceId': acceptorDeviceId,
-        'proof': proof,
-      };
+    'type': 'pairingConfirmed',
+    'version': 1,
+    'nonce': nonce,
+    'shortCode': shortCode,
+    'issuerDeviceId': issuerDeviceId,
+    'acceptorDeviceId': acceptorDeviceId,
+    'proof': proof,
+  };
 
   factory PairingConfirmation.fromJson(Object? value) {
     final json = _map(value, 'confirmation');
@@ -161,11 +161,10 @@ String pairingProof({
   required String shortCode,
   required String deviceId,
   required String publicKey,
-}) =>
-    Hmac(
-      sha256,
-      utf8.encode(shortCode),
-    ).convert(utf8.encode('$nonce|$deviceId|$publicKey')).toString();
+}) => Hmac(
+  sha256,
+  utf8.encode(shortCode),
+).convert(utf8.encode('$nonce|$deviceId|$publicKey')).toString();
 
 Map<String, Object?> _map(Object? value, String field) {
   if (value is! Map) throw FormatException('$field must be an object');

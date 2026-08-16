@@ -26,17 +26,17 @@ class PairingInvitation {
   final String? certificateSha256;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'nonce': nonce,
-        'issuerDeviceId': issuerDeviceId,
-        'issuerPublicKey': issuerPublicKey,
-        'relayUrl': relayUrl,
-        'temporaryTopic': temporaryTopic,
-        'expiresAt': expiresAt.toUtc().toIso8601String(),
-        'shortCode': shortCode,
-        if (lanHost != null) 'lanHost': lanHost,
-        if (lanPort != null) 'lanPort': lanPort,
-        if (certificateSha256 != null) 'certificateSha256': certificateSha256,
-      };
+    'nonce': nonce,
+    'issuerDeviceId': issuerDeviceId,
+    'issuerPublicKey': issuerPublicKey,
+    'relayUrl': relayUrl,
+    'temporaryTopic': temporaryTopic,
+    'expiresAt': expiresAt.toUtc().toIso8601String(),
+    'shortCode': shortCode,
+    if (lanHost != null) 'lanHost': lanHost,
+    if (lanPort != null) 'lanPort': lanPort,
+    if (certificateSha256 != null) 'certificateSha256': certificateSha256,
+  };
 }
 
 enum PairingState { created, accepted, confirmed, rejected, cancelled, expired }

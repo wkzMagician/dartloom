@@ -11,7 +11,7 @@ class AttachmentTransferException implements Exception {
 
 class PendingAttachmentTransfer {
   PendingAttachmentTransfer({required this.manifest, required this.createdAt})
-      : reassembler = AttachmentReassembler(manifest);
+    : reassembler = AttachmentReassembler(manifest);
 
   final AttachmentManifest manifest;
   final DateTime createdAt;

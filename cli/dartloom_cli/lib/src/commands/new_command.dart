@@ -56,7 +56,12 @@ class NewCommand {
     if (capabilities.contains(Capability.sync)) {
       configuredCapabilities.putIfAbsent(
         Capability.storage,
-        () => {...CapabilityDefaults.forCapability(Capability.storage)},
+        () => {
+          ...CapabilityDefaults.forCapability(
+            Capability.storage,
+            platforms: platforms,
+          ),
+        },
       );
     }
     final config = DartloomConfig(

@@ -18,8 +18,8 @@ class PairingDeviceIdentity {
     required this.deviceId,
     required List<int> privateKeyBytes,
     required List<int> publicKeyBytes,
-  })  : privateKeyBytes = Uint8List.fromList(privateKeyBytes),
-        publicKeyBytes = Uint8List.fromList(publicKeyBytes);
+  }) : privateKeyBytes = Uint8List.fromList(privateKeyBytes),
+       publicKeyBytes = Uint8List.fromList(publicKeyBytes);
 
   final String deviceId;
   final Uint8List privateKeyBytes;

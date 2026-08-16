@@ -302,7 +302,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
     buffer
       ..writeln("    'drift': (context) async {")
       ..writeln(
-          "      final value = DriftDocumentStore.open(name: context.options['name'] as String? ?? 'dartloom');")
+          "      final value = await DriftDocumentStore.open(name: context.options['name'] as String? ?? 'dartloom');")
       ..writeln('      await value.initialize();')
       ..writeln(
           '      return DartloomBinding<DatabaseStore>(value, dispose: value.close);')

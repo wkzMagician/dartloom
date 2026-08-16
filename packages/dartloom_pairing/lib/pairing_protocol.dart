@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'mdns.dart' as mdns;
+import 'mdns.dart' if (dart.library.js_interop) 'mdns_web.dart' as mdns;
 import 'pairing_contracts.dart';
 
 enum PairingStatus {
@@ -50,27 +50,27 @@ class PairingInvite {
   bool isExpired(DateTime now) => !expiresAt.isAfter(now.toUtc());
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'version': version,
-        'nonce': nonce,
-        'issuerDeviceId': issuerDeviceId,
-        'issuerPublicKey': issuerPublicKey,
-        'relayUrl': relayUrl,
-        'temporaryTopic': temporaryTopic,
-        'issuerRelayTopic': issuerRelayTopic,
-        if (issuerLanHost != null) 'issuerLanHost': issuerLanHost,
-        if (issuerLanPort != null) 'issuerLanPort': issuerLanPort,
-        if (issuerPairingLanPort != null)
-          'issuerPairingLanPort': issuerPairingLanPort,
-        if (issuerCertificateSha256 != null)
-          'issuerCertificateSha256': issuerCertificateSha256,
-        'shortCode': shortCode,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'expiresAt': expiresAt.toUtc().toIso8601String(),
-      };
+    'version': version,
+    'nonce': nonce,
+    'issuerDeviceId': issuerDeviceId,
+    'issuerPublicKey': issuerPublicKey,
+    'relayUrl': relayUrl,
+    'temporaryTopic': temporaryTopic,
+    'issuerRelayTopic': issuerRelayTopic,
+    if (issuerLanHost != null) 'issuerLanHost': issuerLanHost,
+    if (issuerLanPort != null) 'issuerLanPort': issuerLanPort,
+    if (issuerPairingLanPort != null)
+      'issuerPairingLanPort': issuerPairingLanPort,
+    if (issuerCertificateSha256 != null)
+      'issuerCertificateSha256': issuerCertificateSha256,
+    'shortCode': shortCode,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'expiresAt': expiresAt.toUtc().toIso8601String(),
+  };
 
   String toUri() {
-    final token =
-        base64UrlEncode(utf8.encode(jsonEncode(toJson()))).replaceAll('=', '');
+    final token = base64UrlEncode(utf8.encode(jsonEncode(toJson())))
+        .replaceAll('=', '');
     return 'pigeon://pair/v1/$token';
   }
 
@@ -177,13 +177,12 @@ class PairingSession {
   String? remotePublicKey;
 
   bool get isTerminal => switch (status) {
-        PairingStatus.confirmed ||
-        PairingStatus.rejected ||
-        PairingStatus.cancelled ||
-        PairingStatus.expired =>
-          true,
-        PairingStatus.created || PairingStatus.accepted => false,
-      };
+    PairingStatus.confirmed ||
+    PairingStatus.rejected ||
+    PairingStatus.cancelled ||
+    PairingStatus.expired => true,
+    PairingStatus.created || PairingStatus.accepted => false,
+  };
 
   void accept({
     required String remoteDeviceId,
@@ -235,7 +234,7 @@ class PairingSession {
 
 class PairingCoordinator {
   PairingCoordinator({this.clock = _systemClock, Random? random})
-      : _random = random ?? Random.secure();
+    : _random = random ?? Random.secure();
 
   final DateTime Function() clock;
   final Random _random;
@@ -286,9 +285,9 @@ class PairingCoordinator {
   }
 
   String _randomToken(int length) => List<int>.generate(
-        length,
-        (_) => _random.nextInt(256),
-      ).map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    length,
+    (_) => _random.nextInt(256),
+  ).map((value) => value.toRadixString(16).padLeft(2, '0')).join();
 
   String _randomCode() =>
       List<int>.generate(6, (_) => _random.nextInt(10)).join();

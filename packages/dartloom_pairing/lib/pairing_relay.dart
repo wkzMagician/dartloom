@@ -82,33 +82,31 @@ class PairingRelayHandshake {
   Future<void> sendConfirmation({
     required PairingAcceptance acceptance,
     required String issuerDeviceId,
-  }) =>
-      publisher.publish(
-        acceptance.relayTopic,
-        jsonEncode(
-          PairingConfirmation(
-            nonce: acceptance.nonce,
-            shortCode: acceptance.shortCode,
-            issuerDeviceId: issuerDeviceId,
-            acceptorDeviceId: acceptance.deviceId,
-            proof: pairingProof(
-              nonce: acceptance.nonce,
-              shortCode: acceptance.shortCode,
-              deviceId: issuerDeviceId,
-              publicKey: acceptance.publicKey,
-            ),
-          ).toJson(),
+  }) => publisher.publish(
+    acceptance.relayTopic,
+    jsonEncode(
+      PairingConfirmation(
+        nonce: acceptance.nonce,
+        shortCode: acceptance.shortCode,
+        issuerDeviceId: issuerDeviceId,
+        acceptorDeviceId: acceptance.deviceId,
+        proof: pairingProof(
+          nonce: acceptance.nonce,
+          shortCode: acceptance.shortCode,
+          deviceId: issuerDeviceId,
+          publicKey: acceptance.publicKey,
         ),
-        authorization: authorization,
-      );
+      ).toJson(),
+    ),
+    authorization: authorization,
+  );
 
   Stream<PairingConfirmation> listenForConfirmation(
     PairingInvite invite, {
     required String localRelayTopic,
-  }) =>
-      subscriptionFactory(server, localRelayTopic, authorization)
-          .listen()
-          .where((value) => value['type'] == 'pairingConfirmed')
-          .map(PairingConfirmation.fromJson)
-          .where((value) => value.nonce == invite.nonce);
+  }) => subscriptionFactory(server, localRelayTopic, authorization)
+      .listen()
+      .where((value) => value['type'] == 'pairingConfirmed')
+      .map(PairingConfirmation.fromJson)
+      .where((value) => value.nonce == invite.nonce);
 }

@@ -43,12 +43,21 @@ class AddCommand {
       );
       capabilities.putIfAbsent(
         Capability.storage,
-        () => {...CapabilityDefaults.forCapability(Capability.storage)},
+        () => {
+          ...CapabilityDefaults.forCapability(
+            Capability.storage,
+            platforms: current.platforms,
+          ),
+        },
       );
-      capabilities[Capability.storage]!.putIfAbsent(
-        'json',
-        () => CapabilityDefaults.forCapability(Capability.storage)['json']!,
+      final storageDefaults = CapabilityDefaults.forCapability(
+        Capability.storage,
+        platforms: current.platforms,
       );
+      for (final entry in storageDefaults.entries) {
+        capabilities[Capability.storage]!
+            .putIfAbsent(entry.key, () => entry.value);
+      }
     }
     final change = await _manager.apply(project, capabilities);
     if (change.isEmpty) {

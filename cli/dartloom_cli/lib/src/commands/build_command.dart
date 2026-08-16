@@ -16,12 +16,18 @@ class BuildCommand {
   final ConfigLoader _loader;
   final ArtifactPackager _packager;
 
-  Future<void> run(Directory project, List<String> rawTargets) async {
+  Future<void> run(Directory project, List<String> rawTargets,
+      {bool all = false}) async {
     final config = await _loader.load(project);
-    final targets = rawTargets.isEmpty
+    final targets = rawTargets.isEmpty || all
         ? config.platforms.map(BuildTarget.new).toList()
         : rawTargets.map(BuildTarget.parse).toList();
+    final skipped = <String>[];
     for (final target in targets) {
+      if (all && !target.isSupportedOnHost) {
+        skipped.add(target.platform.name);
+        continue;
+      }
       if (!config.platforms.contains(target.platform)) {
         throw CommandFailure(
             '${target.platform.name} is disabled in dartloom.yaml.');
@@ -31,12 +37,18 @@ class BuildCommand {
             '${target.platform.name} cannot be built on this host.');
       }
     }
+    if (targets.isEmpty ||
+        targets.every((target) => skipped.contains(target.platform.name))) {
+      throw CommandFailure(
+          'No configured build target is supported on this host.');
+    }
     await CheckCommand(runner).run(project);
     final version = _version(
         await File('${project.path}${Platform.pathSeparator}pubspec.yaml')
             .readAsString());
     final dist = Directory('${project.path}${Platform.pathSeparator}dist');
-    for (final target in targets) {
+    for (final target
+        in targets.where((target) => !skipped.contains(target.platform.name))) {
       await _buildOne(
         project,
         dist,
@@ -45,6 +57,8 @@ class BuildCommand {
         target.platform,
       );
     }
+    stdout.writeln(
+        'Build Summary: built ${targets.where((t) => !skipped.contains(t.platform.name)).map((t) => t.platform.name).join(', ')}${skipped.isEmpty ? '' : '; skipped ${skipped.join(', ')}'}');
   }
 
   Future<void> _buildOne(Directory project, Directory dist, String packageName,

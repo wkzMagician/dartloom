@@ -29,14 +29,14 @@ class AttachmentManifest {
   int get totalChunks => max(1, (byteLength + chunkSize - 1) ~/ chunkSize);
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'messageId': messageId,
-        'attachmentId': attachmentId,
-        'byteLength': byteLength,
-        'chunkSize': chunkSize,
-        'sha256': sha256,
-        if (name.isNotEmpty) 'name': name,
-        if (mimeType.isNotEmpty) 'mimeType': mimeType,
-      };
+    'messageId': messageId,
+    'attachmentId': attachmentId,
+    'byteLength': byteLength,
+    'chunkSize': chunkSize,
+    'sha256': sha256,
+    if (name.isNotEmpty) 'name': name,
+    if (mimeType.isNotEmpty) 'mimeType': mimeType,
+  };
 
   factory AttachmentManifest.fromJson(Object? value) {
     if (value is! Map) {
@@ -75,14 +75,14 @@ class AttachmentChunk {
   final Uint8List authenticationTag;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'messageId': messageId,
-        'attachmentId': attachmentId,
-        'index': index,
-        'total': total,
-        'ciphertext': base64UrlEncode(ciphertext),
-        'nonce': base64UrlEncode(nonce),
-        'authenticationTag': base64UrlEncode(authenticationTag),
-      };
+    'messageId': messageId,
+    'attachmentId': attachmentId,
+    'index': index,
+    'total': total,
+    'ciphertext': base64UrlEncode(ciphertext),
+    'nonce': base64UrlEncode(nonce),
+    'authenticationTag': base64UrlEncode(authenticationTag),
+  };
 
   factory AttachmentChunk.fromJson(Object? value) {
     if (value is! Map) throw const FormatException('chunk must be an object');

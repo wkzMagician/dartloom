@@ -33,8 +33,8 @@ void main() {
       temporaryTopic: 'temporary-topic',
     );
     final payload = {...session.invite.toJson(), 'unexpected': true};
-    final token =
-        base64UrlEncode(utf8.encode(jsonEncode(payload))).replaceAll('=', '');
+    final token = base64UrlEncode(utf8.encode(jsonEncode(payload)))
+        .replaceAll('=', '');
     expect(
       () => PairingInvite.fromUri('pigeon://pair/v1/$token'),
       throwsA(isA<PairingValidationException>()),

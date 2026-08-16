@@ -140,10 +140,11 @@ class DartloomConfig {
   DartloomConfig copyWith({
     Map<Capability, Map<String, CapabilityInstanceConfig>>? capabilities,
     CapabilitySource? capabilitySource,
+    Set<TargetPlatform>? platforms,
   }) =>
       DartloomConfig(
         app: app,
-        platforms: platforms,
+        platforms: platforms ?? this.platforms,
         capabilities: capabilities ?? this.capabilities,
         capabilitySource: capabilitySource ?? this.capabilitySource,
         githubRelease: githubRelease,
@@ -361,12 +362,18 @@ abstract final class CapabilityDefaults {
             implementation: 'shared_preferences',
           ),
         },
-      Capability.storage => const {
-          'json': CapabilityInstanceConfig(
-            implementation: 'app_file_replica',
-            factory: 'createJsonReplicaStore',
-          ),
-        },
+      Capability.storage => platforms?.contains(TargetPlatform.web) == true
+          ? const {
+              'database': CapabilityInstanceConfig(
+                implementation: 'drift',
+              ),
+            }
+          : const {
+              'json': CapabilityInstanceConfig(
+                implementation: 'app_file_replica',
+                factory: 'createJsonReplicaStore',
+              ),
+            },
       Capability.logging => const {
           'default': CapabilityInstanceConfig(implementation: 'logger'),
         },
@@ -479,11 +486,17 @@ abstract final class CapabilityDefaults {
             implementation: 'memory_messaging',
           ),
         },
-      Capability.pairing => const {
-          'default': CapabilityInstanceConfig(
-            implementation: 'memory_pairing',
-          ),
-        },
+      Capability.pairing => platforms?.contains(TargetPlatform.web) == true
+          ? const {
+              'default': CapabilityInstanceConfig(
+                implementation: 'relay_pairing',
+              ),
+            }
+          : const {
+              'default': CapabilityInstanceConfig(
+                implementation: 'memory_pairing',
+              ),
+            },
       Capability.singleton => const {
           'default': CapabilityInstanceConfig(
             implementation: 'socket',

@@ -47,7 +47,8 @@ class MdnsPairingAdvertiser {
     bool reuseAddress,
     bool reusePort,
     int ttl,
-  }) socketFactory;
+  })
+  socketFactory;
 
   RawDatagramSocket? _socket;
   Timer? _refresh;
@@ -289,11 +290,11 @@ class MdnsPacketBuilder {
       Uint8List.fromList([(value >> 8) & 0xff, value & 0xff]);
 
   static Uint8List _uint32(int value) => Uint8List.fromList([
-        (value >> 24) & 0xff,
-        (value >> 16) & 0xff,
-        (value >> 8) & 0xff,
-        value & 0xff,
-      ]);
+    (value >> 24) & 0xff,
+    (value >> 16) & 0xff,
+    (value >> 8) & 0xff,
+    value & 0xff,
+  ]);
 }
 
 Map<String, String> _parseTxt(String value) {

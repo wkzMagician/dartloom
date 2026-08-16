@@ -19,4 +19,19 @@ The package does not know about Pigeon Work Catalogs or business message
 delivery. Pigeon receives only the verified pairing result and persists its
 own Device endpoint.
 
+# iOS local-network permissions
 
+LAN/mDNS pairing on iOS requires these entries in the application-owned
+`ios/Runner/Info.plist`:
+
+```xml
+<key>NSLocalNetworkUsageDescription</key>
+<string>Dartloom uses the local network to pair nearby devices.</string>
+<key>NSBonjourServices</key>
+<array>
+  <string>_pigeon._tcp</string>
+</array>
+```
+
+Browser builds must use `PairingRelayHandshake` (WebSocket/HTTP relay); the
+LAN socket and mDNS classes are native-only.

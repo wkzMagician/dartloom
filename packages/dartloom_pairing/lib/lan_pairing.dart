@@ -22,7 +22,7 @@ class LanPairingServer {
 
   final SecurityContext securityContext;
   final Future<Map<String, Object?>> Function(Map<String, Object?> request)
-      onRequest;
+  onRequest;
   final InternetAddress? host;
   final int port;
   final Duration requestTimeout;
@@ -124,7 +124,8 @@ class LanPairingClient {
       int port, {
       Duration? timeout,
       bool Function(X509Certificate certificate)? onBadCertificate,
-    })? connect,
+    })?
+    connect,
   }) : _connect = connect ?? _connectSecure;
 
   final Duration timeout;
@@ -133,7 +134,8 @@ class LanPairingClient {
     int port, {
     Duration? timeout,
     bool Function(X509Certificate certificate)? onBadCertificate,
-  }) _connect;
+  })
+  _connect;
 
   Future<Map<String, Object?>> request({
     required String host,
@@ -259,13 +261,12 @@ Future<SecureSocket> _connectSecure(
   int port, {
   Duration? timeout,
   bool Function(X509Certificate certificate)? onBadCertificate,
-}) =>
-    SecureSocket.connect(
-      host,
-      port,
-      timeout: timeout,
-      onBadCertificate: onBadCertificate,
-    );
+}) => SecureSocket.connect(
+  host,
+  port,
+  timeout: timeout,
+  onBadCertificate: onBadCertificate,
+);
 
 bool _matches(X509Certificate certificate, String expected) =>
     sha256.convert(certificate.der).toString().toLowerCase() ==

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../build/artifact_packager.dart';
+import '../build/build_target.dart';
 import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../packaging/package_target.dart';
@@ -18,6 +19,31 @@ class PackageCommand {
   final ConfigLoader _loader;
   final ArtifactPackager _packager;
 
+  Future<void> runAll(Directory project) async {
+    final config = await _loader.load(project);
+    final formats = <TargetPlatform, String>{
+      TargetPlatform.windows: 'zip',
+      TargetPlatform.linux: 'deb',
+      TargetPlatform.macos: 'zip',
+      TargetPlatform.ios: 'ipa',
+      TargetPlatform.web: 'zip',
+    };
+    final skipped = <String>[];
+    for (final platform in config.platforms) {
+      final format = formats[platform];
+      if (format == null) continue;
+      final target = PackageTarget.parse(platform.name, format);
+      if (!BuildTarget(TargetPlatform.values.byName(target.platform))
+          .isSupportedOnHost) {
+        skipped.add(platform.name);
+        continue;
+      }
+      await run(project, platform.name, format);
+    }
+    stdout.writeln(
+        'Package Summary: completed${skipped.isEmpty ? '' : '; skipped ${skipped.join(', ')}'}');
+  }
+
   Future<void> run(Directory project, String platform, String format) async {
     final target = PackageTarget.parse(platform, format);
     final config = await _loader.load(project);
@@ -33,18 +59,95 @@ class PackageCommand {
         await _packageLinuxDeb(project, config);
       case PackageTarget.linuxRpm:
         await _packageLinuxRpm(project, config);
+      case PackageTarget.macosZip:
+        await _packageMacos(project, config, dmg: false);
+      case PackageTarget.macosDmg:
+        await _packageMacos(project, config, dmg: true);
+      case PackageTarget.iosIpa:
+        await _packageIos(project, config, ipa: true);
+      case PackageTarget.iosAppZip:
+        await _packageIos(project, config, ipa: false);
+      case PackageTarget.webZip:
+        await _packageWeb(project, config);
     }
   }
 
+  Future<void> _packageMacos(Directory project, DartloomConfig config,
+      {required bool dmg}) async {
+    await _checkAndBuild(project, ['macos']);
+    final version = await _version(project);
+    final release = Directory(
+        '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}macos${Platform.pathSeparator}Build${Platform.pathSeparator}Products${Platform.pathSeparator}Release');
+    final dist = await _dist(project);
+    if (!dmg) {
+      await _packager.zipDirectory(release, dist,
+          '${config.app.packageName}-$version-macos.zip', project);
+      return;
+    }
+    if (!Platform.isMacOS) {
+      throw CommandFailure('macOS DMG packaging requires a macOS host.');
+    }
+    await runRequired(
+        runner,
+        'hdiutil',
+        [
+          'create',
+          '-volname',
+          config.app.packageName,
+          '-srcfolder',
+          release.path,
+          '-ov',
+          '-format',
+          'UDZO',
+          '${dist.path}${Platform.pathSeparator}${config.app.packageName}-$version-macos.dmg'
+        ],
+        project);
+  }
+
+  Future<void> _packageIos(Directory project, DartloomConfig config,
+      {required bool ipa}) async {
+    if (!Platform.isMacOS) {
+      throw CommandFailure('iOS packaging requires a macOS host.');
+    }
+    await _checkAndBuild(project, ipa ? ['ipa'] : ['ios']);
+    final version = await _version(project);
+    final dist = await _dist(project);
+    final source = ipa
+        ? File(
+            '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}ios${Platform.pathSeparator}ipa${Platform.pathSeparator}${config.app.packageName}.ipa')
+        : Directory(
+            '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}ios${Platform.pathSeparator}iphoneos${Platform.pathSeparator}Runner.app');
+    if (ipa) {
+      await _packager.copyFile(
+          source as File, dist, '${config.app.packageName}-$version-ios.ipa');
+    } else {
+      await _packager.zipDirectory(source as Directory, dist,
+          '${config.app.packageName}-$version-ios.zip', project);
+    }
+  }
+
+  Future<void> _packageWeb(Directory project, DartloomConfig config) async {
+    await _checkAndBuild(project, ['web']);
+    final version = await _version(project);
+    await _packager.zipDirectory(
+        Directory(
+            '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}web'),
+        await _dist(project),
+        '${config.app.packageName}-$version-release-web.zip',
+        project);
+  }
+
   void _validateHost(PackageTarget target, DartloomConfig config) {
-    final expected = target.platform == 'windows'
-        ? TargetPlatform.windows
-        : TargetPlatform.linux;
+    final expected = TargetPlatform.values.byName(target.platform);
     if (!config.platforms.contains(expected)) {
       throw CommandFailure('${target.platform} is disabled in dartloom.yaml.');
     }
-    final supported =
-        target.platform == 'windows' ? Platform.isWindows : Platform.isLinux;
+    final supported = switch (expected) {
+      TargetPlatform.windows => Platform.isWindows,
+      TargetPlatform.linux => Platform.isLinux,
+      TargetPlatform.macos || TargetPlatform.ios => Platform.isMacOS,
+      TargetPlatform.android || TargetPlatform.web => true,
+    };
     if (!supported) {
       throw CommandFailure(
         '${target.platform} packages must be built on ${target.platform}. Use the matching GitHub Actions runner for cross-platform releases.',

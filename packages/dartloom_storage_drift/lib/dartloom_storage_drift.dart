@@ -2,14 +2,14 @@ import 'dart:convert';
 
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'src/database_connection.dart';
 
 final class DriftDocumentStore extends GeneratedDatabase
     implements DatabaseStore {
   DriftDocumentStore(super.executor);
 
-  factory DriftDocumentStore.open({String name = 'dartloom'}) =>
-      DriftDocumentStore(driftDatabase(name: name));
+  static Future<DriftDocumentStore> open({String name = 'dartloom'}) async =>
+      DriftDocumentStore(await openDartloomConnection(name));
 
   @override
   int get schemaVersion => 1;

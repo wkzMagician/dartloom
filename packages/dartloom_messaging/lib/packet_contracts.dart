@@ -26,15 +26,15 @@ class Packet {
   final int schemaVersion;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'schemaVersion': schemaVersion,
-        'packetId': packetId,
-        'senderId': senderId,
-        'recipientId': recipientId,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'ciphertext': base64UrlEncode(ciphertext),
-        'nonce': base64UrlEncode(nonce),
-        'mac': base64UrlEncode(mac),
-      };
+    'schemaVersion': schemaVersion,
+    'packetId': packetId,
+    'senderId': senderId,
+    'recipientId': recipientId,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'ciphertext': base64UrlEncode(ciphertext),
+    'nonce': base64UrlEncode(nonce),
+    'mac': base64UrlEncode(mac),
+  };
 
   String encode() => jsonEncode(toJson());
 

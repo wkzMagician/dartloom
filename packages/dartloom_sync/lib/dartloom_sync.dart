@@ -1,4 +1,6 @@
 import 'dart:async';
+
+export 'sync_scheduler.dart';
 import 'dart:math';
 import 'dart:typed_data';
 

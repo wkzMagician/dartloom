@@ -13,6 +13,7 @@ import 'package:dartloom/src/commands/doctor_command.dart';
 import 'package:dartloom/src/commands/new_command.dart';
 import 'package:dartloom/src/commands/package_command.dart';
 import 'package:dartloom/src/commands/remove_command.dart';
+import 'package:dartloom/src/commands/set_command.dart';
 import 'package:dartloom/src/commands/self_upgrade_command.dart';
 import 'package:dartloom/src/commands/upgrade_command.dart';
 import 'package:dartloom/src/config/dartloom_config.dart';
@@ -30,6 +31,9 @@ Future<void> main(List<String> arguments) async {
     ..addCommand('self-update')
     ..addCommand('project')
     ..addCommand('doctor');
+  parser.addCommand('set');
+  parser.commands['build']!.addFlag('all', negatable: false);
+  parser.commands['package']!.addFlag('all', negatable: false);
   parser.commands['new']!
     ..addOption('org', defaultsTo: 'com.example')
     ..addOption('platforms', defaultsTo: 'android,windows,macos')
@@ -93,8 +97,23 @@ Future<void> main(List<String> arguments) async {
       case 'check':
         await CheckCommand(runner).run(Directory.current);
       case 'build':
-        await BuildCommand(runner).run(Directory.current, command.rest);
+        await BuildCommand(runner).run(Directory.current, command.rest,
+            all: command['all'] as bool? ?? false);
+      case 'set':
+        if (command.rest.length != 2) {
+          throw CommandFailure(
+              'Usage: dartloom set platforms <platform1,platform2,...>');
+        }
+        await SetCommand()
+            .run(Directory.current, command.rest.first, command.rest.last);
       case 'package':
+        if (command['all'] == true) {
+          if (command.rest.isNotEmpty) {
+            throw CommandFailure('Usage: dartloom package --all');
+          }
+          await PackageCommand(runner).runAll(Directory.current);
+          break;
+        }
         if (command.rest.length != 2) {
           throw CommandFailure(
               'Usage: dartloom package <windows|linux> <format>');
@@ -166,7 +185,8 @@ Commands:
   new <name>       Create a managed Flutter application.
   cap [command]    Manage capabilities interactively or by subcommand.
   check            Format, analyze, and test the current app.
-  build [target]   Build enabled targets into dist/.
+  build [target]   Build enabled targets into dist/ (use --all for configured targets).
+  set platforms    Update the enabled target platforms.
   package          Create an OS installer or system package.
   self-update      Update the installed Dartloom CLI.
   project upgrade  Update Dartloom-managed files in the current app.

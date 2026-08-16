@@ -3,7 +3,12 @@ enum PackageTarget {
   windowsZip('windows', 'zip'),
   windowsMsix('windows', 'msix'),
   linuxDeb('linux', 'deb'),
-  linuxRpm('linux', 'rpm');
+  linuxRpm('linux', 'rpm'),
+  macosZip('macos', 'zip'),
+  macosDmg('macos', 'dmg'),
+  iosIpa('ios', 'ipa'),
+  iosAppZip('ios', 'zip'),
+  webZip('web', 'zip');
 
   const PackageTarget(this.platform, this.format);
 
@@ -16,7 +21,7 @@ enum PackageTarget {
         orElse: () => throw ArgumentError.value(
           '$platform $format',
           'package target',
-          'Supported targets: windows exe|zip|msix, linux deb|rpm',
+          'Supported targets: windows exe|zip|msix, linux deb|rpm, macos zip|dmg, ios ipa|zip, web zip',
         ),
       );
 }

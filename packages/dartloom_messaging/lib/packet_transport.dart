@@ -49,7 +49,7 @@ class RelayPublishException implements Exception {
 
 class NtfyRelayPublisher implements RelayPublisher {
   NtfyRelayPublisher(this.server, {http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final Uri server;
   final http.Client _client;
@@ -60,8 +60,9 @@ class NtfyRelayPublisher implements RelayPublisher {
     String body, {
     String? authorization,
   }) async {
-    final basePath =
-        server.path.endsWith('/') ? server.path : '${server.path}/';
+    final basePath = server.path.endsWith('/')
+        ? server.path
+        : '${server.path}/';
     final uri = server.replace(path: '$basePath${Uri.encodeComponent(topic)}');
     final headers = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
@@ -74,8 +75,9 @@ class NtfyRelayPublisher implements RelayPublisher {
         .timeout(const Duration(seconds: 10));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final retryAfterHeader = response.headers['retry-after'];
-      final seconds =
-          retryAfterHeader == null ? null : int.tryParse(retryAfterHeader);
+      final seconds = retryAfterHeader == null
+          ? null
+          : int.tryParse(retryAfterHeader);
       throw RelayPublishException(
         response.body.isEmpty ? 'HTTP ${response.statusCode}' : response.body,
         statusCode: response.statusCode,
@@ -126,7 +128,8 @@ class LanTlsPacketConnection implements LanPacketSender {
       int port, {
       Duration? timeout,
       bool Function(X509Certificate certificate)? onBadCertificate,
-    })? connect,
+    })?
+    connect,
   }) : _connect = connect ?? _connectSecure;
 
   final String host;
@@ -138,7 +141,8 @@ class LanTlsPacketConnection implements LanPacketSender {
     int port, {
     Duration? timeout,
     bool Function(X509Certificate certificate)? onBadCertificate,
-  }) _connect;
+  })
+  _connect;
 
   @override
   Future<void> send(Packet packet) async {
@@ -205,8 +209,7 @@ class LanTlsPacketServer {
           bytes.add(current);
           continue;
         }
-        final length = Uint8List.fromList(current)
-            .buffer
+        final length = Uint8List.fromList(current).buffer
             .asByteData()
             .getUint32(0, Endian.big);
         if (current.length < length + 4) {
@@ -238,13 +241,12 @@ Future<SecureSocket> _connectSecure(
   int port, {
   Duration? timeout,
   bool Function(X509Certificate certificate)? onBadCertificate,
-}) =>
-    SecureSocket.connect(
-      host,
-      port,
-      timeout: timeout,
-      onBadCertificate: onBadCertificate,
-    );
+}) => SecureSocket.connect(
+  host,
+  port,
+  timeout: timeout,
+  onBadCertificate: onBadCertificate,
+);
 
 class RoutedPacketSender implements PacketConnection {
   RoutedPacketSender({
@@ -311,8 +313,9 @@ class NtfyPacketSubscription {
 
   Stream<Packet> listen() {
     final scheme = server.scheme == 'https' ? 'wss' : 'ws';
-    final basePath =
-        server.path.endsWith('/') ? server.path : '${server.path}/';
+    final basePath = server.path.endsWith('/')
+        ? server.path
+        : '${server.path}/';
     final uri = server.replace(
       scheme: scheme,
       path: '$basePath${Uri.encodeComponent(topic)}/ws',
@@ -346,8 +349,9 @@ class NtfyJsonSubscription {
 
   Stream<Map<String, Object?>> listen() {
     final scheme = server.scheme == 'https' ? 'wss' : 'ws';
-    final basePath =
-        server.path.endsWith('/') ? server.path : '${server.path}/';
+    final basePath = server.path.endsWith('/')
+        ? server.path
+        : '${server.path}/';
     final uri = server.replace(
       scheme: scheme,
       path: '$basePath${Uri.encodeComponent(topic)}/ws',

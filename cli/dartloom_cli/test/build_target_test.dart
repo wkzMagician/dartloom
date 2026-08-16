@@ -20,8 +20,11 @@ void main() {
     expect(PackageTarget.parse('linux', 'rpm'), PackageTarget.linuxRpm);
   });
 
-  test('rejects unsupported package formats', () {
-    expect(() => PackageTarget.parse('macos', 'dmg'), throwsArgumentError);
+  test('resolves extended desktop, iOS, and web package formats', () {
+    expect(PackageTarget.parse('macos', 'dmg'), PackageTarget.macosDmg);
+    expect(PackageTarget.parse('ios', 'ipa'), PackageTarget.iosIpa);
+    expect(PackageTarget.parse('web', 'zip'), PackageTarget.webZip);
+    expect(() => PackageTarget.parse('web', 'dmg'), throwsArgumentError);
   });
 
   test('restores Android Gradle properties after a stable build', () async {
