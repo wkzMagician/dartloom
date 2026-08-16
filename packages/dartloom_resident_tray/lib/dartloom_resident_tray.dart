@@ -69,8 +69,10 @@ final class TrayResidentService
 
   @override
   Future<void> restore() async {
-    await windowManager.show();
-    await windowManager.focus();
+    await Future.wait<void>([
+      windowManager.show(),
+      windowManager.focus(),
+    ]);
   }
 
   @override

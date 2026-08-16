@@ -135,7 +135,7 @@ final class SocketSingleInstanceService implements SingleInstanceService {
       }
       if (kind != 'args' || decoded['args'] is! List) return;
       final args = (decoded['args'] as List).map((e) => '$e').toList();
-      await _handleSecondInstance(args);
+      _handleSecondInstance(args);
       socket.write('{"ok":true}');
       await socket.flush();
     } catch (_) {
@@ -145,12 +145,13 @@ final class SocketSingleInstanceService implements SingleInstanceService {
     }
   }
 
-  Future<void> _handleSecondInstance(List<String> args) async {
+  void _handleSecondInstance(List<String> args) {
     _secondInstances.add(args);
-    await _applyWindowAction();
+    unawaited(_applyWindowAction().catchError((_) {}));
     final onArgs = _configuration.onArgs;
     if (onArgs != null && args.isNotEmpty) {
-      await onArgs(args);
+      final result = onArgs(args);
+      if (result is Future<void>) unawaited(result.catchError((_) {}));
     }
   }
 
