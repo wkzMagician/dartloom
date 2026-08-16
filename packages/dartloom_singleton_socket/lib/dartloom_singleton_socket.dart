@@ -15,17 +15,20 @@ import 'package:path_provider/path_provider.dart';
 final class SocketSingleInstanceService implements SingleInstanceService {
   SocketSingleInstanceService({
     ResidentService? resident,
+    ResidentService? Function()? residentProvider,
     int? port,
     String? identity,
     List<String> Function()? argumentSource,
     FutureOr<void> Function(int exitCode)? exitHandler,
   })  : _resident = resident,
+        _residentProvider = residentProvider,
         _configuredPort = port,
         _configuredIdentity = identity,
         _argumentSource = argumentSource ?? _defaultArguments,
         _exitHandler = exitHandler ?? _defaultExit;
 
-  final ResidentService? _resident;
+  ResidentService? _resident;
+  final ResidentService? Function()? _residentProvider;
   final int? _configuredPort;
   final String? _configuredIdentity;
   final List<String> Function() _argumentSource;
@@ -161,7 +164,7 @@ final class SocketSingleInstanceService implements SingleInstanceService {
   }
 
   Future<void> _applyWindowAction() async {
-    final resident = _resident;
+    final resident = _resident ??= _residentProvider?.call();
     if (resident == null) return;
     switch (_configuration.windowAction) {
       case SecondInstanceWindowAction.restore:

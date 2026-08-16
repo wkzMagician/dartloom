@@ -3,7 +3,35 @@ import 'dart:io';
 
 import 'package:dartloom_singleton/dartloom_singleton.dart';
 import 'package:dartloom_singleton_socket/dartloom_singleton_socket.dart';
+import 'package:dartloom_resident/dartloom_resident.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+final class _FakeResident implements ResidentService {
+  @override
+  ResidentConfiguration configuration = const ResidentConfiguration();
+
+  var restoreCount = 0;
+
+  @override
+  Future<void> initialize({
+    required String iconPath,
+    ResidentConfiguration configuration = const ResidentConfiguration(),
+  }) async {}
+
+  @override
+  Future<void> configure(ResidentConfiguration configuration) async {
+    this.configuration = configuration;
+  }
+
+  @override
+  Future<void> restore() async => restoreCount++;
+
+  @override
+  Future<void> quit() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +116,28 @@ void main() {
     expect(await first.acquirePrimary(), isTrue);
     expect(await second.acquirePrimary(), isFalse);
     expect(second.port, first.port);
+    await second.dispose();
+    await first.dispose();
+  });
+
+  test('resolves the resident service lazily for duplicate launches', () async {
+    final resident = _FakeResident();
+    final first = SocketSingleInstanceService(
+      port: port,
+      identity: 'test.lazy-resident',
+      residentProvider: () => resident,
+      exitHandler: (int _) async {},
+    );
+    final second = SocketSingleInstanceService(
+      port: port,
+      identity: 'test.lazy-resident',
+      argumentSource: () => const [],
+      exitHandler: (int _) async {},
+    );
+    expect(await first.acquirePrimary(), isTrue);
+    await second.ensureSingleInstance();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(resident.restoreCount, 1);
     await second.dispose();
     await first.dispose();
   });

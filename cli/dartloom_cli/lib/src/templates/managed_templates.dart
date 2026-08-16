@@ -377,7 +377,7 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
     buffer
       ..writeln("    'socket': (context) {")
       ..writeln(
-          "      final value = SocketSingleInstanceService(resident: context.maybeGet<ResidentService>());")
+          "      final value = SocketSingleInstanceService(residentProvider: () => context.maybeGet<ResidentService>());")
       ..writeln('      return DartloomBinding<SingleInstanceService>(value);')
       ..writeln('    },');
   }
