@@ -22,6 +22,8 @@ jobs:
           - packages/dartloom_localization
           - packages/dartloom_storage_file
           - packages/dartloom_storage_drift
+          - packages/dartloom_storage_indexeddb
+          - packages/dartloom_sync_storage
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -38,11 +40,22 @@ jobs:
           PACKAGE: ${{ matrix.package }}
         run: |
           case "$PACKAGE" in
-            packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_text_file|packages/dartloom_storage_drift)
+            packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_text_file|packages/dartloom_storage_drift|packages/dartloom_storage_indexeddb)
               cat > pubspec_overrides.yaml <<EOF
           dependency_overrides:
             dartloom_storage:
               path: $GITHUB_WORKSPACE/packages/dartloom_storage
+          EOF
+              ;;
+            packages/dartloom_sync_storage)
+              cat > pubspec_overrides.yaml <<EOF
+          dependency_overrides:
+            dartloom_settings:
+              path: $GITHUB_WORKSPACE/packages/dartloom_settings
+            dartloom_storage:
+              path: $GITHUB_WORKSPACE/packages/dartloom_storage
+            dartloom_sync:
+              path: $GITHUB_WORKSPACE/packages/dartloom_sync
           EOF
               ;;
             packages/dartloom_storage_json_file)
