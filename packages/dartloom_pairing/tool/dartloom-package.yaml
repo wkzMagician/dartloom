@@ -1,0 +1,14 @@
+package: dartloom_pairing
+display_name: Pairing
+description: Pairing package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Pairing
+    kind: library
+    description: Public Pairing API.

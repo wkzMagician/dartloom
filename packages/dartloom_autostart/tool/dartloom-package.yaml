@@ -1,0 +1,14 @@
+package: dartloom_autostart
+display_name: Autostart
+description: Autostart package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Autostart
+    kind: library
+    description: Public Autostart API.

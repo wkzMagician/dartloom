@@ -1,0 +1,14 @@
+package: dartloom_logging
+display_name: Logging Contracts
+description: Stable application logging API.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: AppLogger
+    kind: class
+    description: Public logging contracts API.

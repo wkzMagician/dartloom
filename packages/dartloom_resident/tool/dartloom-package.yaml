@@ -1,0 +1,14 @@
+package: dartloom_resident
+display_name: Resident
+description: Resident package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Resident
+    kind: library
+    description: Public Resident API.

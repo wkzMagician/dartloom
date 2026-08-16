@@ -1,5 +1,5 @@
-name: dartloom
-description: Convention-first CLI for creating and maintaining Flutter applications.
+name: dartloom_cli
+description: Flutter project configurator and Dart package selector.
 version: 0.2.2
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom

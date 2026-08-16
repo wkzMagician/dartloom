@@ -1,0 +1,14 @@
+package: dartloom_singleton_socket
+display_name: Singleton Socket
+description: Singleton Socket package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SingletonSocket
+    kind: library
+    description: Public Singleton Socket API.

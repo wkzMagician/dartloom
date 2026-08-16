@@ -5,4 +5,4 @@ implementation. Platform behavior (the actual process lock and
 inter-process argument delivery) is provided by adapters, e.g.
 `dartloom_singleton_socket`.
 
-Applications normally select implementations through `dartloom cap`.
+Applications normally select implementations through `the Dartloom package selection UI`.

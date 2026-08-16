@@ -8,8 +8,9 @@ final class JsonFileStore {
   Future<Map<String, Object?>> _load() async {
     if (!await file.exists()) return {};
     final value = jsonDecode(await file.readAsString());
-    if (value is! Map)
+    if (value is! Map) {
       throw const FormatException('JSON store root must be an object.');
+    }
     return value.cast<String, Object?>();
   }
 

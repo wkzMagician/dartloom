@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
 import 'package:test/test.dart';
 

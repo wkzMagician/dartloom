@@ -71,9 +71,10 @@ final class MemoryObjectStore implements ObjectStore {
   @override
   Future<void> delete(String key) async {
     _checkKey(key);
-    if (_values.remove(key) != null)
+    if (_values.remove(key) != null) {
       _changes
           .add(StorageChange(key, StorageChangeKind.deleted, deleted: true));
+    }
   }
 
   @override
@@ -81,7 +82,8 @@ final class MemoryObjectStore implements ObjectStore {
   @override
   Future<void> close() => _changes.close();
   void _checkKey(String key) {
-    if (!acceptsKey(key))
+    if (!acceptsKey(key)) {
       throw ArgumentError.value(key, 'key', 'Invalid object key.');
+    }
   }
 }

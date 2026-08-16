@@ -1,0 +1,14 @@
+package: dartloom_storage
+display_name: Storage Contracts
+description: Stable binary object-storage contracts.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: ObjectStore
+    kind: class
+    description: Public storage contracts API.

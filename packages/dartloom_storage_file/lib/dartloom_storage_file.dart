@@ -17,15 +17,17 @@ final class FileObjectStore implements ObjectStore {
 
   static Future<FileObjectStore> open(
       {required Directory root, bool hierarchical = true}) async {
-    if (!p.isAbsolute(root.path))
+    if (!p.isAbsolute(root.path)) {
       throw ArgumentError('root must be an absolute path.');
+    }
     final store = FileObjectStore._(
         root: Directory(p.normalize(root.absolute.path)),
         hierarchical: hierarchical);
     final type =
         await FileSystemEntity.type(store.root.path, followLinks: false);
-    if (type == FileSystemEntityType.link)
+    if (type == FileSystemEntityType.link) {
       throw ArgumentError('root cannot be a link or reparse point.');
+    }
     await store.root.create(recursive: true);
     await store._cleanupTemporaryFiles();
     store._watcher =
@@ -117,8 +119,9 @@ final class FileObjectStore implements ObjectStore {
         p.isAbsolute(value) ||
         value.startsWith('/') ||
         parts.any((part) => part.isEmpty || part == '.' || part == '..') ||
-        (!hierarchical && parts.length != 1))
+        (!hierarchical && parts.length != 1)) {
       throw ArgumentError.value(key, 'key', 'Invalid object key.');
+    }
     return value;
   }
 
@@ -128,8 +131,9 @@ final class FileObjectStore implements ObjectStore {
     final file =
         File(p.join(root.path, normalized.replaceAll('/', p.separator)));
     if (await FileSystemEntity.type(file.path, followLinks: false) ==
-        FileSystemEntityType.link)
+        FileSystemEntityType.link) {
       throw FileSystemException('Object paths cannot target links.', file.path);
+    }
     return file;
   }
 
@@ -138,9 +142,10 @@ final class FileObjectStore implements ObjectStore {
     for (final part in key.split('/').take(key.split('/').length - 1)) {
       cursor = p.join(cursor, part);
       if (await FileSystemEntity.type(cursor, followLinks: false) ==
-          FileSystemEntityType.link)
+          FileSystemEntityType.link) {
         throw FileSystemException(
             'Object paths cannot traverse links.', cursor);
+      }
     }
   }
 
@@ -169,13 +174,14 @@ final class FileObjectStore implements ObjectStore {
   void _onEvent(FileSystemEvent event) {
     if (_closed || _isTemporary(event.path)) return;
     final key = _keyFor(event.path);
-    if (acceptsKey(key))
+    if (acceptsKey(key)) {
       _emit(StorageChange(
           key,
           event.type == FileSystemEvent.delete
               ? StorageChangeKind.deleted
               : StorageChangeKind.external,
           deleted: event.type == FileSystemEvent.delete));
+    }
   }
 
   void _emit(StorageChange change) {

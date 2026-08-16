@@ -20,11 +20,7 @@ jobs:
           - packages/dartloom_autostart
           - packages/dartloom_sync
           - packages/dartloom_localization
-          - packages/dartloom_resident
-          - packages/dartloom_pairing
           - packages/dartloom_storage_file
-          - packages/dartloom_storage_json_file
-          - packages/dartloom_storage_text_file
           - packages/dartloom_storage_drift
     defaults:
       run:

@@ -1,0 +1,14 @@
+package: dartloom_logging_logger
+display_name: Logger Logging
+description: Logging implementation backed by package logger.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: LoggerAppLogger
+    kind: class
+    description: Public logger logging API.

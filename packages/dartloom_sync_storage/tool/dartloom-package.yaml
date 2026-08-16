@@ -1,0 +1,14 @@
+package: dartloom_sync_storage
+display_name: Sync Storage
+description: Sync Storage package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SyncStorage
+    kind: library
+    description: Public Sync Storage API.

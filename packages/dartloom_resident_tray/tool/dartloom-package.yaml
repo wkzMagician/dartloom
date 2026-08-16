@@ -1,0 +1,14 @@
+package: dartloom_resident_tray
+display_name: Resident Tray
+description: Resident Tray package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: ResidentTray
+    kind: library
+    description: Public Resident Tray API.

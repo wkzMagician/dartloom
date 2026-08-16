@@ -1,0 +1,14 @@
+package: dartloom_settings
+display_name: Settings Contracts
+description: Stable application settings contracts.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SettingsStore
+    kind: class
+    description: Public settings contracts API.

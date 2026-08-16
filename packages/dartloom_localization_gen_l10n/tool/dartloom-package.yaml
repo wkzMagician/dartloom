@@ -1,0 +1,14 @@
+package: dartloom_localization_gen_l10n
+display_name: Localization Gen L10n
+description: Localization Gen L10n package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: LocalizationGenL10n
+    kind: library
+    description: Public Localization Gen L10n API.

@@ -1,0 +1,14 @@
+package: dartloom_sync_workmanager
+display_name: Sync Workmanager
+description: Sync Workmanager package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SyncWorkmanager
+    kind: library
+    description: Public Sync Workmanager API.

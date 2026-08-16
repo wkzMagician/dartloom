@@ -1,0 +1,14 @@
+package: dartloom_singleton
+display_name: Singleton
+description: Singleton package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Singleton
+    kind: library
+    description: Public Singleton API.

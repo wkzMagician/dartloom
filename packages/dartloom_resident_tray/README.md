@@ -1,6 +1,6 @@
 # dartloom_resident_tray
 
-Official Dartloom adapter. Applications normally select it through `dartloom cap`
+Dartloom package. Applications normally select it through `the Dartloom package selection UI`
 instead of importing it directly from feature code.
 
 It applies the contract's menu, click-policy, and exit-callback configuration

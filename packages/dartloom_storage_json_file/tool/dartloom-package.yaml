@@ -1,0 +1,14 @@
+package: dartloom_storage_json_file
+display_name: Storage Json File
+description: Storage Json File package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: StorageJsonFile
+    kind: library
+    description: Public Storage Json File API.

@@ -1,0 +1,13 @@
+package: dartloom_storage_file
+display_name: File Object Storage
+description: Directory-backed binary object storage.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+exports:
+  - symbol: FileObjectStore
+    kind: class
+    description: Public file object storage API.

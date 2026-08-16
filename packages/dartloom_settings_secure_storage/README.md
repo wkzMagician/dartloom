@@ -1,4 +1,4 @@
 # dartloom_settings_secure_storage
 
-Official Dartloom adapter. Applications normally select it through `dartloom cap`
+Dartloom package. Applications normally select it through `the Dartloom package selection UI`
 instead of importing it directly from feature code.

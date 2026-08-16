@@ -1,0 +1,14 @@
+package: dartloom_localization
+display_name: Localization Contracts
+description: Application localization contracts.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: LocalizationService
+    kind: class
+    description: Public localization contracts API.

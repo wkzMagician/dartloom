@@ -1,0 +1,14 @@
+package: dartloom_messaging
+display_name: Messaging
+description: Messaging package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Messaging
+    kind: library
+    description: Public Messaging API.

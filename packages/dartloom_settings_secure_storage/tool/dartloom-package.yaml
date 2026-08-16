@@ -1,0 +1,14 @@
+package: dartloom_settings_secure_storage
+display_name: Secure Settings
+description: Settings backed by platform secure storage.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SecureSettingsStore
+    kind: class
+    description: Public secure settings API.

@@ -1,6 +1,6 @@
 # dartloom_sync_webdav
 
-Official Dartloom adapter. Applications normally select it through `dartloom cap`
+Dartloom package. Applications normally select it through `the Dartloom package selection UI`
 instead of importing it directly from feature code.
 
 On Android, the adapter contributes `android.permission.INTERNET` through its

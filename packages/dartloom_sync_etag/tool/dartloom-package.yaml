@@ -1,0 +1,14 @@
+package: dartloom_sync_etag
+display_name: Sync Etag
+description: Sync Etag package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SyncEtag
+    kind: library
+    description: Public Sync Etag API.

@@ -1,0 +1,14 @@
+package: dartloom_storage_text_file
+display_name: Storage Text File
+description: Storage Text File package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: StorageTextFile
+    kind: library
+    description: Public Storage Text File API.

@@ -1,0 +1,14 @@
+package: dartloom_sync_webdav
+display_name: WebDAV Synchronization
+description: WebDAV synchronization backend.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: WebDavBackend
+    kind: class
+    description: Public webdav synchronization API.

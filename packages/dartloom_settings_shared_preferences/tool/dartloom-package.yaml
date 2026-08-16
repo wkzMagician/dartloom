@@ -1,0 +1,14 @@
+package: dartloom_settings_shared_preferences
+display_name: Shared Preferences Settings
+description: Settings backed by shared preferences.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SharedPreferencesSettingsStore
+    kind: class
+    description: Public shared preferences settings API.

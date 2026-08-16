@@ -43,8 +43,9 @@ final class TextFileStore {
 
   File _file(String key) {
     final n = p.normalize(key.replaceAll('/', p.separator));
-    if (p.isAbsolute(n) || n == '..' || n.startsWith('..${p.separator}'))
+    if (p.isAbsolute(n) || n == '..' || n.startsWith('..${p.separator}')) {
       throw ArgumentError.value(key, 'key');
+    }
     return File(p.join(root.path, n));
   }
 }

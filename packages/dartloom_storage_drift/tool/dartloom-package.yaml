@@ -1,0 +1,13 @@
+package: dartloom_storage_drift
+display_name: Drift Object Storage
+description: SQLite-backed object storage using Drift.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+exports:
+  - symbol: DriftObjectStore
+    kind: class
+    description: Public drift object storage API.

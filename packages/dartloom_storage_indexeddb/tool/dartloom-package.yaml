@@ -1,0 +1,9 @@
+package: dartloom_storage_indexeddb
+display_name: IndexedDB Object Storage
+description: IndexedDB-backed object storage for web.
+platforms:
+  - web
+exports:
+  - symbol: IndexedDbObjectStore
+    kind: class
+    description: Public indexeddb object storage API.

@@ -1,0 +1,14 @@
+package: dartloom_autostart_launch_at_startup
+display_name: Autostart Launch At Startup
+description: Autostart Launch At Startup package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: AutostartLaunchAtStartup
+    kind: library
+    description: Public Autostart Launch At Startup API.

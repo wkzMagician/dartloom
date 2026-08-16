@@ -1,0 +1,14 @@
+package: dartloom_sync_flutter
+display_name: Sync Flutter
+description: Sync Flutter package for Dart and Flutter applications.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SyncFlutter
+    kind: library
+    description: Public Sync Flutter API.

@@ -1,0 +1,14 @@
+package: dartloom_sync
+display_name: Synchronization Contracts
+description: Stable synchronization contracts.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: SyncService
+    kind: class
+    description: Public synchronization contracts API.

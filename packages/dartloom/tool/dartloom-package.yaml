@@ -1,0 +1,14 @@
+package: dartloom
+display_name: Dartloom SDK
+description: Stable Dartloom contract facade.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: Dartloom SDK
+    kind: library
+    description: Stable contract exports for Dartloom packages.
