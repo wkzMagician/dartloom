@@ -4,6 +4,9 @@ typedef DartloomDisposer = FutureOr<void> Function();
 typedef DartloomFactory = FutureOr<DartloomBinding<Object>> Function(
   DartloomFactoryContext context,
 );
+typedef DartloomRegistrationHook = FutureOr<void> Function(
+  DartloomRegistration<Object> registration,
+);
 
 enum DartloomStartupScope { foreground, background, both }
 
@@ -85,6 +88,7 @@ final class DartloomRuntime {
     Iterable<DartloomRegistration<Object>> registrations, {
     required Map<String, DartloomFactory> factories,
     DartloomStartupScope scope = DartloomStartupScope.foreground,
+    DartloomRegistrationHook? onInitialized,
   }) async {
     if (_entries.isNotEmpty || _initializing) {
       throw const DartloomException('initialize may only be called once.');
@@ -155,6 +159,7 @@ final class DartloomRuntime {
         }
         _entries[serviceKey] = _Entry(binding.value, binding.dispose);
         _initializationOrder.add(serviceKey);
+        await onInitialized?.call(item);
         visiting.remove(item.key);
         initialized.add(item.key);
       }
@@ -240,9 +245,14 @@ abstract final class Dartloom {
     Iterable<DartloomRegistration<Object>> registrations, {
     required Map<String, DartloomFactory> factories,
     DartloomStartupScope scope = DartloomStartupScope.foreground,
+    DartloomRegistrationHook? onInitialized,
   }) =>
-      _defaultRuntime.initialize(registrations,
-          factories: factories, scope: scope);
+      _defaultRuntime.initialize(
+        registrations,
+        factories: factories,
+        scope: scope,
+        onInitialized: onInitialized,
+      );
 
   static T get<T extends Object>({String name = 'default'}) =>
       _defaultRuntime.get<T>(name: name);

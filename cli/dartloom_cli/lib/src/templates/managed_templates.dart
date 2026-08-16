@@ -6,6 +6,7 @@ import '../config/option_schema.dart';
 
 String capabilityGlue(DartloomConfig config) {
   final enabled = config.enabledCapabilities;
+  final hasSingleton = enabled.contains(Capability.singleton);
   final imports = <String>{
     "import 'package:dartloom_runtime/dartloom_runtime.dart';",
     "import 'package:flutter/foundation.dart';",
@@ -56,6 +57,16 @@ String capabilityGlue(DartloomConfig config) {
   if (enabled.contains(Capability.singleton)) {
     imports.add("import 'package:dartloom_singleton/dartloom_singleton.dart';");
   }
+  final singleInstanceHook = hasSingleton
+      ? '''    onInitialized: ensureSingleInstance
+        ? (registration) async {
+            if (registration.capability == 'singleton') {
+              await Dartloom.get<SingleInstanceService>()
+                  .ensureSingleInstance();
+            }
+          }
+        : null,'''
+      : '';
   for (final capability in config.capabilities.entries) {
     for (final instance in capability.value.values) {
       final metadata = CapabilityRegistry.implementation(
@@ -85,6 +96,7 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln('Future<void> initializeDartloom({')
     ..writeln('  Map<String, DartloomFactory> customFactories = const {},')
     ..writeln('  DartloomStartupScope scope = DartloomStartupScope.foreground,')
+    ..writeln('  bool ensureSingleInstance = false,')
     ..writeln('}) async {')
     ..writeln('  late final Map<String, DartloomFactory> factories;')
     ..writeln('  final officialFactories = <String, DartloomFactory>{');
@@ -105,6 +117,7 @@ String capabilityGlue(DartloomConfig config) {
     ..writeln('    ],')
     ..writeln('    factories: factories,')
     ..writeln('    scope: scope,')
+    ..writeln(singleInstanceHook)
     ..writeln('  );')
     ..writeln('}')
     ..writeln()
@@ -489,7 +502,13 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       ..writeln('        ],')
       ..writeln('      ),');
   }
-  for (final capability in Capability.values) {
+  for (final capability in [
+    if (config.capabilities.containsKey(Capability.singleton))
+      Capability.singleton,
+    ...Capability.values.where(
+      (capability) => capability != Capability.singleton,
+    ),
+  ]) {
     final instances = config.capabilities[capability] ?? const {};
     for (final entry in instances.entries) {
       final instance = entry.value;

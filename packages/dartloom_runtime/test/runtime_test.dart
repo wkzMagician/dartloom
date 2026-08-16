@@ -279,6 +279,43 @@ void main() {
     await runtime.dispose();
   });
 
+  test('runs the initialization hook immediately after each registration',
+      () async {
+    final events = <String>[];
+    await Dartloom.initialize(
+      <DartloomRegistration<Object>>[
+        const DartloomRegistration<Service>(
+          capability: 'first',
+          name: 'first',
+          factory: 'first',
+        ),
+        const DartloomRegistration<Service>(
+          capability: 'second',
+          name: 'second',
+          factory: 'second',
+        ),
+      ],
+      factories: {
+        'first': (_) {
+          events.add('factory first');
+          return DartloomBinding<Service>(ServiceImpl('first'));
+        },
+        'second': (_) {
+          events.add('factory second');
+          return DartloomBinding<Service>(ServiceImpl('second'));
+        },
+      },
+      onInitialized: (registration) =>
+          events.add('initialized ${registration.capability}'),
+    );
+    expect(events, [
+      'factory first',
+      'initialized first',
+      'factory second',
+      'initialized second',
+    ]);
+  });
+
   test('default facade contains and reuses after dispose', () async {
     const registration = DartloomRegistration<Service>(
       capability: 'service',
