@@ -75,5 +75,9 @@ jobs:
       # analysis. Restore that generated migration before pub validation so the
       # dry-run checks the committed package contents rather than a CI-only
       # workspace mutation.
-      - run: git checkout -- analysis_options.yaml
+      - name: Restore analysis options
+        run: |
+          if [ -f analysis_options.yaml ]; then
+            git checkout -- analysis_options.yaml
+          fi
       - run: flutter pub publish --dry-run

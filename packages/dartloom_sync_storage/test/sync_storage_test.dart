@@ -113,7 +113,7 @@ void main() {
 }
 
 /// Models SecureSettingsStore: values are encoded before persistence and
-/// decoded again, which turns List<String> into List<dynamic> at runtime.
+/// decoded again, which turns `List<String>` into `List<dynamic>` at runtime.
 final class _JsonRoundTripSettingsStore implements SettingsStore {
   final Map<String, String> _values = {};
 
