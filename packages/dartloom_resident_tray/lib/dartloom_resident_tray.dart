@@ -89,7 +89,12 @@ final class TrayResidentService
       trayManager.removeListener(this);
       await trayManager.destroy().timeout(const Duration(milliseconds: 250));
       await windowManager.setPreventClose(false);
-      await windowManager.destroy();
+      // Send the normal native close message so custom Flutter runners can
+      // terminate their message loop. The close listener intentionally does
+      // nothing while _quitting; calling destroy() from onWindowClose would
+      // re-enter the window plugin and can leave the foreground window stuck
+      // for several seconds.
+      await windowManager.close().timeout(const Duration(seconds: 1));
     } on Object {
       // A tray/window plugin must not strand the process during exit.
       try {
@@ -112,8 +117,9 @@ final class TrayResidentService
   }
 
   @override
-  Future<void> onWindowClose() =>
-      _quitting ? windowManager.destroy() : windowManager.hide();
+  Future<void> onWindowClose() async {
+    if (!_quitting) await windowManager.hide();
+  }
 
   @override
   void onTrayIconMouseDown() =>
