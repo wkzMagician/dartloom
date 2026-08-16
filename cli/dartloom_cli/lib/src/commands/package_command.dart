@@ -59,6 +59,7 @@ class PackageCommand {
     final version = await _version(project);
     final release = Directory(
         '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}windows${Platform.pathSeparator}x64${Platform.pathSeparator}runner${Platform.pathSeparator}Release');
+    await _touchWindowsExecutable(release, config.app.name);
     final dist = await _dist(project);
     final baseName = '${config.app.packageName}-$version-windows-x64-setup';
     final script = File(
@@ -83,6 +84,15 @@ Name: "{autoprograms}\\${config.app.packageName}"; Filename: "{app}\\${config.ap
     await runRequired(runner, 'iscc', [script.path], project);
     stdout
         .writeln('Created ${dist.path}${Platform.pathSeparator}$baseName.exe');
+  }
+
+  Future<void> _touchWindowsExecutable(
+      Directory release, String executableName) async {
+    final executable =
+        File('${release.path}${Platform.pathSeparator}$executableName.exe');
+    if (await executable.exists()) {
+      await executable.setLastModified(DateTime.now());
+    }
   }
 
   Future<void> _ensureInnoSetup() async {
