@@ -486,22 +486,6 @@ void _writeOfficialFactories(StringBuffer buffer, DartloomConfig config) {
 
 void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
   final syncInstances = config.capabilities[Capability.sync] ?? const {};
-  for (final entry in syncInstances.entries) {
-    final platforms = _supportedPlatforms(Capability.sync, entry.value);
-    buffer
-      ..writeln(
-        "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
-      )
-      ..writeln('      DartloomRegistration<SyncProfileScope>(')
-      ..writeln("        capability: 'sync_profile',")
-      ..writeln('        name: ${_dart(entry.key)},')
-      ..writeln("        factory: 'sync_profile_scope',")
-      ..writeln('        scope: DartloomStartupScope.both,')
-      ..writeln('        dependsOn: const [')
-      ..writeln("          DartloomReference('settings', 'default'),")
-      ..writeln('        ],')
-      ..writeln('      ),');
-  }
   for (final capability in [
     if (config.capabilities.containsKey(Capability.singleton))
       Capability.singleton,
@@ -560,6 +544,22 @@ void _writeRegistrations(StringBuffer buffer, DartloomConfig config) {
       }
       buffer.writeln('      ),');
     }
+  }
+  for (final entry in syncInstances.entries) {
+    final platforms = _supportedPlatforms(Capability.sync, entry.value);
+    buffer
+      ..writeln(
+        "      if (_dartloomSupportsCurrentPlatform(const {${platforms.map((platform) => _dart(platform.name)).join(', ')}}))",
+      )
+      ..writeln('      DartloomRegistration<SyncProfileScope>(')
+      ..writeln("        capability: 'sync_profile',")
+      ..writeln('        name: ${_dart(entry.key)},')
+      ..writeln("        factory: 'sync_profile_scope',")
+      ..writeln('        scope: DartloomStartupScope.both,')
+      ..writeln('        dependsOn: const [')
+      ..writeln("          DartloomReference('settings', 'default'),")
+      ..writeln('        ],')
+      ..writeln('      ),');
   }
 }
 
