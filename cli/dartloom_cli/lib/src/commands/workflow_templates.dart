@@ -30,18 +30,33 @@ on:
       mode: { required: true, default: release, type: string }
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.set-matrix.outputs.platforms }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [ "${{ inputs.platform }}" = "all" ]; then
+            echo 'platforms=["windows","linux","macos","android","ios","web"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "platforms=[\"${{ inputs.platform }}\"]" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: matrix
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows, linux, macos, android, ios, web]
-    if: ${{ inputs.platform == 'all' || inputs.platform == matrix.platform }}
-    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || matrix.platform == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+        platform: ${{ fromJSON(needs.matrix.outputs.platforms) }}
+    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || (matrix.platform == 'macos' || matrix.platform == 'ios') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
-        with: { ref: ${{ inputs.git_ref }} }
+        with:
+          ref: ${{ inputs.git_ref }}
       - uses: subosito/flutter-action@v2
-        with: { channel: stable }
+        with:
+          channel: stable
       - run: flutter pub get
       - shell: bash
         run: |
@@ -55,7 +70,9 @@ jobs:
           mkdir -p dartloom-artifact
           printf '{"schema_version":1,"platform":"%s","commit":"%s","files":[]}' "${{ matrix.platform }}" "${{ github.sha }}" > dartloom-artifact/dartloom-build.json
       - uses: actions/upload-artifact@v4
-        with: { name: dartloom-${{ matrix.platform }}, path: dartloom-artifact }
+        with:
+          name: dartloom-${{ matrix.platform }}
+          path: dartloom-artifact
 ''';
 
 String ciWorkflow() => '''name: CI

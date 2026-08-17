@@ -1,21 +1,53 @@
 name: Dartloom Cloud Build
+
 on:
   workflow_dispatch:
     inputs:
       platform: { required: true, type: string }
       git_ref: { required: true, type: string }
       mode: { required: true, default: release, type: string }
-      release: { required: true, default: 'false', type: boolean }
+
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.set-matrix.outputs.platforms }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [ "${{ inputs.platform }}" = "all" ]; then
+            echo 'platforms=["windows","linux","macos","android","ios","web"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "platforms=[\"${{ inputs.platform }}\"]" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
-    runs-on: ${{ fromJSON('{"windows":"windows-latest","linux":"ubuntu-latest","macos":"macos-latest","android":"ubuntu-latest","ios":"macos-latest","web":"ubuntu-latest"}')[inputs.platform] }}
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.matrix.outputs.platforms) }}
+    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || (matrix.platform == 'macos' || matrix.platform == 'ios') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
-        with: { ref: ${{ inputs.git_ref }} }
+        with:
+          ref: ${{ inputs.git_ref }}
       - uses: subosito/flutter-action@v2
-        with: { channel: stable }
+        with:
+          channel: stable
       - run: flutter pub get
-      - run: flutter build ${{ inputs.platform }} --${{ inputs.mode }}
-      - run: mkdir -p artifact && echo '{"schema_version":1,"platform":"${{ inputs.platform }}","commit":"${{ github.sha }}"}' > artifact/dartloom-build.json
+      - shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            android) flutter build apk --${{ inputs.mode }} ;;
+            ios) flutter build ios --${{ inputs.mode }} --no-codesign ;;
+            *) flutter build ${{ matrix.platform }} --${{ inputs.mode }} ;;
+          esac
+      - shell: bash
+        run: |
+          mkdir -p dartloom-artifact
+          printf '{"schema_version":1,"platform":"%s","commit":"%s","files":[]}' "${{ matrix.platform }}" "${{ github.sha }}" > dartloom-artifact/dartloom-build.json
       - uses: actions/upload-artifact@v4
-        with: { name: dartloom-${{ inputs.platform }}, path: artifact }
+        with:
+          name: dartloom-${{ matrix.platform }}
+          path: dartloom-artifact
