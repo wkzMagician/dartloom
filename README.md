@@ -111,7 +111,7 @@ dartloom new my_app --platforms=android,windows
 dartloom new my_app --packages=dartloom_storage,dartloom_storage_file
 ```
 
-### `dartloom update <project-name>`
+### `dartloom update`
 
 Reads the existing `.dartloom/project.yaml` and opens the same configuration UI.
 It can add or remove selected packages, add Flutter platform files, update the
@@ -146,6 +146,17 @@ dartloom build windows
 dartloom build all
 ```
 
+Use `--mode` to select the Flutter build mode. The default is `release`:
+
+```bash
+dartloom build ios --mode debug
+dartloom build android --mode profile
+dartloom build all --mode release
+```
+
+Supported modes are `debug`, `profile`, and `release`. This controls the
+Flutter build configuration; it does not create a GitHub Release.
+
 The command does not use local platform SDKs and does not create tags or
 GitHub Releases. Run `dartloom update` first if the build workflow is missing.
 
@@ -164,7 +175,7 @@ dartloom release 1.4.0
 
 The working tree must be clean, and the release workflow must already exist.
 
-### `dartloom check <project-name>`
+### `dartloom check`
 
 Performs a read-only project check. It verifies that:
 

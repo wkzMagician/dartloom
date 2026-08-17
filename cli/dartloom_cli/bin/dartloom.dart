@@ -27,9 +27,7 @@ Future<void> main(List<String> arguments) async {
     }
     final command = results.command!;
     final runner = const SystemProcessRunner();
-    final path = command.rest.length == 1
-        ? '${Directory.current.path}${Platform.pathSeparator}${command.rest.single}'
-        : Directory.current.path;
+    final path = Directory.current.path;
     switch (command.name) {
       case 'new':
         if (command.rest.length != 1) {
@@ -41,13 +39,13 @@ Future<void> main(List<String> arguments) async {
             platforms: _platforms(command['platforms'] as String?),
             packages: _packages(command['packages'] as String?));
       case 'update':
-        if (command.rest.length > 1) {
-          throw CommandFailure('Usage: dartloom update <project-name>');
+        if (command.rest.isNotEmpty) {
+          throw CommandFailure('Usage: dartloom update');
         }
         await UpdateCommand(runner).run(Directory(path));
       case 'check':
-        if (command.rest.length > 1) {
-          throw CommandFailure('Usage: dartloom check <project-name>');
+        if (command.rest.isNotEmpty) {
+          throw CommandFailure('Usage: dartloom check');
         }
         await CheckCommand().run(Directory(path));
       case 'build':
@@ -86,8 +84,8 @@ void _usage() => stdout.writeln('''Dartloom — Flutter project configurator
 
 Usage:
   dartloom new <project-name>
-  dartloom update <project-name>
-  dartloom check <project-name>
+  dartloom update
+  dartloom check
   dartloom build <platform|all>
   dartloom release [version]
 ''');

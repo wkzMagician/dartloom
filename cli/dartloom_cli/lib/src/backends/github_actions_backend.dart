@@ -35,8 +35,7 @@ class GitHubActionsBackend implements CloudBuildBackend {
       'inputs': {
         'platform': request.platform,
         'git_ref': request.gitRef,
-        'mode': request.mode.name,
-        'release': '${request.release}'
+        'mode': request.mode.name
       }
     });
     return request.gitRef;
