@@ -183,10 +183,11 @@ final class WebDavRemoteReplica implements RemoteReplica {
     var current = '';
     for (final segment in path.split('/').where((part) => part.isNotEmpty)) {
       current = '$current/$segment';
+      final uri = _collectionUri(current);
       final response = await _send(
-          http.Request('MKCOL', _uri(current))..headers.addAll(_authorization));
+          http.Request('MKCOL', uri)..headers.addAll(_authorization));
       if (![201, 405, 301].contains(response.statusCode)) {
-        _throwResponse('MKCOL', response, _uri(current));
+        _throwResponse('MKCOL', response, uri);
       }
     }
   }
@@ -253,7 +254,8 @@ final class WebDavRemoteReplica implements RemoteReplica {
     required String depth,
     bool missingIsEmpty = false,
   }) async {
-    final request = http.Request('PROPFIND', _uri(collection))
+    final uri = _collectionUri(collection);
+    final request = http.Request('PROPFIND', uri)
       ..headers.addAll({
         ..._authorization,
         'depth': depth,
@@ -275,7 +277,7 @@ final class WebDavRemoteReplica implements RemoteReplica {
         'WebDAV PROPFIND returned invalid XML: $error',
       ));
     }
-    final rootUri = _uri(rootPath);
+    final rootUri = _collectionUri(rootPath);
     final prefix = _directoryPath(rootUri.path);
     final result = <_DavEntry>[];
     for (final node
@@ -397,11 +399,18 @@ final class WebDavRemoteReplica implements RemoteReplica {
         null => const {},
       };
 
-  Future<http.Response> _send(http.Request request) async {
+  Future<http.Response> _send(http.Request request, [int redirectCount = 0]) async {
     if (_closed) throw StateError('WebDAV replica is closed.');
+    if (redirectCount > 5) {
+      throw const SyncOperationException(SyncFailure(
+        SyncFailureKind.connectivity,
+        'Too many WebDAV redirects.',
+      ));
+    }
     await _acquireRequestPermit();
+    http.Response response;
     try {
-      return await http.Response.fromStream(
+      response = await http.Response.fromStream(
               await _client.send(request).timeout(connectTimeout))
           .timeout(requestTimeout);
     } on TimeoutException {
@@ -419,6 +428,18 @@ final class WebDavRemoteReplica implements RemoteReplica {
     } finally {
       _releaseRequestPermit();
     }
+
+    if ([301, 302, 307, 308].contains(response.statusCode)) {
+      final location = response.headers['location'];
+      if (location != null && location.isNotEmpty) {
+        final redirectUri = request.url.resolve(location);
+        final nextRequest = http.Request(request.method, redirectUri)
+          ..headers.addAll(request.headers)
+          ..bodyBytes = request.bodyBytes;
+        return _send(nextRequest, redirectCount + 1);
+      }
+    }
+    return response;
   }
 
   Future<void> _acquireRequestPermit() async {
@@ -484,6 +505,16 @@ final class WebDavRemoteReplica implements RemoteReplica {
     ));
   }
 
+  Uri _collectionUri(String path) {
+    final encoded = path
+        .split('/')
+        .where((part) => part.isNotEmpty)
+        .map(Uri.encodeComponent)
+        .join('/');
+    final suffix = encoded.isEmpty ? '' : '$encoded/';
+    return baseUrl.replace(path: '${baseUrl.path}$suffix');
+  }
+
   Uri _objectUri(String key) =>
       _uri('$rootPath/${_normalizeRelativePath(key)}');
   Uri _uri(String path) {
@@ -519,13 +550,16 @@ final class WebDavRemoteReplica implements RemoteReplica {
     // Treat the ETag as an opaque string. Some servers (e.g. Jianguoyun)
     // return unquoted ETags and match If-Match/If-None-Match verbatim, so
     // adding or stripping quotes would break conditional requests. Only trim
-    // surrounding whitespace and reject an empty tag.
-    final normalized = value.trim();
+    // surrounding whitespace, normalize weak prefix casing, and reject an empty tag.
+    var normalized = value.trim();
     if (normalized.isEmpty) {
       throw SyncOperationException(SyncFailure(
         SyncFailureKind.invalidResponse,
         'WebDAV server returned an invalid ETag${key == null ? '' : ' for $key'}.',
       ));
+    }
+    if (normalized.startsWith('w/')) {
+      normalized = 'W/${normalized.substring(2)}';
     }
     return normalized;
   }

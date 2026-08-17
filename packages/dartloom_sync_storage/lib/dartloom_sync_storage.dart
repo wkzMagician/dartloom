@@ -612,7 +612,7 @@ final class SettingsSyncProfileRepository implements SyncProfileRepository {
     final existingKeys =
         await metadata.read('sync.$instanceName.profile.$id.secret_keys');
     final keys = <String>{
-      if (existingKeys is List<String>) ...existingKeys,
+      if (existingKeys is List) ...existingKeys.whereType<String>(),
       ...draft.secrets.keys
     }.toList()
       ..sort();
@@ -640,8 +640,8 @@ final class SettingsSyncProfileRepository implements SyncProfileRepository {
     values.removeWhere((value) => value.id == profileId);
     final keys = await metadata
         .read('sync.$instanceName.profile.$profileId.secret_keys');
-    if (keys is List<String>) {
-      for (final key in keys) {
+    if (keys is List) {
+      for (final key in keys.whereType<String>()) {
         await secretsStore
             .remove('sync.$instanceName.profile.$profileId.secret.$key');
       }

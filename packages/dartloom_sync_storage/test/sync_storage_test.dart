@@ -48,6 +48,15 @@ void main() {
     ));
 
     expect(await profiles.secrets(profile.id), {'password': 'secret'});
+
+    // Updating profile options without supplying secrets must preserve existing secrets.
+    final updated = await profiles.save(SyncProfileDraft(
+      id: profile.id,
+      label: 'WebDAV Updated',
+      backend: 'webdav',
+      options: {'base_url': 'https://example.com'},
+    ));
+    expect(await profiles.secrets(updated.id), {'password': 'secret'});
   });
 
   test('reconciliation state is stored outside the replica', () async {
