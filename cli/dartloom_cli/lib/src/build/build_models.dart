@@ -23,22 +23,30 @@ class BuildPlatform {
 }
 
 class BuildRequest {
-  const BuildRequest({required this.platform, required this.gitRef, this.mode = BuildMode.release, this.release = false});
+  const BuildRequest(
+      {required this.platform,
+      required this.gitRef,
+      this.workflowRef,
+      this.mode = BuildMode.release,
+      this.release = false});
   final String platform;
   final String gitRef;
+  final String? workflowRef;
   final BuildMode mode;
   final bool release;
 }
 
 class Artifact {
-  const Artifact({required this.id, required this.name, required this.downloadUrl});
+  const Artifact(
+      {required this.id, required this.name, required this.downloadUrl});
   final int id;
   final String name;
   final String downloadUrl;
 }
 
 class BuildResult {
-  const BuildResult({required this.runId, required this.platform, required this.artifacts});
+  const BuildResult(
+      {required this.runId, required this.platform, required this.artifacts});
   final String runId;
   final String platform;
   final List<Artifact> artifacts;

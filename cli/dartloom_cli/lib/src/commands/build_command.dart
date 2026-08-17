@@ -21,11 +21,12 @@ class BuildCommand {
     final repo = _repository ?? GitRepository(Directory.current);
     await repo.ensureClean();
     final ref = await repo.head();
+    final workflowRef = await repo.branch();
     final backend = _backend ?? await _defaultBackend();
     final platforms =
         all ? BuildPlatform.values : [BuildPlatform.parse(platform)];
     final results = await Future.wait(
-        platforms.map((p) => _build(backend, repo, p, ref, mode)));
+        platforms.map((p) => _build(backend, repo, p, ref, workflowRef, mode)));
     for (final result in results) {
       stdout.writeln('✓ ${result.platform} build completed');
       final target = Directory(
@@ -39,10 +40,10 @@ class BuildCommand {
   }
 
   Future<BuildResult> _build(CloudBuildBackend backend, GitRepository repo,
-      String platform, String ref, BuildMode mode) async {
+      String platform, String ref, String workflowRef, BuildMode mode) async {
     stdout.writeln('→ Triggering $platform build');
-    final runId = await backend
-        .trigger(BuildRequest(platform: platform, gitRef: ref, mode: mode));
+    final runId = await backend.trigger(BuildRequest(
+        platform: platform, gitRef: ref, workflowRef: workflowRef, mode: mode));
     var status = BuildStatus.queued;
     while (status == BuildStatus.queued || status == BuildStatus.running) {
       await Future<void>.delayed(const Duration(seconds: 2));
