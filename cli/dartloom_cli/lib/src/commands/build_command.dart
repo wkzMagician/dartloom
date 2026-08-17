@@ -21,7 +21,7 @@ class BuildCommand {
     final repo = _repository ?? GitRepository(Directory.current);
     await repo.ensureClean();
     final ref = await repo.head();
-    final backend = _backend ?? _defaultBackend();
+    final backend = _backend ?? await _defaultBackend();
     final platforms =
         all ? BuildPlatform.values : [BuildPlatform.parse(platform)];
     final results = await Future.wait(
@@ -57,13 +57,33 @@ class BuildCommand {
         artifacts: await backend.artifacts(runId));
   }
 
-  CloudBuildBackend _defaultBackend() {
-    final token = Platform.environment['GITHUB_TOKEN'];
-    final repository = Platform.environment['GITHUB_REPOSITORY'];
-    if (token == null || repository == null || !repository.contains('/'))
-      throw StateError('Set GITHUB_TOKEN and GITHUB_REPOSITORY (owner/name).');
+  Future<CloudBuildBackend> _defaultBackend() async {
+    final token = await _tryGhValue(['auth', 'token']) ??
+        Platform.environment['GITHUB_TOKEN'];
+    final repository = await _tryGhValue([
+          'repo',
+          'view',
+          '--json',
+          'nameWithOwner',
+          '--jq',
+          '.nameWithOwner'
+        ]) ??
+        Platform.environment['GITHUB_REPOSITORY'];
+    if (token == null || repository == null || !repository.contains('/')) {
+      throw StateError(
+          'Unable to resolve GitHub credentials or repository. Ensure gh is available, or set GITHUB_TOKEN and GITHUB_REPOSITORY=owner/name.');
+    }
     final parts = repository.split('/');
     return GitHubActionsBackend(
         owner: parts[0], repository: parts[1], token: token);
+  }
+
+  Future<String?> _tryGhValue(List<String> arguments) async {
+    final result = await Process.run('gh', arguments,
+        workingDirectory: Directory.current.path);
+    if (result.exitCode != 0 || (result.stdout as String).trim().isEmpty) {
+      return null;
+    }
+    return (result.stdout as String).trim();
   }
 }

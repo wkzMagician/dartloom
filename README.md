@@ -73,17 +73,25 @@ After confirmation, Dartloom:
 5. runs `flutter pub get`;
 6. generates the managed Dartloom section in `AGENTS.md`.
 
-It also creates `.github/workflows/ci.yml` and
-`.github/workflows/release.yml`. The release workflow builds every Flutter
-platform selected for the project and publishes a GitHub Release for `v*`
-version tags. It does not generate service locators, factories, registration
-code, or feature code.
+It also creates `.github/workflows/ci.yml`,
+`.github/workflows/dartloom-build.yml`, `.github/workflows/release.yml`, and
+the conventional `installer/windows.iss` entry point. The build workflow is
+used for cloud artifacts; the release workflow builds the selected platforms
+and publishes a GitHub Release for `v*` version tags. These workflows do not
+generate service locators, factories, registration code, or feature code.
 
 These are the two generally useful workflows for a new Flutter project:
 
 - `ci.yml` checks formatting, analysis, and tests on pushes and pull requests.
+- `dartloom-build.yml` builds one platform or all platforms through GitHub
+  Actions and stores the results as workflow artifacts.
 - `release.yml` builds the selected Flutter platforms and publishes tagged
   releases.
+
+`installer/windows.iss` is a project-owned Inno Setup script. Dartloom uses
+the generic filename but does not assume the application's name, AppId, icon,
+or executable name. The release workflow can pass the release version to the
+script without requiring Dartloom to parse or rewrite the installer file.
 
 Additional workflows such as Dependabot, CodeQL, Pages, or a dedicated
 localization workflow are optional and depend on the project; Dartloom does
@@ -107,19 +115,54 @@ dartloom new my_app --packages=dartloom_storage,dartloom_storage_file
 
 Reads the existing `.dartloom/project.yaml` and opens the same configuration UI.
 It can add or remove selected packages, add Flutter platform files, update the
-configuration, refresh `AGENTS.md`, and run `flutter pub get`.
+configuration, refresh `AGENTS.md`, add missing Dartloom workflows and the
+generic Windows installer template, and run `flutter pub get`.
 
 Removing a platform is destructive. Dartloom asks for confirmation before
 deleting that platform's Flutter directory.
 
-During update, Dartloom never overwrites:
+During update, Dartloom never overwrites existing application source or
+project-owned workflow/installer files:
 
 ```text
 lib/**
 test/**
 main.dart
 .github/**
+installer/**
 ```
+
+### `dartloom build <platform|all>`
+
+Triggers the committed `.github/workflows/dartloom-build.yml` on GitHub
+Actions. It checks that the working tree is clean, builds the current commit,
+waits for the workflow, and downloads artifacts into `dist/<platform>/`.
+
+Examples:
+
+```bash
+dartloom build ios
+dartloom build windows
+dartloom build all
+```
+
+The command does not use local platform SDKs and does not create tags or
+GitHub Releases. Run `dartloom update` first if the build workflow is missing.
+
+### `dartloom release [version]`
+
+Creates a release commit and an annotated `v<version>` tag, then pushes both
+to `origin`. The pushed tag triggers the project's `.github/workflows/release.yml`,
+which performs the formal multi-platform build and creates the GitHub Release.
+
+Examples:
+
+```bash
+dartloom release
+dartloom release 1.4.0
+```
+
+The working tree must be clean, and the release workflow must already exist.
 
 ### `dartloom check <project-name>`
 
