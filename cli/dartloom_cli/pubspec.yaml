@@ -12,6 +12,7 @@ topics:
 environment:
   sdk: ^3.5.0
 dependencies:
+  archive: ^4.0.9
   args: ^2.6.0
   dart_console: ^4.1.4
   path: ^1.9.1

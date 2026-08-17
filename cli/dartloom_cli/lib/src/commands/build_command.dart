@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:archive/archive.dart';
 import '../backends/github_actions_backend.dart';
 import '../build/build_models.dart';
 import '../build/git_repository.dart';
@@ -33,9 +34,30 @@ class BuildCommand {
           '${Directory.current.path}${Platform.pathSeparator}dist${Platform.pathSeparator}${result.platform}');
       for (final artifact in result.artifacts) {
         await backend.download(artifact, target);
-        stdout.writeln(
-            '→ ${target.path}${Platform.pathSeparator}${artifact.name}.zip');
+        final zipPath =
+            '${target.path}${Platform.pathSeparator}${artifact.name}.zip';
+        stdout.writeln('→ $zipPath');
+        _extractArchive(File(zipPath), target);
       }
+    }
+  }
+
+  void _extractArchive(File zipFile, Directory target) {
+    if (!zipFile.existsSync()) return;
+    try {
+      final bytes = zipFile.readAsBytesSync();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      for (final file in archive) {
+        if (file.isFile) {
+          final outFile =
+              File('${target.path}${Platform.pathSeparator}${file.name}');
+          outFile.parent.createSync(recursive: true);
+          outFile.writeAsBytesSync(file.content as List<int>);
+          stdout.writeln('  ↳ extracted ${file.name}');
+        }
+      }
+    } catch (_) {
+      // Keep zip intact if extraction fails
     }
   }
 

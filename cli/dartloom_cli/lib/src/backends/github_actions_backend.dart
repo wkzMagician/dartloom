@@ -30,6 +30,8 @@ class GitHubActionsBackend implements CloudBuildBackend {
 
   @override
   Future<String> trigger(BuildRequest request) async {
+    final beforeTrigger =
+        DateTime.now().toUtc().subtract(const Duration(seconds: 5));
     await _request('POST', '$_base/actions/workflows/$workflow/dispatches', {
       'ref': request.workflowRef ?? request.gitRef,
       'inputs': {
@@ -38,7 +40,26 @@ class GitHubActionsBackend implements CloudBuildBackend {
         'mode': request.mode.name
       }
     });
-    return request.gitRef;
+
+    for (var i = 0; i < 30; i++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      final response = await _request('GET',
+          '$_base/actions/workflows/$workflow/runs?head_sha=${request.gitRef}&event=workflow_dispatch');
+      final data = jsonDecode(await response.transform(utf8.decoder).join())
+          as Map<String, dynamic>;
+      final runs = data['workflow_runs'] as List?;
+      if (runs != null && runs.isNotEmpty) {
+        final latestRun = runs.first as Map<String, dynamic>;
+        final createdAtStr = latestRun['created_at'] as String?;
+        final createdAt =
+            createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
+        if (createdAt == null || createdAt.isAfter(beforeTrigger)) {
+          return latestRun['id'].toString();
+        }
+      }
+    }
+    throw StateError(
+        'Timed out waiting for GitHub Actions workflow run to start.');
   }
 
   @override
