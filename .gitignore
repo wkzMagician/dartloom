@@ -11,3 +11,4 @@ dartloom_integration/
 **/.packages
 **/pubspec.lock
 **/pubspec_overrides.yaml
+/dist/

@@ -6,6 +6,7 @@ import '../process/process_runner.dart';
 import 'command_support.dart';
 import 'configuration_tui.dart';
 import 'documentation.dart';
+import 'workflow_templates.dart';
 
 class UpdateCommand {
   UpdateCommand(this.runner,
@@ -54,6 +55,27 @@ class UpdateCommand {
     }
     await loader.save(project, next);
     await updateDependencies(project, next);
+    final workflows = Directory(
+        '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows');
+    await workflows.create(recursive: true);
+    final cloudBuild =
+        File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml');
+    if (!await cloudBuild.exists()) {
+      await cloudBuild.writeAsString(cloudBuildWorkflow());
+    }
+    final release =
+        File('${workflows.path}${Platform.pathSeparator}release.yml');
+    if (!await release.exists()) {
+      await release.writeAsString(releaseWorkflow(next));
+    }
+    final installer =
+        Directory('${project.path}${Platform.pathSeparator}installer');
+    await installer.create(recursive: true);
+    final windowsInstallerFile =
+        File('${installer.path}${Platform.pathSeparator}windows.iss');
+    if (!await windowsInstallerFile.exists()) {
+      await windowsInstallerFile.writeAsString(windowsInstaller());
+    }
     final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
     await agents.writeAsString(await updateAgents(agents, next, catalog));
     if (oldConfig.packages

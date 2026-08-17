@@ -7,3 +7,8 @@ export 'src/process/process_runner.dart';
 export 'src/commands/check_command.dart';
 export 'src/commands/new_command.dart';
 export 'src/commands/update_command.dart';
+export 'src/commands/build_command.dart';
+export 'src/commands/release_command.dart';
+export 'src/build/build_models.dart';
+export 'src/build/git_repository.dart';
+export 'src/backends/github_actions_backend.dart';
