@@ -31,8 +31,14 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
     }
     await store.root.create(recursive: true);
     await store._cleanupTemporaryFiles();
-    store._watcher =
-        store.root.watch(recursive: hierarchical).listen(store._onEvent);
+    if (FileSystemEntity.isWatchSupported) {
+      try {
+        store._watcher =
+            store.root.watch(recursive: hierarchical).listen(store._onEvent);
+      } on FileSystemException {
+        // Platform or environment does not support directory watching.
+      }
+    }
     return store;
   }
 
@@ -199,6 +205,7 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
       }
     });
   }
+
   String _keyFor(String path) =>
       p.relative(path, from: root.path).replaceAll(p.separator, '/');
   void _onEvent(FileSystemEvent event) {
