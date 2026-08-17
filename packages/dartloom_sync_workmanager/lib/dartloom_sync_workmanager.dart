@@ -68,61 +68,91 @@ final class WorkmanagerSyncBackgroundScheduler
   Future<void> configure(
       String instanceName, SyncBackgroundPolicy? policy) async {
     if (!_isMobile) return;
-    await _initialize();
-    if (policy == null || !policy.enabled) {
-      _policies.remove(instanceName);
-      await cancel(instanceName);
-      return;
+    try {
+      await _initialize();
+      if (policy == null || !policy.enabled) {
+        _policies.remove(instanceName);
+        await cancel(instanceName);
+        return;
+      }
+      _policies[instanceName] = policy;
+      final frequency = defaultTargetPlatform == TargetPlatform.android
+          ? policy.periodicInterval
+          : policy.earliestBegin;
+      await _workmanager.registerPeriodicTask(
+        _periodicName(instanceName),
+        'dartloomSync',
+        frequency: frequency,
+        flexInterval: defaultTargetPlatform == TargetPlatform.android
+            ? policy.flexInterval
+            : null,
+        inputData: {
+          'instance': instanceName,
+          'trigger': 'background',
+          'timeout_ms': policy.timeout.inMilliseconds,
+        },
+        constraints: Constraints(
+          networkType: _networkType(policy),
+          requiresBatteryNotLow: policy.requiresBatteryNotLow,
+          requiresCharging: policy.requiresCharging,
+        ),
+      );
+    } catch (error, stackTrace) {
+      // Background scheduling must never take down the foreground app.
+      // On iOS the BGTaskScheduler identifier must be registered natively
+      // before didFinishLaunchingWithOptions returns; if that is missing, or
+      // the environment does not support background tasks (e.g. the
+      // simulator), the runtime task still works and only this registration
+      // is degraded.
+      debugPrint('WorkmanagerSyncBackgroundScheduler.configure failed: $error');
+      assert(() {
+        debugPrintStack(stackTrace: stackTrace);
+        return true;
+      }());
     }
-    _policies[instanceName] = policy;
-    final frequency = defaultTargetPlatform == TargetPlatform.android
-        ? policy.periodicInterval
-        : policy.earliestBegin;
-    await _workmanager.registerPeriodicTask(
-      _periodicName(instanceName),
-      'dartloomSync',
-      frequency: frequency,
-      flexInterval: defaultTargetPlatform == TargetPlatform.android
-          ? policy.flexInterval
-          : null,
-      inputData: {
-        'instance': instanceName,
-        'trigger': 'background',
-        'timeout_ms': policy.timeout.inMilliseconds,
-      },
-      constraints: Constraints(
-        networkType: _networkType(policy),
-        requiresBatteryNotLow: policy.requiresBatteryNotLow,
-        requiresCharging: policy.requiresCharging,
-      ),
-    );
   }
 
   @override
   Future<void> enqueue(String instanceName) async {
     if (!_isMobile) return;
-    await _initialize();
-    final policy = _policies[instanceName];
-    await _workmanager.registerOneOffTask(
-      _pendingName(instanceName),
-      'dartloomSync',
-      inputData: {
-        'instance': instanceName,
-        'trigger': 'background',
-        if (policy != null) 'timeout_ms': policy.timeout.inMilliseconds,
-      },
-      constraints: Constraints(
-        networkType:
-            policy == null ? NetworkType.connected : _networkType(policy),
-      ),
-    );
+    try {
+      await _initialize();
+      final policy = _policies[instanceName];
+      await _workmanager.registerOneOffTask(
+        _pendingName(instanceName),
+        'dartloomSync',
+        inputData: {
+          'instance': instanceName,
+          'trigger': 'background',
+          if (policy != null) 'timeout_ms': policy.timeout.inMilliseconds,
+        },
+        constraints: Constraints(
+          networkType:
+              policy == null ? NetworkType.connected : _networkType(policy),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('WorkmanagerSyncBackgroundScheduler.enqueue failed: $error');
+      assert(() {
+        debugPrintStack(stackTrace: stackTrace);
+        return true;
+      }());
+    }
   }
 
   @override
   Future<void> cancel(String instanceName) async {
     if (!_isMobile) return;
-    await _workmanager.cancelByUniqueName(_periodicName(instanceName));
-    await _workmanager.cancelByUniqueName(_pendingName(instanceName));
+    try {
+      await _workmanager.cancelByUniqueName(_periodicName(instanceName));
+      await _workmanager.cancelByUniqueName(_pendingName(instanceName));
+    } catch (error, stackTrace) {
+      debugPrint('WorkmanagerSyncBackgroundScheduler.cancel failed: $error');
+      assert(() {
+        debugPrintStack(stackTrace: stackTrace);
+        return true;
+      }());
+    }
   }
 
   NetworkType _networkType(SyncBackgroundPolicy policy) {
