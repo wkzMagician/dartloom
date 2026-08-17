@@ -7,23 +7,20 @@ import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:path/path.dart' as p;
 
 final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
-  FileObjectStore._({required this.root, required this.hierarchical});
+  FileObjectStore._({required this.root});
   final Directory root;
-  final bool hierarchical;
   final StreamController<StorageChange> _changes = StreamController.broadcast();
   StreamSubscription<FileSystemEvent>? _watcher;
   Future<void> _serial = Future.value();
   final Map<String, int> _expectedWatchEvents = {};
   bool _closed = false;
 
-  static Future<FileObjectStore> open(
-      {required Directory root, bool hierarchical = true}) async {
+  static Future<FileObjectStore> open({required Directory root}) async {
     if (!p.isAbsolute(root.path)) {
       throw ArgumentError('root must be an absolute path.');
     }
-    final store = FileObjectStore._(
-        root: Directory(p.normalize(root.absolute.path)),
-        hierarchical: hierarchical);
+    final store =
+        FileObjectStore._(root: Directory(p.normalize(root.absolute.path)));
     final type =
         await FileSystemEntity.type(store.root.path, followLinks: false);
     if (type == FileSystemEntityType.link) {
@@ -34,7 +31,7 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
     if (FileSystemEntity.isWatchSupported) {
       try {
         store._watcher =
-            store.root.watch(recursive: hierarchical).listen(store._onEvent);
+            store.root.watch(recursive: true).listen(store._onEvent);
       } on FileSystemException {
         // Platform or environment does not support directory watching.
       }
@@ -60,7 +57,7 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   Future<List<StoredObject>> scan() => _enqueue(() async {
         final result = <StoredObject>[];
         await for (final entity
-            in root.list(recursive: hierarchical, followLinks: false)) {
+            in root.list(recursive: true, followLinks: false)) {
           if (entity is! File || _isTemporary(entity.path)) continue;
           final key = _keyFor(entity.path);
           if (!acceptsKey(key)) continue;
@@ -141,8 +138,7 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
     if (value.isEmpty ||
         p.isAbsolute(value) ||
         value.startsWith('/') ||
-        parts.any((part) => part.isEmpty || part == '.' || part == '..') ||
-        (!hierarchical && parts.length != 1)) {
+        parts.any((part) => part.isEmpty || part == '.' || part == '..')) {
       throw ArgumentError.value(key, 'key', 'Invalid object key.');
     }
     return value;

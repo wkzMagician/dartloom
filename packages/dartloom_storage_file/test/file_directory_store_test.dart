@@ -23,4 +23,24 @@ void main() {
     await store.close();
     await root.delete(recursive: true);
   });
+
+  test('accepts hierarchical keys without an opt-in flag', () async {
+    final root = await Directory.systemTemp.createTemp('dartloom-keys-');
+    final store = await FileObjectStore.open(root: root);
+    await store.write(
+        '__dartloom_journal/v1/events/00000000000000000001-a-prepared.json',
+        Uint8List.fromList([1]));
+    await store.write(
+        '__dartloom_journal/v1/sequence', Uint8List.fromList([2]));
+    expect(await store.scan(), hasLength(2));
+    expect(
+      (await store.scan()).map((item) => item.key),
+      containsAll([
+        '__dartloom_journal/v1/events/00000000000000000001-a-prepared.json',
+        '__dartloom_journal/v1/sequence',
+      ]),
+    );
+    await store.close();
+    await root.delete(recursive: true);
+  });
 }
