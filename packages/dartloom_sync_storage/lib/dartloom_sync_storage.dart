@@ -47,6 +47,7 @@ final class JournaledObjectStore implements ObjectStore {
   final StreamController<LocalReplicaChange> _mutationChanges =
       StreamController.broadcast();
   final Map<String, SyncMutationOrigin> _pendingOrigins = {};
+  Future<void> _serial = Future.value();
   bool _closed = false;
 
   static Future<JournaledObjectStore> open({
@@ -88,39 +89,37 @@ final class JournaledObjectStore implements ObjectStore {
   Future<void> deleteRemote(String key) => _mutate(key, null,
       deleted: true, origin: SyncMutationOrigin.remote, journal: false);
 
-  Future<List<PendingLocalMutation>> intents() async {
-    final operations = await _operations();
-    return [
-      for (final operation in operations.values)
-        if (operation['state'] != 'acknowledged' &&
-            operation['origin'] == 'local')
-          PendingLocalMutation(
-            operationId: operation['id']! as String,
-            key: operation['key']! as String,
-            kind: (operation['kind'] == 'delete')
-                ? LocalMutationKind.delete
-                : (operation['kind'] == 'create')
-                    ? LocalMutationKind.create
-                    : LocalMutationKind.update,
-            createdAt: DateTime.parse(operation['createdAt']! as String),
-            contentHash: operation['resultHash'] as String?,
-          ),
-    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-  }
+  Future<List<PendingLocalMutation>> intents() => _enqueue(() async {
+        final operations = await _operations();
+        return [
+          for (final operation in operations.values)
+            if (operation['state'] != 'acknowledged' &&
+                operation['origin'] == 'local')
+              PendingLocalMutation(
+                operationId: operation['id']! as String,
+                key: operation['key']! as String,
+                kind: (operation['kind'] == 'delete')
+                    ? LocalMutationKind.delete
+                    : (operation['kind'] == 'create')
+                        ? LocalMutationKind.create
+                        : LocalMutationKind.update,
+                createdAt: DateTime.parse(operation['createdAt']! as String),
+                contentHash: operation['resultHash'] as String?,
+              ),
+        ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      });
 
-  Future<void> forgetIntent(String operationId) async {
-    await _exclusive(() async {
-      final operation = (await _operations())[operationId];
-      if (operation == null) return;
-      await _writeEvent(operation, 'acknowledged');
-      await _compactLocked(DateTime.now().toUtc());
-    });
-  }
+  Future<void> forgetIntent(String operationId) => _enqueue(() async {
+        final operation = (await _operations())[operationId];
+        if (operation == null) return;
+        await _writeEvent(operation, 'acknowledged');
+        await _compactLocked(DateTime.now().toUtc());
+      });
 
   /// Removes acknowledged journal events while retaining delete tombstones
   /// for the configured conflict window.
   Future<void> compact({DateTime? now}) =>
-      _exclusive(() => _compactLocked(now?.toUtc() ?? DateTime.now().toUtc()));
+      _enqueue(() => _compactLocked(now?.toUtc() ?? DateTime.now().toUtc()));
 
   Future<void> _mutate(
     String key,
@@ -130,7 +129,7 @@ final class JournaledObjectStore implements ObjectStore {
     bool journal = true,
   }) async {
     if (!acceptsKey(key)) throw ArgumentError.value(key, 'key');
-    await _exclusive(() async {
+    await _enqueue(() async {
       final before = await objects.read(key);
       final beforeHash = _hash(before);
       final afterHash = deleted ? null : _hash(data);
@@ -171,6 +170,18 @@ final class JournaledObjectStore implements ObjectStore {
     });
   }
 
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final c = Completer<T>();
+    _serial = _serial.then((_) async {
+      try {
+        c.complete(await _exclusive(action));
+      } catch (e, s) {
+        c.completeError(e, s);
+      }
+    });
+    return c.future;
+  }
+
   Future<T> _exclusive<T>(Future<T> Function() action) {
     final store = metadata;
     if (store is ExclusiveObjectStore) {
@@ -179,42 +190,39 @@ final class JournaledObjectStore implements ObjectStore {
     return action();
   }
 
-  Future<void> _recoverPrepared() async {
-    await _exclusive(() async {
-      for (final operation in (await _operations()).values) {
-        if (operation['state'] != 'prepared' ||
-            operation['origin'] != 'local') {
-          continue;
-        }
-        final key = operation['key']! as String;
-        final current = await objects.read(key);
-        final currentHash = _hash(current);
-        final resultHash = operation['resultHash'] as String?;
-        if (currentHash == resultHash) {
+  Future<void> _recoverPrepared() => _enqueue(() async {
+        for (final operation in (await _operations()).values) {
+          if (operation['state'] != 'prepared' ||
+              operation['origin'] != 'local') {
+            continue;
+          }
+          final key = operation['key']! as String;
+          final current = await objects.read(key);
+          final currentHash = _hash(current);
+          final resultHash = operation['resultHash'] as String?;
+          if (currentHash == resultHash) {
+            await _writeEvent(operation, 'applied');
+            continue;
+          }
+          if (currentHash != operation['expectedHash']) {
+            throw StateError('Journal recovery conflict for $key.');
+          }
+          final kind = operation['kind'];
+          _pendingOrigins[key] = SyncMutationOrigin.local;
+          if (kind == 'delete') {
+            await objects.delete(key);
+          } else {
+            await objects.write(
+                key,
+                Uint8List.fromList(
+                    base64Decode(operation['payload']! as String)));
+          }
           await _writeEvent(operation, 'applied');
-          continue;
         }
-        if (currentHash != operation['expectedHash']) {
-          throw StateError('Journal recovery conflict for $key.');
-        }
-        final kind = operation['kind'];
-        _pendingOrigins[key] = SyncMutationOrigin.local;
-        if (kind == 'delete') {
-          await objects.delete(key);
-        } else {
-          await objects.write(
-              key,
-              Uint8List.fromList(
-                  base64Decode(operation['payload']! as String)));
-        }
-        await _writeEvent(operation, 'applied');
-      }
-    });
-  }
+      });
 
   Future<Map<String, Map<String, Object?>>> _operations() async {
     final values = <String, Map<String, Object?>>{};
-    final sequences = <int>{};
     for (final item in await metadata.scan()) {
       if (!item.key.startsWith(_eventPrefix) || !item.key.endsWith('.json')) {
         continue;
@@ -231,9 +239,6 @@ final class JournaledObjectStore implements ObjectStore {
           event['sequence'] is! int ||
           event['checksum'] != _checksum(event)) {
         throw const FormatException('Corrupt journal event.');
-      }
-      if (!sequences.add(event['sequence']! as int)) {
-        throw const FormatException('Duplicate journal sequence.');
       }
       final previous = values[id];
       final previousState = previous?['state'];
@@ -322,10 +327,11 @@ final class JournaledObjectStore implements ObjectStore {
 }
 
 final class _JournaledLocalReplica implements LocalReplica {
-  _JournaledLocalReplica(this.store) {
+  _JournaledLocalReplica(this.store, {this.closeStore = true}) {
     _subscription = store.mutationChanges.listen(_changes.add);
   }
   final JournaledObjectStore store;
+  final bool closeStore;
   final StreamController<LocalReplicaChange> _changes =
       StreamController.broadcast();
   late final StreamSubscription<LocalReplicaChange> _subscription;
@@ -391,10 +397,23 @@ final class _JournaledLocalReplica implements LocalReplica {
   Future<void> close() async {
     await _subscription.cancel();
     await _changes.close();
-    await store.close();
+    if (closeStore) {
+      await store.close();
+    }
   }
 
   String _hash(Uint8List data) => sha256.convert(data).toString();
+}
+
+final class JournaledObjectStoreLocalReplicaFactory
+    implements LocalReplicaFactory {
+  const JournaledObjectStoreLocalReplicaFactory(this.store);
+  final JournaledObjectStore store;
+  @override
+  Future<LocalReplica> open(String profileId) async =>
+      _JournaledLocalReplica(store, closeStore: false);
+  @override
+  Future<void> deleteProfile(String profileId) async {}
 }
 
 final class ObjectStoreLocalReplicaFactory implements LocalReplicaFactory {

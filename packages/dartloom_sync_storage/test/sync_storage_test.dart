@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dartloom_settings/dartloom_settings.dart';
 import 'package:dartloom_storage/dartloom_storage.dart';
 import 'package:dartloom_sync/dartloom_sync.dart';
@@ -118,6 +119,83 @@ void main() {
       throwsArgumentError,
     );
     await store.close();
+  });
+
+  test('journal handles duplicate sequences gracefully without throwing',
+      () async {
+    final objects = MemoryObjectStore(identity: 'objects');
+    final metadata = MemoryObjectStore(identity: 'metadata');
+
+    // Manually craft two events with duplicate sequence numbers
+    final event1 = <String, Object?>{
+      'id': 'op-1',
+      'key': 'todo-1',
+      'kind': 'create',
+      'origin': 'local',
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'expectedHash': null,
+      'resultHash': 'hash1',
+      'state': 'applied',
+      'sequence': 1,
+    };
+    event1['checksum'] = sha256
+        .convert(utf8.encode(jsonEncode(event1)))
+        .toString();
+
+    final event2 = <String, Object?>{
+      'id': 'op-2',
+      'key': 'todo-2',
+      'kind': 'create',
+      'origin': 'local',
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'expectedHash': null,
+      'resultHash': 'hash2',
+      'state': 'applied',
+      'sequence': 1, // Same sequence!
+    };
+    event2['checksum'] = sha256
+        .convert(utf8.encode(jsonEncode(event2)))
+        .toString();
+
+    await metadata.write('__dartloom_journal/v1/events/00000000000000000001-op-1-applied.json',
+        Uint8List.fromList(utf8.encode(jsonEncode(event1))));
+    await metadata.write('__dartloom_journal/v1/events/00000000000000000001-op-2-applied.json',
+        Uint8List.fromList(utf8.encode(jsonEncode(event2))));
+    await metadata.write('__dartloom_journal/v1/sequence',
+        Uint8List.fromList(utf8.encode('1')));
+
+    final journal = await JournaledObjectStore.open(
+      objects: objects,
+      metadata: metadata,
+    );
+    final intents = await journal.intents();
+    expect(intents.length, 2);
+    expect(intents.map((i) => i.key), containsAll(['todo-1', 'todo-2']));
+
+    // Forgetting intents cleans up properly
+    await journal.forgetIntent('op-1');
+    await journal.forgetIntent('op-2');
+    expect(await journal.intents(), isEmpty);
+    await journal.close();
+  });
+
+  test('JournaledObjectStoreLocalReplicaFactory does not close shared store',
+      () async {
+    final objects = MemoryObjectStore(identity: 'objects');
+    final metadata = MemoryObjectStore(identity: 'metadata');
+    final journal = await JournaledObjectStore.open(
+      objects: objects,
+      metadata: metadata,
+    );
+    final factory = JournaledObjectStoreLocalReplicaFactory(journal);
+    final replica = await factory.open('default');
+    expect(replica.identity, journal.identity);
+    await replica.close();
+
+    // Journaled store is still open and usable
+    await journal.write('todo-test', Uint8List.fromList([1, 2]));
+    expect((await journal.intents()).length, 1);
+    await journal.close();
   });
 }
 
