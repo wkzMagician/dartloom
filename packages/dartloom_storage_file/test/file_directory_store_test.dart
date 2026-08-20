@@ -42,6 +42,20 @@ void main() {
     await store.close();
   });
 
+  test('treats an already-removed object as absent', () async {
+    final root = await Directory.systemTemp.createTemp('dartloom_file_store');
+    addTearDown(() => root.delete(recursive: true));
+    final first = await FileObjectStore.open(root: root);
+    final second = await FileObjectStore.open(root: root);
+    await first.write('event.json', Uint8List.fromList([1]));
+
+    await second.delete('event.json');
+
+    expect(await first.read('event.json'), isNull);
+    await first.close();
+    await second.close();
+  });
+
   test('exclusive lock permits nested durable operations', () async {
     final root = await Directory.systemTemp.createTemp('dartloom-lock-');
     final store = await FileObjectStore.open(root: root);

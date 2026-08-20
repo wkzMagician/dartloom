@@ -62,16 +62,22 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
         await for (final entity
             in root.list(recursive: true, followLinks: false)) {
           if (entity is! File || _isTemporary(entity.path)) continue;
-          final key = _keyFor(entity.path);
-          if (!acceptsKey(key)) continue;
-          await _rejectEscapingLinks(key);
-          final bytes = await entity.readAsBytes();
-          final stat = await entity.stat();
-          result.add(StoredObject(
-              key: key,
-              size: bytes.length,
-              modifiedAt: stat.modified.toUtc(),
-              contentHash: sha256.convert(bytes).toString()));
+          try {
+            final key = _keyFor(entity.path);
+            if (!acceptsKey(key)) continue;
+            await _rejectEscapingLinks(key);
+            final bytes = await entity.readAsBytes();
+            final stat = await entity.stat();
+            result.add(StoredObject(
+                key: key,
+                size: bytes.length,
+                modifiedAt: stat.modified.toUtc(),
+                contentHash: sha256.convert(bytes).toString()));
+          } on FileSystemException catch (error) {
+            if (!_isNotFound(error)) rethrow;
+            // A second store may have removed the file after directory
+            // enumeration. The current scan can safely omit it.
+          }
         }
         result.sort((a, b) => a.key.compareTo(b.key));
         return result;
@@ -80,7 +86,12 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   @override
   Future<Uint8List?> read(String key) => _enqueue(() async {
         final file = await _safeFile(key);
-        return await file.exists() ? file.readAsBytes() : null;
+        try {
+          return await file.exists() ? await file.readAsBytes() : null;
+        } on FileSystemException catch (error) {
+          if (_isNotFound(error)) return null;
+          rethrow;
+        }
       });
   @override
   Future<void> write(String key, Uint8List data) => _enqueue(() async {
@@ -95,7 +106,12 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   Future<void> delete(String key) => _enqueue(() async {
         final target = await _safeFile(key);
         if (await target.exists()) {
-          await target.delete();
+          try {
+            await target.delete();
+          } on FileSystemException catch (error) {
+            if (!_isNotFound(error)) rethrow;
+            return;
+          }
           _expectWatchEvent(_normalizeKey(key));
           _emit(StorageChange(_normalizeKey(key), StorageChangeKind.deleted,
               deleted: true));
@@ -212,6 +228,8 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
 
   bool _isTemporary(String value) =>
       value.endsWith('.dartloom-tmp') || value.endsWith('.dartloom-old');
+
+  bool _isNotFound(FileSystemException error) => error.osError?.errorCode == 2;
 
   void _expectWatchEvent(String key) {
     _expectedWatchEvents[key] = (_expectedWatchEvents[key] ?? 0) + 1;
