@@ -14,6 +14,34 @@ void main() {
     await root.delete(recursive: true);
   });
 
+  test('does not clean up a fresh temporary file from another writer',
+      () async {
+    final root = await Directory.systemTemp.createTemp('dartloom_file_store');
+    addTearDown(() => root.delete(recursive: true));
+    final temp = File('${root.path}/value.123.dartloom-tmp');
+    await temp.writeAsBytes(const [1, 2, 3]);
+
+    final store = await FileObjectStore.open(root: root);
+
+    expect(await temp.exists(), isTrue);
+    await store.close();
+  });
+
+  test('cleans up temporary files older than one minute', () async {
+    final root = await Directory.systemTemp.createTemp('dartloom_file_store');
+    addTearDown(() => root.delete(recursive: true));
+    final temp = File('${root.path}/value.123.dartloom-tmp');
+    await temp.writeAsBytes(const [1, 2, 3]);
+    await temp.setLastModified(
+      DateTime.now().subtract(const Duration(minutes: 2)),
+    );
+
+    final store = await FileObjectStore.open(root: root);
+
+    expect(await temp.exists(), isFalse);
+    await store.close();
+  });
+
   test('exclusive lock permits nested durable operations', () async {
     final root = await Directory.systemTemp.createTemp('dartloom-lock-');
     final store = await FileObjectStore.open(root: root);

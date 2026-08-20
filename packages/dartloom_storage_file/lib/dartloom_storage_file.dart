@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -9,6 +10,8 @@ import 'package:path/path.dart' as p;
 final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   FileObjectStore._({required this.root});
   final Directory root;
+  static final Random _random = Random.secure();
+  static const _temporaryFileMaxAge = Duration(minutes: 1);
   final StreamController<StorageChange> _changes = StreamController.broadcast();
   StreamSubscription<FileSystemEvent>? _watcher;
   Future<void> _serial = Future.value();
@@ -170,19 +173,40 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
 
   Future<void> _atomicWrite(File target, List<int> bytes) async {
     await target.parent.create(recursive: true);
-    final temp = File(
-        '${target.path}.${DateTime.now().microsecondsSinceEpoch}-$pid.dartloom-tmp');
-    await temp.writeAsBytes(bytes, flush: true);
-    try {
-      await temp.rename(target.path);
-    } finally {
-      if (await temp.exists()) await temp.delete();
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final temp = File(
+        '${target.path}.${DateTime.now().microsecondsSinceEpoch}-'
+        '$pid-${_random.nextInt(1 << 32)}.dartloom-tmp',
+      );
+      try {
+        await temp.writeAsBytes(bytes, flush: true);
+        await temp.rename(target.path);
+        return;
+      } on FileSystemException catch (error) {
+        if (attempt == 1 || error.osError?.errorCode != 2) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      } finally {
+        try {
+          if (await temp.exists()) await temp.delete();
+        } on FileSystemException catch (error) {
+          if (error.osError?.errorCode != 2) rethrow;
+        }
+      }
     }
   }
 
   Future<void> _cleanupTemporaryFiles() async {
+    final cutoff = DateTime.now().subtract(_temporaryFileMaxAge);
     await for (final e in root.list(recursive: true, followLinks: false)) {
-      if (e is File && _isTemporary(e.path)) await e.delete();
+      if (e is! File || !_isTemporary(e.path)) continue;
+      try {
+        if ((await e.stat()).modified.isBefore(cutoff)) await e.delete();
+      } on FileSystemException catch (error) {
+        // Another writer may have completed or cleaned up the file between
+        // stat and delete. That is harmless; other filesystem failures are
+        // still surfaced to the caller.
+        if (error.osError?.errorCode != 2) rethrow;
+      }
     }
   }
 
