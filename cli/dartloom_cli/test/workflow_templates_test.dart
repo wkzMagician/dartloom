@@ -62,8 +62,10 @@ void main() {
     });
 
     test('installer uses the project executable name', () {
-      final installer = windowsInstaller(appName: 'mind_bubble');
+      final installer =
+          windowsInstaller(appName: 'mind_bubble', appVersion: '0.4.5');
       expect(installer, contains('#define MyAppName "Mind Bubble"'));
+      expect(installer, contains('#define MyAppVersion "0.4.5"'));
       expect(installer, contains('#define MyAppExeName "mind_bubble.exe"'));
       expect(installer, contains('OutputBaseFilename=mind_bubble-'));
     });
