@@ -46,3 +46,11 @@ String projectNameFromPubspec(Directory project) {
       .firstMatch(file.readAsStringSync());
   return match?.group(1) ?? 'dartloom_app';
 }
+
+String projectVersionFromPubspec(Directory project) {
+  final file = File('${project.path}${Platform.pathSeparator}pubspec.yaml');
+  if (!file.existsSync()) return '0.0.0';
+  final match = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+      .firstMatch(file.readAsStringSync());
+  return match?.group(1) ?? '0.0.0';
+}

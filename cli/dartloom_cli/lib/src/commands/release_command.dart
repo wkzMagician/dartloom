@@ -22,9 +22,7 @@ class ReleaseCommand {
     final source = await file.readAsString();
     final current = RegExp(r'^version:\s*([^\s]+)', multiLine: true)
         .firstMatch(source)
-        ?.group(1)
-        ?.split('+')
-        .first;
+        ?.group(1);
     final next = version ?? current;
     if (next == null ||
         !RegExp(r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$')
