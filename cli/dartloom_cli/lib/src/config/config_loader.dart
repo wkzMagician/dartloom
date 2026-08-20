@@ -49,7 +49,7 @@ class ConfigLoader {
     final packages = <String>[];
     for (final value in rawPackages) {
       if (value is! String ||
-          !RegExp(r'^dartloom_[a-z0-9_]+$').hasMatch(value)) {
+          !RegExp(r'^dartloom(?:_[a-z0-9_]+)?$').hasMatch(value)) {
         throw ConfigException('Package names must be Dartloom package names.');
       }
       if (!packages.contains(value)) packages.add(value);

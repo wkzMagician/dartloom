@@ -54,9 +54,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.git_ref }}
+      - name: Install Linux build dependencies
+        if: ${{ matrix.platform == 'linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.0'
       - run: flutter pub get
       - shell: bash
         run: |
@@ -88,7 +93,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.0'
       - run: flutter pub get
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
@@ -123,7 +128,13 @@ ${jobs.join('\n')}
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: '**/*'
+          files: |
+            android/**/*.apk
+            android/**/*.aab
+            ios/**/*.ipa
+            windows/**/*.exe
+            linux/**/release/bundle/**
+            macos/**/Release/*.app/**
 ''';
 }
 
@@ -146,7 +157,7 @@ String _releaseJob(TargetPlatform platform) {
     TargetPlatform.windows => [
         'flutter build windows --release',
         'choco install innosetup --no-progress -y',
-        'iscc /DMyAppVersion=%VERSION% installer\\windows.iss',
+        'iscc /DMyAppVersion=\${{ github.ref_name }} installer\\windows.iss',
       ],
     TargetPlatform.linux => ['flutter build linux --release'],
     TargetPlatform.web => ['flutter build web --release'],
@@ -159,13 +170,20 @@ String _releaseJob(TargetPlatform platform) {
     TargetPlatform.linux => 'build/linux/**/release/**',
     TargetPlatform.web => 'build/web/**',
   };
+  final linuxDependencies = platform == TargetPlatform.linux
+      ? '''      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+'''
+      : '';
   return '''  ${platform.name}:
     runs-on: $runner
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+${linuxDependencies}      - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.0'
       - run: flutter pub get
 ${commands.map((command) => '      - run: $command').join('\n')}
       - uses: actions/upload-artifact@v4

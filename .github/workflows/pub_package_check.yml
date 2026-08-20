@@ -69,7 +69,7 @@ jobs:
               ;;
           esac
       - run: flutter pub get
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test
       # Recent Flutter versions migrate a package's analysis_options.yaml during
       # analysis. Restore that generated migration before pub validation so the

@@ -58,16 +58,14 @@ class UpdateCommand {
     final workflows = Directory(
         '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows');
     await workflows.create(recursive: true);
+    final ci = File('${workflows.path}${Platform.pathSeparator}ci.yml');
+    await ci.writeAsString(ciWorkflow());
     final cloudBuild =
         File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml');
-    if (!await cloudBuild.exists()) {
-      await cloudBuild.writeAsString(cloudBuildWorkflow());
-    }
+    await cloudBuild.writeAsString(cloudBuildWorkflow());
     final release =
         File('${workflows.path}${Platform.pathSeparator}release.yml');
-    if (!await release.exists()) {
-      await release.writeAsString(releaseWorkflow(next));
-    }
+    await release.writeAsString(releaseWorkflow(next));
     final installer =
         Directory('${project.path}${Platform.pathSeparator}installer');
     await installer.create(recursive: true);

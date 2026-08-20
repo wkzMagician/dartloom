@@ -69,9 +69,17 @@ Future<void> updateDependencies(
   var source = await file.readAsString();
   final lines = source.split('\n');
   final names = config.packages.toSet();
+  final existingNames = <String>{};
+  final dependencyName = RegExp(r'^  (dartloom(?:_[a-z0-9_]+)?):');
+  for (final line in lines) {
+    final match = dependencyName.firstMatch(line);
+    if (match != null) existingNames.add(match.group(1)!);
+  }
   final dependencyLines = <String>[];
   for (final name in names) {
-    dependencyLines.add('  $name: ^1.0.0');
+    if (!existingNames.contains(name)) {
+      dependencyLines.add('  $name: ^1.0.0');
+    }
   }
   var dependencies = false;
   var inserted = false;
@@ -87,7 +95,7 @@ Future<void> updateDependencies(
       inserted = true;
       dependencies = false;
     }
-    if (dependencies && RegExp(r'^  dartloom_[a-z0-9_]+:').hasMatch(line)) {
+    if (dependencies && dependencyName.hasMatch(line)) {
       if (!names.any((name) => line.startsWith('  $name:'))) continue;
     }
     result.add(line);
