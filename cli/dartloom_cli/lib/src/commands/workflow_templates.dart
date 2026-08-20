@@ -57,7 +57,7 @@ jobs:
           if [ "\${{ inputs.platform }}" = "all" ]; then
             echo 'platforms=["windows","linux","macos","android","ios","web"]' >> "\$GITHUB_OUTPUT"
           else
-            echo "platforms=[\"\${{ inputs.platform }}\"]" >> "\$GITHUB_OUTPUT"
+            echo 'platforms=["\${{ inputs.platform }}"]' >> "\$GITHUB_OUTPUT"
           fi
 
   build:
@@ -180,8 +180,7 @@ ${jobs.join('\n')}
         run: |
           set -euo pipefail
           mkdir -p release_files
-          find downloaded_artifacts -type f ! -name 'dartloom-build.json' -exec cp {} release_files/ \\
-            \\\;
+          find downloaded_artifacts -type f ! -name 'dartloom-build.json' -exec cp {} release_files/ \\;
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
