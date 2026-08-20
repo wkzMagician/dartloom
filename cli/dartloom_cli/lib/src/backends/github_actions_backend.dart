@@ -22,9 +22,10 @@ class GitHubActionsBackend implements CloudBuildBackend {
       request.write(jsonEncode(body));
     }
     final response = await request.close();
-    if (response.statusCode >= 300)
+    if (response.statusCode >= 300) {
       throw HttpException(
           'GitHub API ${response.statusCode}: ${await response.transform(utf8.decoder).join()}');
+    }
     return response;
   }
 
@@ -67,10 +68,11 @@ class GitHubActionsBackend implements CloudBuildBackend {
     final response = await _request('GET', '$_base/actions/runs/$runId');
     final data = jsonDecode(await response.transform(utf8.decoder).join())
         as Map<String, dynamic>;
-    if (data['status'] != 'completed')
+    if (data['status'] != 'completed') {
       return data['status'] == 'queued'
           ? BuildStatus.queued
           : BuildStatus.running;
+    }
     return switch (data['conclusion']) {
       'success' => BuildStatus.succeeded,
       'cancelled' => BuildStatus.cancelled,

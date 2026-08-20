@@ -38,3 +38,11 @@ Directory? localPackagesDirectory(Directory start) {
     current = parent;
   }
 }
+
+String projectNameFromPubspec(Directory project) {
+  final file = File('${project.path}${Platform.pathSeparator}pubspec.yaml');
+  if (!file.existsSync()) return 'dartloom_app';
+  final match = RegExp(r'^name:\s*([A-Za-z0-9_-]+)\s*$', multiLine: true)
+      .firstMatch(file.readAsStringSync());
+  return match?.group(1) ?? 'dartloom_app';
+}

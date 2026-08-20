@@ -55,6 +55,7 @@ class UpdateCommand {
     }
     await loader.save(project, next);
     await updateDependencies(project, next);
+    final appName = projectNameFromPubspec(project);
     final workflows = Directory(
         '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows');
     await workflows.create(recursive: true);
@@ -62,17 +63,23 @@ class UpdateCommand {
     await ci.writeAsString(ciWorkflow());
     final cloudBuild =
         File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml');
-    await cloudBuild.writeAsString(cloudBuildWorkflow());
+    await cloudBuild.writeAsString(cloudBuildWorkflow(appName: appName));
     final release =
         File('${workflows.path}${Platform.pathSeparator}release.yml');
-    await release.writeAsString(releaseWorkflow(next));
+    await release.writeAsString(releaseWorkflow(next, appName: appName));
     final installer =
         Directory('${project.path}${Platform.pathSeparator}installer');
     await installer.create(recursive: true);
     final windowsInstallerFile =
         File('${installer.path}${Platform.pathSeparator}windows.iss');
-    if (!await windowsInstallerFile.exists()) {
-      await windowsInstallerFile.writeAsString(windowsInstaller());
+    final installerText = await windowsInstallerFile.exists()
+        ? await windowsInstallerFile.readAsString()
+        : '';
+    final isDartloomPlaceholder = installerText.contains(
+        'Generic Windows installer entry point for Dartloom projects.');
+    if (!await windowsInstallerFile.exists() || isDartloomPlaceholder) {
+      await windowsInstallerFile
+          .writeAsString(windowsInstaller(appName: appName));
     }
     final agents = File('${project.path}${Platform.pathSeparator}AGENTS.md');
     await agents.writeAsString(await updateAgents(agents, next, catalog));

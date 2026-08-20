@@ -71,9 +71,10 @@ class BuildCommand {
       await Future<void>.delayed(const Duration(seconds: 2));
       status = await backend.status(runId);
     }
-    if (status != BuildStatus.succeeded)
+    if (status != BuildStatus.succeeded) {
       throw StateError(
           'Build $status. GitHub Actions: ${backend.runUrl(runId)}');
+    }
     return BuildResult(
         runId: runId,
         platform: platform,

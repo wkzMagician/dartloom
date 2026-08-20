@@ -49,15 +49,17 @@ Future<void> main(List<String> arguments) async {
         }
         await CheckCommand().run(Directory(path));
       case 'build':
-        if (command.rest.length != 1)
+        if (command.rest.length != 1) {
           throw CommandFailure('Usage: dartloom build <platform|all>');
+        }
         final target = command.rest.single.toLowerCase();
         await BuildCommand().run(target,
             all: target == 'all',
             mode: BuildModeName.parse(command['mode'] as String));
       case 'release':
-        if (command.rest.length > 1)
+        if (command.rest.length > 1) {
           throw CommandFailure('Usage: dartloom release [version]');
+        }
         await const ReleaseCommand().run(Directory.current,
             version: command.rest.isEmpty ? null : command.rest.single);
     }

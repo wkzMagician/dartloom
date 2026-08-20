@@ -69,16 +69,17 @@ class NewCommand {
     final workflows = Directory(
         '${project.path}${Platform.pathSeparator}.github${Platform.pathSeparator}workflows');
     await workflows.create(recursive: true);
+    final appName = projectNameFromPubspec(project);
     await File('${workflows.path}${Platform.pathSeparator}ci.yml')
         .writeAsString(ciWorkflow());
     await File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml')
-        .writeAsString(cloudBuildWorkflow());
+        .writeAsString(cloudBuildWorkflow(appName: appName));
     final installer =
         Directory('${project.path}${Platform.pathSeparator}installer');
     await installer.create(recursive: true);
     await File('${installer.path}${Platform.pathSeparator}windows.iss')
-        .writeAsString(windowsInstaller());
+        .writeAsString(windowsInstaller(appName: appName));
     await File('${workflows.path}${Platform.pathSeparator}release.yml')
-        .writeAsString(releaseWorkflow(config));
+        .writeAsString(releaseWorkflow(config, appName: appName));
   }
 }

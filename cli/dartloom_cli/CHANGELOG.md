@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3
+
+- Added cloud build and tagged release commands to the CLI.
+- Improved project workflow generation, package selection, and configuration checks.
+
 ## 0.2.2
 
 - Track the Dartloom `main` branch for GitHub capability dependencies and

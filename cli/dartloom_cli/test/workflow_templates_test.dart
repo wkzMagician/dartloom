@@ -41,5 +41,31 @@ void main() {
       expect(parsed['name'], 'Release');
       expect(parsed['jobs'], isNotNull);
     });
+
+    test('release artifacts are packaged and named for the project', () {
+      final workflow = releaseWorkflow(
+        DartloomConfig(
+          platforms: TargetPlatform.values.toSet(),
+          packages: [],
+        ),
+        appName: 'mind_bubble',
+      );
+      expect(workflow, contains('dist/mind_bubble-android.apk'));
+      expect(workflow, contains('dist/mind_bubble-android.aab'));
+      expect(workflow, contains('dist/mind_bubble-ios.ipa'));
+      expect(workflow, contains('dist/mind_bubble-macos.zip'));
+      expect(workflow, contains('dist/mind_bubble-linux-x64.tar.gz'));
+      expect(workflow, contains('dist/mind_bubble-web.zip'));
+      expect(workflow, contains('find downloaded_artifacts'));
+      expect(workflow, contains("! -name 'dartloom-build.json'"));
+      expect(workflow, isNot(contains('build/app/outputs/**')));
+    });
+
+    test('installer uses the project executable name', () {
+      final installer = windowsInstaller(appName: 'mind_bubble');
+      expect(installer, contains('#define MyAppName "Mind Bubble"'));
+      expect(installer, contains('#define MyAppExeName "mind_bubble.exe"'));
+      expect(installer, contains('OutputBaseFilename=mind_bubble-'));
+    });
   });
 }

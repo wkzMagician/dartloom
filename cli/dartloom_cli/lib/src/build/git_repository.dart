@@ -17,8 +17,9 @@ class GitRepository {
   Future<String> head() async {
     final result = await Process.run('git', ['rev-parse', 'HEAD'],
         workingDirectory: directory.path);
-    if (result.exitCode != 0)
+    if (result.exitCode != 0) {
       throw StateError('Unable to resolve current commit.');
+    }
     return (result.stdout as String).trim();
   }
 
