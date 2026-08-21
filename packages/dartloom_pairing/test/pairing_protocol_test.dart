@@ -8,7 +8,7 @@ void main() {
   test('portable invitations round-trip without private material', () {
     final coordinator = PairingCoordinator(random: Random(1));
     final session = coordinator.createInvite(
-      uriScheme: 'actent',
+      uriScheme: 'example',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -21,18 +21,18 @@ void main() {
 
     final decoded = PairingInvite.fromUri(
       session.invite.toUri(),
-      uriScheme: 'actent',
+      uriScheme: 'example',
     );
     expect(decoded.nonce, session.invite.nonce);
     expect(decoded.issuerLanPort, 43100);
     expect(decoded.issuerPairingLanPort, 43101);
     expect(decoded.toUri(), isNot(contains('private')));
-    expect(session.invite.toUri(), startsWith('actent://pair/v1/'));
+    expect(session.invite.toUri(), startsWith('example://pair/v1/'));
   });
 
   test('rejects unknown invitation fields', () {
     final session = PairingCoordinator(random: Random(4)).createInvite(
-      uriScheme: 'actent',
+      uriScheme: 'example',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -42,15 +42,17 @@ void main() {
     final token = base64UrlEncode(utf8.encode(jsonEncode(payload)))
         .replaceAll('=', '');
     expect(
-      () =>
-          PairingInvite.fromUri('actent://pair/v1/$token', uriScheme: 'actent'),
+      () => PairingInvite.fromUri(
+        'example://pair/v1/$token',
+        uriScheme: 'example',
+      ),
       throwsA(isA<PairingValidationException>()),
     );
   });
 
   test('requires acceptance and the matching short code', () {
     final session = PairingCoordinator(random: Random(2)).createInvite(
-      uriScheme: 'actent',
+      uriScheme: 'example',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -67,7 +69,7 @@ void main() {
 
   test('LAN handler verifies acceptance proof before confirmation', () async {
     final session = PairingCoordinator(random: Random(3)).createInvite(
-      uriScheme: 'actent',
+      uriScheme: 'example',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'desktop-key',
       relayUrl: 'https://ntfy.example',
@@ -89,7 +91,7 @@ void main() {
     expect(
       PairingInvite.fromUri(
         response['inviteUri'] as String,
-        uriScheme: 'actent',
+        uriScheme: 'example',
       ).nonce,
       session.invite.nonce,
     );

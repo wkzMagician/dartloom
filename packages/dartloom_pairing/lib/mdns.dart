@@ -27,7 +27,7 @@ class MdnsPairingAdvertiser {
     required this.platform,
     required this.fingerprint,
     required this.port,
-    this.serviceType = '_actent._tcp.local',
+    required this.serviceType,
     this.ttl = const Duration(seconds: 120),
     this.advertisedAddress,
     this.socketFactory = RawDatagramSocket.bind,
@@ -125,7 +125,7 @@ class MdnsPairingAdvertiser {
 /// Resolves DNS-SD advertisements published by [MdnsPairingAdvertiser].
 class MdnsPairingDiscovery implements PairingDiscovery {
   MdnsPairingDiscovery({
-    this.serviceName = '_actent._tcp.local',
+    required this.serviceName,
     this.lookupTimeout = const Duration(seconds: 3),
   });
 
@@ -313,7 +313,7 @@ String _escapeTxt(String value) => Uri.encodeComponent(value);
 
 String _safeLabel(String value) {
   final label = value.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '-');
-  if (label.isEmpty) return 'actent-device';
+  if (label.isEmpty) return 'pairing-device';
   final end = label.length > 63 ? 63 : label.length;
   return label.substring(0, end);
 }
