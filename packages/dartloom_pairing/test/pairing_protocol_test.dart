@@ -23,6 +23,19 @@ void main() {
     expect(decoded.issuerLanPort, 43100);
     expect(decoded.issuerPairingLanPort, 43101);
     expect(decoded.toUri(), isNot(contains('private')));
+    expect(session.invite.toUri(), startsWith('actent://pair/v1/'));
+  });
+
+  test('accepts legacy pigeon invitation URIs', () {
+    final session = PairingCoordinator(random: Random(5)).createInvite(
+      issuerDeviceId: 'desktop',
+      issuerPublicKey: 'public-key',
+      relayUrl: 'https://ntfy.example',
+      temporaryTopic: 'temporary-topic',
+    );
+    final actentUri = session.invite.toUri();
+    final legacyUri = actentUri.replaceFirst('actent://', 'pigeon://');
+    expect(PairingInvite.fromUri(legacyUri).nonce, session.invite.nonce);
   });
 
   test('rejects unknown invitation fields', () {

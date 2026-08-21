@@ -71,13 +71,15 @@ class PairingInvite {
   String toUri() {
     final token = base64UrlEncode(utf8.encode(jsonEncode(toJson())))
         .replaceAll('=', '');
-    return 'pigeon://pair/v1/$token';
+    return 'actent://pair/v1/$token';
   }
 
   factory PairingInvite.fromUri(String value) {
     final uri = Uri.tryParse(value);
-    if (uri == null || uri.scheme != 'pigeon' || uri.host != 'pair') {
-      throw const PairingValidationException('invalid pigeon pairing URI');
+    if (uri == null ||
+        (uri.scheme != 'actent' && uri.scheme != 'pigeon') ||
+        uri.host != 'pair') {
+      throw const PairingValidationException('invalid Actent pairing URI');
     }
     if (uri.pathSegments.length != 2 || uri.pathSegments.first != 'v1') {
       throw const PairingValidationException('unsupported pairing URI version');

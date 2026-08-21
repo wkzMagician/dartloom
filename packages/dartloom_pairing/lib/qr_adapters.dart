@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import 'pairing_contracts.dart';
+import 'pairing_protocol.dart';
 
 class FlutterQrCodePresenter implements QrPresenter {
   FlutterQrCodePresenter(this.context);
@@ -14,6 +15,7 @@ class FlutterQrCodePresenter implements QrPresenter {
   @override
   Future<void> show(String invitation) async {
     if (!context.mounted) return;
+    final shortCode = _shortCode(invitation);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -23,7 +25,7 @@ class FlutterQrCodePresenter implements QrPresenter {
           children: [
             QrImageView(data: invitation, size: 240),
             const SizedBox(height: 12),
-            SelectableText(invitation),
+            Text('Pairing code: $shortCode'),
           ],
         ),
         actions: [
@@ -34,6 +36,14 @@ class FlutterQrCodePresenter implements QrPresenter {
         ],
       ),
     );
+  }
+
+  String _shortCode(String invitation) {
+    try {
+      return PairingInvite.fromUri(invitation).shortCode;
+    } on Object {
+      return '—';
+    }
   }
 }
 
