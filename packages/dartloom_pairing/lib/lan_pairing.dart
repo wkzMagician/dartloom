@@ -118,6 +118,7 @@ class LanPairingService {
 
 class LanPairingClient {
   LanPairingClient({
+    required this.uriScheme,
     this.timeout = const Duration(seconds: 10),
     Future<SecureSocket> Function(
       String host,
@@ -129,6 +130,7 @@ class LanPairingClient {
   }) : _connect = connect ?? _connectSecure;
 
   final Duration timeout;
+  final String uriScheme;
   final Future<SecureSocket> Function(
     String host,
     int port, {
@@ -190,7 +192,10 @@ class LanPairingClient {
         'LAN pairing server returned an invalid invite',
       );
     }
-    return PairingInvite.fromUri(response['inviteUri'] as String);
+    return PairingInvite.fromUri(
+      response['inviteUri'] as String,
+      uriScheme: uriScheme,
+    );
   }
 
   Future<PairingConfirmation> sendAcceptance({

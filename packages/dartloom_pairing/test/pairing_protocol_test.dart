@@ -8,6 +8,7 @@ void main() {
   test('portable invitations round-trip without private material', () {
     final coordinator = PairingCoordinator(random: Random(1));
     final session = coordinator.createInvite(
+      uriScheme: 'actent',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -18,7 +19,10 @@ void main() {
       issuerCertificateSha256: 'certificate-fingerprint',
     );
 
-    final decoded = PairingInvite.fromUri(session.invite.toUri());
+    final decoded = PairingInvite.fromUri(
+      session.invite.toUri(),
+      uriScheme: 'actent',
+    );
     expect(decoded.nonce, session.invite.nonce);
     expect(decoded.issuerLanPort, 43100);
     expect(decoded.issuerPairingLanPort, 43101);
@@ -26,20 +30,9 @@ void main() {
     expect(session.invite.toUri(), startsWith('actent://pair/v1/'));
   });
 
-  test('accepts legacy pigeon invitation URIs', () {
-    final session = PairingCoordinator(random: Random(5)).createInvite(
-      issuerDeviceId: 'desktop',
-      issuerPublicKey: 'public-key',
-      relayUrl: 'https://ntfy.example',
-      temporaryTopic: 'temporary-topic',
-    );
-    final actentUri = session.invite.toUri();
-    final legacyUri = actentUri.replaceFirst('actent://', 'pigeon://');
-    expect(PairingInvite.fromUri(legacyUri).nonce, session.invite.nonce);
-  });
-
   test('rejects unknown invitation fields', () {
     final session = PairingCoordinator(random: Random(4)).createInvite(
+      uriScheme: 'actent',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -49,13 +42,15 @@ void main() {
     final token = base64UrlEncode(utf8.encode(jsonEncode(payload)))
         .replaceAll('=', '');
     expect(
-      () => PairingInvite.fromUri('pigeon://pair/v1/$token'),
+      () =>
+          PairingInvite.fromUri('actent://pair/v1/$token', uriScheme: 'actent'),
       throwsA(isA<PairingValidationException>()),
     );
   });
 
   test('requires acceptance and the matching short code', () {
     final session = PairingCoordinator(random: Random(2)).createInvite(
+      uriScheme: 'actent',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
@@ -72,6 +67,7 @@ void main() {
 
   test('LAN handler verifies acceptance proof before confirmation', () async {
     final session = PairingCoordinator(random: Random(3)).createInvite(
+      uriScheme: 'actent',
       issuerDeviceId: 'desktop',
       issuerPublicKey: 'desktop-key',
       relayUrl: 'https://ntfy.example',
@@ -91,7 +87,10 @@ void main() {
       'version': 1,
     });
     expect(
-      PairingInvite.fromUri(response['inviteUri'] as String).nonce,
+      PairingInvite.fromUri(
+        response['inviteUri'] as String,
+        uriScheme: 'actent',
+      ).nonce,
       session.invite.nonce,
     );
     final acceptance = PairingAcceptance(

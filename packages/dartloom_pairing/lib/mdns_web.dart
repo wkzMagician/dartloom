@@ -11,7 +11,7 @@ class MdnsPairingAdvertiser {
     required this.platform,
     required this.fingerprint,
     required this.port,
-    this.serviceType = '_pigeon._tcp.local',
+    this.serviceType = '_actent._tcp.local',
   });
 
   final String deviceId;
@@ -28,7 +28,7 @@ class MdnsPairingAdvertiser {
 
 class MdnsPairingDiscovery implements PairingDiscovery {
   MdnsPairingDiscovery({
-    this.serviceName = '_pigeon._tcp.local',
+    this.serviceName = '_actent._tcp.local',
     this.lookupTimeout = const Duration(seconds: 3),
   });
 

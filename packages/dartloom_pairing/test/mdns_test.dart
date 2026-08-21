@@ -7,8 +7,8 @@ import 'package:test/test.dart';
 void main() {
   test('builds a DNS-SD announcement with a pairing TXT record', () {
     final packet = MdnsPacketBuilder.serviceAnnouncement(
-      serviceType: '_pigeon._tcp.local',
-      serviceInstance: 'device._pigeon._tcp.local',
+      serviceType: '_actent._tcp.local',
+      serviceInstance: 'device._actent._tcp.local',
       hostName: 'device.local',
       address: InternetAddress.loopbackIPv4,
       port: 4321,

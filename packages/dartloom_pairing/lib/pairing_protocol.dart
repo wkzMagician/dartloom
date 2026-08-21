@@ -16,6 +16,7 @@ enum PairingStatus {
 
 class PairingInvite {
   PairingInvite({
+    required this.uriScheme,
     required this.nonce,
     required this.issuerDeviceId,
     required this.issuerPublicKey,
@@ -33,6 +34,7 @@ class PairingInvite {
   });
 
   final int version;
+  final String uriScheme;
   final String nonce;
   final String issuerDeviceId;
   final String issuerPublicKey;
@@ -71,15 +73,13 @@ class PairingInvite {
   String toUri() {
     final token = base64UrlEncode(utf8.encode(jsonEncode(toJson())))
         .replaceAll('=', '');
-    return 'actent://pair/v1/$token';
+    return '$uriScheme://pair/v1/$token';
   }
 
-  factory PairingInvite.fromUri(String value) {
+  factory PairingInvite.fromUri(String value, {required String uriScheme}) {
     final uri = Uri.tryParse(value);
-    if (uri == null ||
-        (uri.scheme != 'actent' && uri.scheme != 'pigeon') ||
-        uri.host != 'pair') {
-      throw const PairingValidationException('invalid Actent pairing URI');
+    if (uri == null || uri.scheme != uriScheme || uri.host != 'pair') {
+      throw const PairingValidationException('invalid pairing URI');
     }
     if (uri.pathSegments.length != 2 || uri.pathSegments.first != 'v1') {
       throw const PairingValidationException('unsupported pairing URI version');
@@ -135,6 +135,7 @@ class PairingInvite {
         );
       }
       return PairingInvite(
+        uriScheme: uriScheme,
         version: version,
         nonce: _string(map['nonce'], 'nonce'),
         issuerDeviceId: _string(map['issuerDeviceId'], 'issuerDeviceId'),
@@ -243,6 +244,7 @@ class PairingCoordinator {
   final Map<String, PairingSession> _sessions = {};
 
   PairingSession createInvite({
+    required String uriScheme,
     required String issuerDeviceId,
     required String issuerPublicKey,
     required String relayUrl,
@@ -259,6 +261,7 @@ class PairingCoordinator {
     }
     final createdAt = clock().toUtc();
     final invite = PairingInvite(
+      uriScheme: uriScheme,
       nonce: _randomToken(24),
       issuerDeviceId: issuerDeviceId,
       issuerPublicKey: issuerPublicKey,

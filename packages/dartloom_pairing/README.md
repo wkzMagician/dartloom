@@ -4,7 +4,7 @@ Generic device pairing capability for Dartloom. It provides:
 
 - stable X25519 device identity generation through an injected secure-store
   contract;
-- portable `pigeon://pair/v1/...` invitations with a ten-minute default
+- portable `actent://pair/v1/...` invitations with a ten-minute default
   lifetime;
 - device metadata, short-code confirmation and HMAC proof contracts;
 - injected relay control handshake contracts for QR/paste fallback;
@@ -15,8 +15,8 @@ Generic device pairing capability for Dartloom. It provides:
 The acceptance/confirmation message schema is published at
 `schema/pairing_messages.schema.json`.
 
-The package does not know about Pigeon Work Catalogs or business message
-delivery. Pigeon receives only the verified pairing result and persists its
+The package does not know about Actent Work Catalogs or business message
+delivery. Actent receives only the verified pairing result and persists its
 own Device endpoint.
 
 # iOS local-network permissions
@@ -29,7 +29,7 @@ LAN/mDNS pairing on iOS requires these entries in the application-owned
 <string>Dartloom uses the local network to pair nearby devices.</string>
 <key>NSBonjourServices</key>
 <array>
-  <string>_pigeon._tcp</string>
+  <string>_actent._tcp</string>
 </array>
 ```
 
