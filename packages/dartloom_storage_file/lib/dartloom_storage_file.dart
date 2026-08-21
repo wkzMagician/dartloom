@@ -31,10 +31,22 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
     }
     await store.root.create(recursive: true);
     await store._cleanupTemporaryFiles();
-    if (FileSystemEntity.isWatchSupported) {
+    // iOS reports file watching as available in some runtimes, but opening a
+    // directory watcher still fails at runtime. Storage change notifications
+    // are an optional optimization; they must never prevent the store from
+    // opening on a platform without watcher support.
+    if (FileSystemEntity.isWatchSupported && !Platform.isIOS) {
       try {
-        store._watcher =
-            store.root.watch(recursive: true).listen(store._onEvent);
+        final watcher = store.root.watch(recursive: true);
+        store._watcher = watcher.listen(
+          store._onEvent,
+          onError: (Object error, StackTrace stackTrace) {
+            // Some platforms report unsupported watching asynchronously.
+            // Disable the optional watcher instead of surfacing an unhandled
+            // stream error to the application.
+            unawaited(store._disableWatcher());
+          },
+        );
       } on FileSystemException {
         // Platform or environment does not support directory watching.
       }
@@ -120,9 +132,15 @@ final class FileObjectStore implements ObjectStore, ExclusiveObjectStore {
   @override
   Future<void> close() async {
     _closed = true;
-    await _watcher?.cancel();
+    await _disableWatcher();
     await _serial;
     await _changes.close();
+  }
+
+  Future<void> _disableWatcher() async {
+    final watcher = _watcher;
+    _watcher = null;
+    await watcher?.cancel();
   }
 
   @override
