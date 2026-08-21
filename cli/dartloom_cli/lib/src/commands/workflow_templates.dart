@@ -116,7 +116,7 @@ jobs:
               ditto -c -k --keepParent "\$app_path" "artifact/\${app}-macos.zip"
               ;;
             windows)
-              powershell -NoProfile -Command '\$version = (Select-String -Path pubspec.yaml -Pattern "^version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)").Matches.Groups[1].Value; if (-not \$version) { throw "pubspec.yaml version not found" }; & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" "/DMyAppVersion=\$version" installer\\windows.iss'
+              powershell -NoProfile -Command '\$version = (Select-String -Path pubspec.yaml -Pattern "^version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)").Matches.Groups[1].Value; if (-not \$version) { throw "pubspec.yaml version not found" }; & (Get-Command ISCC.exe -ErrorAction Stop).Source "/DMyAppVersion=\$version" installer\\windows.iss; Copy-Item -Path "dist\\*.exe" -Destination artifact -Force'
               ;;
             linux)
               tar -czf "artifact/\${app}-linux-x64.tar.gz" -C "build/linux/x64/\$mode" bundle
@@ -250,7 +250,7 @@ String _releaseJob(TargetPlatform platform, String appName) {
           New-Item -ItemType Directory -Force -Path dist
           \$version = (Select-String -Path pubspec.yaml -Pattern '^version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)').Matches.Groups[1].Value
           if (-not \$version) { throw "pubspec.yaml version not found" }
-          & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" "/DMyAppVersion=\$version" installer\\windows.iss
+          & (Get-Command ISCC.exe -ErrorAction Stop).Source "/DMyAppVersion=\$version" installer\\windows.iss
 ''',
     TargetPlatform.linux => '''      - name: Package Linux bundle
         shell: bash
