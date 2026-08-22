@@ -17,6 +17,39 @@ abstract interface class AttachmentSource {
   Future<Uint8List> read(int offset, int length);
 }
 
+Future<AttachmentManifest> manifestForSource({
+  required String messageId,
+  required String attachmentId,
+  required AttachmentSource source,
+  int chunkSize = 256 * 1024,
+  String name = '',
+  String mimeType = '',
+}) async {
+  if (chunkSize <= 0) throw ArgumentError.value(chunkSize, 'chunkSize');
+  final hashSink = Sha256().newHashSink();
+  for (var offset = 0; offset < source.byteLength; offset += chunkSize) {
+    final length = math.min(chunkSize, source.byteLength - offset);
+    final bytes = await source.read(offset, length);
+    if (bytes.length != length) {
+      throw StateError('attachment source returned an invalid chunk length');
+    }
+    hashSink.add(bytes);
+  }
+  hashSink.close();
+  final digest = await hashSink.hash();
+  return AttachmentManifest(
+    messageId: messageId,
+    attachmentId: attachmentId,
+    byteLength: source.byteLength,
+    chunkSize: chunkSize,
+    sha256: digest.bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join(),
+    name: name,
+    mimeType: mimeType,
+  );
+}
+
 class MemoryAttachmentSource implements AttachmentSource {
   MemoryAttachmentSource(List<int> bytes) : _bytes = Uint8List.fromList(bytes);
 
