@@ -179,6 +179,66 @@ class AttachmentChunker {
     ];
   }
 
+  Future<AttachmentChunk> encryptChunk({
+    required AttachmentManifest manifest,
+    required Uint8List plaintext,
+    required int index,
+    required SecretKey key,
+  }) async {
+    if (index < 0 || index >= manifest.totalChunks) {
+      throw RangeError('attachment chunk index is outside the manifest');
+    }
+    final offset = index * manifest.chunkSize;
+    final expectedLength = min(
+      manifest.chunkSize,
+      manifest.byteLength - offset,
+    );
+    if (plaintext.length != expectedLength) {
+      throw ArgumentError('plaintext chunk length does not match manifest');
+    }
+    return _encryptChunk(
+      cipher: AesGcm.with256bits(),
+      random: Random.secure(),
+      manifest: manifest,
+      plaintext: plaintext,
+      index: index,
+      key: key,
+    );
+  }
+
+  Future<Uint8List> decryptChunk({
+    required AttachmentManifest manifest,
+    required AttachmentChunk chunk,
+    required SecretKey key,
+  }) async {
+    if (chunk.messageId != manifest.messageId ||
+        chunk.attachmentId != manifest.attachmentId ||
+        chunk.total != manifest.totalChunks ||
+        chunk.index < 0 ||
+        chunk.index >= manifest.totalChunks ||
+        chunk.nonce.length != 12 ||
+        chunk.authenticationTag.length != 16) {
+      throw ArgumentError('attachment chunk does not match manifest');
+    }
+    final plaintext = await AesGcm.with256bits().decrypt(
+      SecretBox(
+        chunk.ciphertext,
+        nonce: chunk.nonce,
+        mac: Mac(chunk.authenticationTag),
+      ),
+      secretKey: key,
+      aad: _aad(manifest, chunk.index),
+    );
+    final expectedLength = min(
+      manifest.chunkSize,
+      manifest.byteLength - chunk.index * manifest.chunkSize,
+    );
+    if (plaintext.length != expectedLength) {
+      throw StateError('decrypted attachment chunk length mismatch');
+    }
+    return Uint8List.fromList(plaintext);
+  }
+
   Future<AttachmentChunk> _encryptChunk({
     required AesGcm cipher,
     required Random random,

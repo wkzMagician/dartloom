@@ -1,6 +1,6 @@
 name: dartloom_messaging
 description: Generic encrypted packet transport capability for Dartloom.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 environment:
   sdk: ^3.13.0
@@ -14,5 +14,4 @@ dev_dependencies:
 
 false_secrets:
   - test/transport_contract_test.dart
-
 

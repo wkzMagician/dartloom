@@ -9,6 +9,8 @@ point `dartloom_messaging.dart` exports:
 - bounded relay retry policy with `Retry-After` support;
 - independently authenticated attachment chunks and 24-hour incomplete
   transfer cleanup.
+- re-openable attachment sources, persistent sink contracts, missing-range
+  discovery, and resumable chunk send/receive sessions.
 
 The packet contract schema is published at `schema/packet.schema.json`.
 
@@ -16,4 +18,8 @@ This package deliberately does not know about Pigeon Work, Inbox, Catalog or
 UI protocols. Those values are carried as encrypted opaque payload bytes by
 the generic Packet transport.
 
+Attachment streaming is exposed through `AttachmentSource` and
+`AttachmentSink`. Applications provide storage appropriate to their target;
+the capability only defines the manifest, encrypted chunk, resume, and atomic
+commit contracts.
 
