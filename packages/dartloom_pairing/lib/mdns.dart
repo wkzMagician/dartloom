@@ -134,7 +134,9 @@ class MdnsPairingDiscovery implements PairingDiscovery {
 
   @override
   Stream<PairingAdvertisement> discover() async* {
-    final client = MDnsClient();
+    final client = MDnsClient(
+      rawDatagramSocketFactory: platformMdnsSocketFactory,
+    );
     await client.start();
     try {
       await for (final pointer in client.lookup<PtrResourceRecord>(
@@ -187,6 +189,23 @@ class MdnsPairingDiscovery implements PairingDiscovery {
     }
   }
 }
+
+/// Windows does not implement SO_REUSEPORT for UDP sockets and reports
+/// WSAENOPROTOOPT (10042) when multicast_dns requests it. Address reuse is
+/// sufficient for mDNS on Windows; other platforms keep the package default.
+Future<RawDatagramSocket> platformMdnsSocketFactory(
+  dynamic host,
+  int port, {
+  bool reuseAddress = false,
+  bool reusePort = false,
+  int ttl = 1,
+}) => RawDatagramSocket.bind(
+  host,
+  port,
+  reuseAddress: reuseAddress,
+  reusePort: Platform.isWindows ? false : reusePort,
+  ttl: ttl,
+);
 
 class MdnsPacketBuilder {
   const MdnsPacketBuilder._();

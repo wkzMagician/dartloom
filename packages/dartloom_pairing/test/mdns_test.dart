@@ -23,4 +23,16 @@ void main() {
     expect(body, contains('Desk%3BOne'));
     expect(packet.length, greaterThan(40));
   });
+
+  test('binds an mDNS socket with the platform reuse-port policy', () async {
+    final socket = await platformMdnsSocketFactory(
+      InternetAddress.loopbackIPv4,
+      0,
+      reuseAddress: true,
+      reusePort: true,
+      ttl: 1,
+    );
+    expect(socket.port, greaterThan(0));
+    socket.close();
+  });
 }

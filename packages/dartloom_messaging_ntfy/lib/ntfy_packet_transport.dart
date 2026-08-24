@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartloom_messaging/dartloom_messaging.dart';
@@ -16,32 +17,59 @@ class NtfyRelayPublisher implements RelayPublisher {
     required this.credentials,
     http.Client? client,
     this.timeout = const Duration(seconds: 10),
-  }) : _client = client ?? http.Client();
+    this.maxAttempts = 1,
+    this.retryDelay = const Duration(seconds: 1),
+  }) : assert(maxAttempts > 0),
+       _client = client ?? http.Client();
 
   final Uri server;
   final NtfyCredentials credentials;
   final Duration timeout;
+  final int maxAttempts;
+  final Duration retryDelay;
   final http.Client _client;
 
   @override
   Future<void> publish(String channel, String body) async {
-    final response = await _client
-        .post(
-          ntfyTopicUri(server, channel),
-          headers: <String, String>{
-            'Authorization': credentials.authorizationHeader,
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-          body: body,
-        )
-        .timeout(timeout);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final seconds = int.tryParse(response.headers['retry-after'] ?? '');
-      throw RelayPublishException(
-        response.body.isEmpty ? 'HTTP ${response.statusCode}' : response.body,
-        statusCode: response.statusCode,
-        retryAfter: seconds == null ? null : Duration(seconds: seconds),
-      );
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final response = await _client
+            .post(
+              ntfyTopicUri(server, channel),
+              headers: <String, String>{
+                'Authorization': credentials.authorizationHeader,
+                'Content-Type': 'text/plain; charset=utf-8',
+              },
+              body: body,
+            )
+            .timeout(timeout);
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final seconds = int.tryParse(response.headers['retry-after'] ?? '');
+          final error = RelayPublishException(
+            response.body.isEmpty
+                ? 'HTTP ${response.statusCode}'
+                : response.body,
+            statusCode: response.statusCode,
+            retryAfter: seconds == null ? null : Duration(seconds: seconds),
+          );
+          if (!error.isRetryable || attempt == maxAttempts - 1) throw error;
+          await Future<void>.delayed(error.retryAfter ?? retryDelay);
+          continue;
+        }
+        return;
+      } on TimeoutException catch (error) {
+        if (attempt == maxAttempts - 1) {
+          throw RelayPublishException(
+            'ntfy did not respond within ${timeout.inSeconds} seconds: $error',
+          );
+        }
+        await Future<void>.delayed(retryDelay * (attempt + 1));
+      } on http.ClientException catch (error) {
+        if (attempt == maxAttempts - 1) {
+          throw RelayPublishException('ntfy connection failed: $error');
+        }
+        await Future<void>.delayed(retryDelay * (attempt + 1));
+      }
     }
   }
 }

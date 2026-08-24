@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -32,6 +33,26 @@ void main() {
     expect(captured.headers['Authorization'], 'Bearer tk_example');
     expect(captured.headers['Content-Type'], 'text/plain; charset=utf-8');
     expect(captured.body, '{"encrypted":true}');
+  });
+
+  test('retries transient ntfy publish timeouts', () async {
+    var attempts = 0;
+    final publisher = NtfyRelayPublisher(
+      server: Uri.parse('https://relay.example'),
+      credentials: NtfyCredentials('tk_example'),
+      client: MockClient((request) async {
+        attempts++;
+        if (attempts < 3) throw TimeoutException('transient');
+        return http.Response('{}', 200);
+      }),
+      timeout: const Duration(milliseconds: 20),
+      maxAttempts: 3,
+      retryDelay: Duration.zero,
+    );
+
+    await publisher.publish('actent-control', '{}');
+
+    expect(attempts, 3);
   });
 
   test('uploads and downloads native encrypted blobs', () async {
