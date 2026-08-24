@@ -39,11 +39,18 @@ class PairingRelayHandshake {
     required String displayName,
     required String platform,
     required String relayUrl,
-    required String relayTopic,
+    required String controlTopic,
+    required String blobTopic,
     String? lanHost,
     int? lanPort,
     String? certificateSha256,
   }) async {
+    if (!relayServersMatch(invite.relayUrl, relayUrl) ||
+        !relayServersMatch(invite.relayUrl, server.toString())) {
+      throw const PairingValidationException(
+        'both devices must use the same relay server',
+      );
+    }
     final acceptance = PairingAcceptance(
       nonce: invite.nonce,
       shortCode: invite.shortCode,
@@ -52,7 +59,8 @@ class PairingRelayHandshake {
       displayName: displayName,
       platform: platform,
       relayUrl: relayUrl,
-      relayTopic: relayTopic,
+      controlTopic: controlTopic,
+      blobTopic: blobTopic,
       lanHost: lanHost,
       lanPort: lanPort,
       certificateSha256: certificateSha256,
@@ -83,7 +91,7 @@ class PairingRelayHandshake {
     required PairingAcceptance acceptance,
     required String issuerDeviceId,
   }) => publisher.publish(
-    acceptance.relayTopic,
+    acceptance.controlTopic,
     jsonEncode(
       PairingConfirmation(
         nonce: acceptance.nonce,

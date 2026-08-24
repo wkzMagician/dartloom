@@ -1,6 +1,6 @@
 name: dartloom_pairing
 description: Generic device identity and pairing capability for Dartloom.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wkzMagician/dartloom
 environment:
   sdk: ^3.13.0
@@ -15,5 +15,4 @@ dependencies:
   multicast_dns: ^0.3.3+1
 dev_dependencies:
   test: ^1.26.0
-
 

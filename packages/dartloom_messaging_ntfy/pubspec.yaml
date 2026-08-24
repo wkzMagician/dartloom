@@ -1,0 +1,12 @@
+name: dartloom_messaging_ntfy
+description: ntfy relay and native blob adapter for Dartloom messaging.
+version: 0.2.0
+repository: https://github.com/wkzMagician/dartloom
+environment:
+  sdk: ^3.13.0
+dependencies:
+  dartloom_messaging: ^0.3.0
+  http: ^1.6.0
+  web_socket_channel: ^3.0.3
+dev_dependencies:
+  test: ^1.26.0

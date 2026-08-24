@@ -1,0 +1,17 @@
+package: dartloom_messaging_ntfy
+display_name: ntfy Messaging
+description: ntfy relay and native blob transport for Dartloom messaging.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+exports:
+  - symbol: NtfyRelayPublisher
+    kind: class
+    description: Authenticated ntfy Packet publisher.
+  - symbol: NtfyBlobStore
+    kind: class
+    description: Native ntfy attachment storage.
+

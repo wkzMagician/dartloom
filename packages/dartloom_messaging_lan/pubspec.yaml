@@ -1,0 +1,14 @@
+name: dartloom_messaging_lan
+description: TLS and LAN adapter for the Dartloom messaging contract.
+version: 0.2.0
+repository: https://github.com/wkzMagician/dartloom
+environment:
+  sdk: ^3.13.0
+dependencies:
+  crypto: ^3.0.7
+  dartloom_messaging: ^0.3.0
+dev_dependencies:
+  test: ^1.26.0
+
+false_secrets:
+  - test/lan_packet_transport_test.dart

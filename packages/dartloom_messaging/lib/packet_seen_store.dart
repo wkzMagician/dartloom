@@ -14,11 +14,18 @@ class SeenPacketStore {
     return _seen.containsKey(packetId);
   }
 
-  bool remember(String packetId) {
+  bool remember(String packetId, {DateTime? seenAt}) {
     _removeExpired();
     if (_seen.containsKey(packetId)) return false;
-    _seen[packetId] = clock().toUtc();
+    final timestamp = (seenAt ?? clock()).toUtc();
+    if (timestamp.isBefore(clock().toUtc().subtract(retention))) return false;
+    _seen[packetId] = timestamp;
     return true;
+  }
+
+  Map<String, DateTime> snapshot() {
+    _removeExpired();
+    return Map<String, DateTime>.unmodifiable(_seen);
   }
 
   int get length {

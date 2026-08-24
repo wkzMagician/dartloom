@@ -13,6 +13,8 @@ void main() {
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
       temporaryTopic: 'temporary-topic',
+      issuerControlTopic: 'desktop-control',
+      issuerBlobTopic: 'desktop-blob',
       issuerLanHost: '192.168.1.10',
       issuerLanPort: 43100,
       issuerPairingLanPort: 43101,
@@ -27,7 +29,7 @@ void main() {
     expect(decoded.issuerLanPort, 43100);
     expect(decoded.issuerPairingLanPort, 43101);
     expect(decoded.toUri(), isNot(contains('private')));
-    expect(session.invite.toUri(), startsWith('example://pair/v1/'));
+    expect(session.invite.toUri(), startsWith('example://pair/v2/'));
   });
 
   test('rejects unknown invitation fields', () {
@@ -37,13 +39,15 @@ void main() {
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
       temporaryTopic: 'temporary-topic',
+      issuerControlTopic: 'desktop-control',
+      issuerBlobTopic: 'desktop-blob',
     );
     final payload = {...session.invite.toJson(), 'unexpected': true};
     final token = base64UrlEncode(utf8.encode(jsonEncode(payload)))
         .replaceAll('=', '');
     expect(
       () => PairingInvite.fromUri(
-        'example://pair/v1/$token',
+        'example://pair/v2/$token',
         uriScheme: 'example',
       ),
       throwsA(isA<PairingValidationException>()),
@@ -57,6 +61,8 @@ void main() {
       issuerPublicKey: 'public-key',
       relayUrl: 'https://ntfy.example',
       temporaryTopic: 'temporary-topic',
+      issuerControlTopic: 'desktop-control',
+      issuerBlobTopic: 'desktop-blob',
     );
     session.accept(remoteDeviceId: 'phone', remotePublicKey: 'phone-key');
     expect(
@@ -74,6 +80,8 @@ void main() {
       issuerPublicKey: 'desktop-key',
       relayUrl: 'https://ntfy.example',
       temporaryTopic: 'temporary-topic',
+      issuerControlTopic: 'desktop-control',
+      issuerBlobTopic: 'desktop-blob',
     );
     PairingAcceptance? accepted;
     final handler = LanPairingRequestHandler(
@@ -103,7 +111,8 @@ void main() {
       displayName: 'Phone',
       platform: 'android',
       relayUrl: 'https://ntfy.example',
-      relayTopic: 'phone-topic',
+      controlTopic: 'phone-control',
+      blobTopic: 'phone-blob',
       proof: pairingProof(
         nonce: session.invite.nonce,
         shortCode: session.invite.shortCode,

@@ -1,103 +1,82 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/wkzMagician/dartloom/schema/pairing-messages-v1.json",
-  "title": "Dartloom Pairing Messages",
+  "$id": "https://github.com/wkzMagician/dartloom/schema/pairing-messages-v2.json",
+  "title": "Dartloom Pairing Messages v2",
   "oneOf": [
-    {"$ref": "#/$defs/invite"},
-    {"$ref": "#/$defs/acceptance"},
-    {"$ref": "#/$defs/confirmation"}
+    { "$ref": "#/$defs/invite" },
+    { "$ref": "#/$defs/acceptance" },
+    { "$ref": "#/$defs/confirmation" }
   ],
   "$defs": {
     "invite": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "version",
-        "nonce",
-        "issuerDeviceId",
-        "issuerPublicKey",
-        "relayUrl",
-        "temporaryTopic",
-        "issuerRelayTopic",
-        "shortCode",
-        "createdAt",
-        "expiresAt"
+        "version", "nonce", "issuerDeviceId", "issuerPublicKey", "relayUrl",
+        "temporaryTopic", "issuerControlTopic", "issuerBlobTopic", "shortCode",
+        "createdAt", "expiresAt"
       ],
       "properties": {
-        "version": {"const": 1},
-        "nonce": {"type": "string", "minLength": 1},
-        "issuerDeviceId": {"type": "string", "minLength": 1},
-        "issuerPublicKey": {"type": "string", "minLength": 1},
-        "relayUrl": {"type": "string", "format": "uri"},
-        "temporaryTopic": {"type": "string", "minLength": 1},
-        "issuerRelayTopic": {"type": "string"},
-        "issuerLanHost": {"type": "string", "minLength": 1},
-        "issuerLanPort": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "issuerPairingLanPort": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "issuerCertificateSha256": {"type": "string", "minLength": 1},
-        "shortCode": {"type": "string", "pattern": "^[0-9]{6}$"},
-        "createdAt": {"type": "string", "format": "date-time"},
-        "expiresAt": {"type": "string", "format": "date-time"}
+        "version": { "const": 2 },
+        "nonce": { "type": "string", "minLength": 1 },
+        "issuerDeviceId": { "type": "string", "minLength": 1 },
+        "issuerPublicKey": { "type": "string", "minLength": 1 },
+        "relayUrl": { "type": "string", "format": "uri" },
+        "temporaryTopic": { "type": "string", "minLength": 1 },
+        "issuerControlTopic": { "type": "string" },
+        "issuerBlobTopic": { "type": "string" },
+        "issuerLanHost": { "type": "string", "minLength": 1 },
+        "issuerLanPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "issuerPairingLanPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "issuerCertificateSha256": { "type": "string", "minLength": 1 },
+        "shortCode": { "type": "string", "pattern": "^[0-9]{6}$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
       }
     },
     "acceptance": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "type",
-        "version",
-        "nonce",
-        "shortCode",
-        "deviceId",
-        "publicKey",
-        "displayName",
-        "platform",
-        "relayUrl",
-        "relayTopic",
-        "proof",
-        "createdAt"
+        "type", "version", "nonce", "shortCode", "deviceId", "publicKey",
+        "displayName", "platform", "relayUrl", "controlTopic", "blobTopic",
+        "proof", "createdAt"
       ],
       "properties": {
-        "type": {"const": "pairingAccepted"},
-        "version": {"const": 1},
-        "nonce": {"type": "string", "minLength": 1},
-        "shortCode": {"type": "string", "pattern": "^[0-9]{6}$"},
-        "deviceId": {"type": "string", "minLength": 1},
-        "publicKey": {"type": "string", "minLength": 1},
-        "displayName": {"type": "string", "minLength": 1},
-        "platform": {"type": "string", "minLength": 1},
-        "relayUrl": {"type": "string", "format": "uri"},
-        "relayTopic": {"type": "string", "minLength": 1},
-        "lanHost": {"type": "string", "minLength": 1},
-        "lanPort": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "certificateSha256": {"type": "string", "minLength": 1},
-        "proof": {"type": "string", "minLength": 1},
-        "createdAt": {"type": "string", "format": "date-time"}
+        "type": { "const": "pairingAccepted" },
+        "version": { "const": 2 },
+        "nonce": { "type": "string", "minLength": 1 },
+        "shortCode": { "type": "string", "pattern": "^[0-9]{6}$" },
+        "deviceId": { "type": "string", "minLength": 1 },
+        "publicKey": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "platform": { "type": "string", "minLength": 1 },
+        "relayUrl": { "type": "string", "format": "uri" },
+        "controlTopic": { "type": "string", "minLength": 1 },
+        "blobTopic": { "type": "string", "minLength": 1 },
+        "lanHost": { "type": "string", "minLength": 1 },
+        "lanPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "certificateSha256": { "type": "string", "minLength": 1 },
+        "proof": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     },
     "confirmation": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "type",
-        "version",
-        "nonce",
-        "shortCode",
-        "issuerDeviceId",
-        "acceptorDeviceId",
-        "proof"
+        "type", "version", "nonce", "shortCode", "issuerDeviceId",
+        "acceptorDeviceId", "proof"
       ],
       "properties": {
-        "type": {"const": "pairingConfirmed"},
-        "version": {"const": 1},
-        "nonce": {"type": "string", "minLength": 1},
-        "shortCode": {"type": "string", "pattern": "^[0-9]{6}$"},
-        "issuerDeviceId": {"type": "string", "minLength": 1},
-        "acceptorDeviceId": {"type": "string", "minLength": 1},
-        "proof": {"type": "string", "minLength": 1}
+        "type": { "const": "pairingConfirmed" },
+        "version": { "const": 2 },
+        "nonce": { "type": "string", "minLength": 1 },
+        "shortCode": { "type": "string", "pattern": "^[0-9]{6}$" },
+        "issuerDeviceId": { "type": "string", "minLength": 1 },
+        "acceptorDeviceId": { "type": "string", "minLength": 1 },
+        "proof": { "type": "string", "minLength": 1 }
       }
     }
   }
 }
-
-

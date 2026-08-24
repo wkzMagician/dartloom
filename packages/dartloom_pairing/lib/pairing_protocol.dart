@@ -22,7 +22,8 @@ class PairingInvite {
     required this.issuerPublicKey,
     required this.relayUrl,
     required this.temporaryTopic,
-    this.issuerRelayTopic = '',
+    required this.issuerControlTopic,
+    required this.issuerBlobTopic,
     this.issuerLanHost,
     this.issuerLanPort,
     this.issuerPairingLanPort,
@@ -30,7 +31,7 @@ class PairingInvite {
     required this.shortCode,
     required this.createdAt,
     required this.expiresAt,
-    this.version = 1,
+    this.version = 2,
   });
 
   final int version;
@@ -40,7 +41,8 @@ class PairingInvite {
   final String issuerPublicKey;
   final String relayUrl;
   final String temporaryTopic;
-  final String issuerRelayTopic;
+  final String issuerControlTopic;
+  final String issuerBlobTopic;
   final String? issuerLanHost;
   final int? issuerLanPort;
   final int? issuerPairingLanPort;
@@ -58,7 +60,8 @@ class PairingInvite {
     'issuerPublicKey': issuerPublicKey,
     'relayUrl': relayUrl,
     'temporaryTopic': temporaryTopic,
-    'issuerRelayTopic': issuerRelayTopic,
+    'issuerControlTopic': issuerControlTopic,
+    'issuerBlobTopic': issuerBlobTopic,
     if (issuerLanHost != null) 'issuerLanHost': issuerLanHost,
     if (issuerLanPort != null) 'issuerLanPort': issuerLanPort,
     if (issuerPairingLanPort != null)
@@ -73,7 +76,7 @@ class PairingInvite {
   String toUri() {
     final token = base64UrlEncode(utf8.encode(jsonEncode(toJson())))
         .replaceAll('=', '');
-    return '$uriScheme://pair/v1/$token';
+    return '$uriScheme://pair/v2/$token';
   }
 
   factory PairingInvite.fromUri(String value, {required String uriScheme}) {
@@ -81,7 +84,7 @@ class PairingInvite {
     if (uri == null || uri.scheme != uriScheme || uri.host != 'pair') {
       throw const PairingValidationException('invalid pairing URI');
     }
-    if (uri.pathSegments.length != 2 || uri.pathSegments.first != 'v1') {
+    if (uri.pathSegments.length != 2 || uri.pathSegments.first != 'v2') {
       throw const PairingValidationException('unsupported pairing URI version');
     }
     try {
@@ -98,7 +101,8 @@ class PairingInvite {
         'issuerPublicKey',
         'relayUrl',
         'temporaryTopic',
-        'issuerRelayTopic',
+        'issuerControlTopic',
+        'issuerBlobTopic',
         'issuerLanHost',
         'issuerLanPort',
         'issuerPairingLanPort',
@@ -108,19 +112,13 @@ class PairingInvite {
         'expiresAt',
       });
       final version = _int(map['version'], 'version');
-      if (version != 1) {
+      if (version != 2) {
         throw PairingValidationException('unsupported invite version $version');
       }
-      final issuerRelayTopic = map['issuerRelayTopic'];
       final issuerLanHost = map['issuerLanHost'];
       final issuerLanPort = map['issuerLanPort'];
       final issuerPairingLanPort = map['issuerPairingLanPort'];
       final issuerCertificateSha256 = map['issuerCertificateSha256'];
-      if (issuerRelayTopic != null && issuerRelayTopic is! String) {
-        throw const PairingValidationException(
-          'issuerRelayTopic must be a string',
-        );
-      }
       if (issuerLanHost != null && issuerLanHost is! String) {
         throw const PairingValidationException(
           'issuerLanHost must be a string',
@@ -142,7 +140,11 @@ class PairingInvite {
         issuerPublicKey: _string(map['issuerPublicKey'], 'issuerPublicKey'),
         relayUrl: _string(map['relayUrl'], 'relayUrl'),
         temporaryTopic: _string(map['temporaryTopic'], 'temporaryTopic'),
-        issuerRelayTopic: issuerRelayTopic as String? ?? '',
+        issuerControlTopic: _string(
+          map['issuerControlTopic'],
+          'issuerControlTopic',
+        ),
+        issuerBlobTopic: _string(map['issuerBlobTopic'], 'issuerBlobTopic'),
         issuerLanHost: _optionalString(issuerLanHost, 'issuerLanHost'),
         issuerLanPort: issuerLanPort as int?,
         issuerPairingLanPort: issuerPairingLanPort as int?,
@@ -249,7 +251,8 @@ class PairingCoordinator {
     required String issuerPublicKey,
     required String relayUrl,
     required String temporaryTopic,
-    String issuerRelayTopic = '',
+    required String issuerControlTopic,
+    required String issuerBlobTopic,
     String? issuerLanHost,
     int? issuerLanPort,
     int? issuerPairingLanPort,
@@ -267,7 +270,8 @@ class PairingCoordinator {
       issuerPublicKey: issuerPublicKey,
       relayUrl: relayUrl,
       temporaryTopic: temporaryTopic,
-      issuerRelayTopic: issuerRelayTopic,
+      issuerControlTopic: issuerControlTopic,
+      issuerBlobTopic: issuerBlobTopic,
       issuerLanHost: issuerLanHost,
       issuerLanPort: issuerLanPort,
       issuerPairingLanPort: issuerPairingLanPort,

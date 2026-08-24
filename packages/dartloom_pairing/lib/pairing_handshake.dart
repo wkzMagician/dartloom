@@ -13,7 +13,8 @@ class PairingAcceptance {
     required this.displayName,
     required this.platform,
     required this.relayUrl,
-    required this.relayTopic,
+    required this.controlTopic,
+    required this.blobTopic,
     this.lanHost,
     this.lanPort,
     this.certificateSha256,
@@ -28,7 +29,8 @@ class PairingAcceptance {
   final String displayName;
   final String platform;
   final String relayUrl;
-  final String relayTopic;
+  final String controlTopic;
+  final String blobTopic;
   final String? lanHost;
   final int? lanPort;
   final String? certificateSha256;
@@ -37,7 +39,7 @@ class PairingAcceptance {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'type': 'pairingAccepted',
-    'version': 1,
+    'version': 2,
     'nonce': nonce,
     'shortCode': shortCode,
     'deviceId': deviceId,
@@ -45,7 +47,8 @@ class PairingAcceptance {
     'displayName': displayName,
     'platform': platform,
     'relayUrl': relayUrl,
-    'relayTopic': relayTopic,
+    'controlTopic': controlTopic,
+    'blobTopic': blobTopic,
     if (lanHost != null) 'lanHost': lanHost,
     if (lanPort != null) 'lanPort': lanPort,
     if (certificateSha256 != null) 'certificateSha256': certificateSha256,
@@ -65,14 +68,15 @@ class PairingAcceptance {
       'displayName',
       'platform',
       'relayUrl',
-      'relayTopic',
+      'controlTopic',
+      'blobTopic',
       'lanHost',
       'lanPort',
       'certificateSha256',
       'proof',
       'createdAt',
     });
-    if (json['type'] != 'pairingAccepted' || json['version'] != 1) {
+    if (json['type'] != 'pairingAccepted' || json['version'] != 2) {
       throw const FormatException('unsupported pairing acceptance');
     }
     return PairingAcceptance(
@@ -83,7 +87,8 @@ class PairingAcceptance {
       displayName: _required(json['displayName'], 'displayName'),
       platform: _required(json['platform'], 'platform'),
       relayUrl: _required(json['relayUrl'], 'relayUrl'),
-      relayTopic: _required(json['relayTopic'], 'relayTopic'),
+      controlTopic: _required(json['controlTopic'], 'controlTopic'),
+      blobTopic: _required(json['blobTopic'], 'blobTopic'),
       lanHost: _optionalString(json['lanHost'], 'lanHost'),
       lanPort: _optionalPort(json['lanPort'], 'lanPort'),
       certificateSha256: _optionalString(
@@ -98,6 +103,7 @@ class PairingAcceptance {
   bool verify(PairingInvite invite) =>
       nonce == invite.nonce &&
       shortCode == invite.shortCode &&
+      relayServersMatch(relayUrl, invite.relayUrl) &&
       proof ==
           pairingProof(
             nonce: nonce,
@@ -105,6 +111,34 @@ class PairingAcceptance {
             deviceId: deviceId,
             publicKey: publicKey,
           );
+}
+
+bool relayServersMatch(String first, String second) {
+  final left = Uri.tryParse(first);
+  final right = Uri.tryParse(second);
+  if (left == null || right == null || !left.hasScheme || !right.hasScheme) {
+    return false;
+  }
+  if (left.hasQuery ||
+      left.hasFragment ||
+      right.hasQuery ||
+      right.hasFragment) {
+    return false;
+  }
+  int port(Uri value) => value.hasPort
+      ? value.port
+      : value.scheme.toLowerCase() == 'https'
+      ? 443
+      : 80;
+  String path(Uri value) {
+    final normalized = value.path.replaceFirst(RegExp(r'/+$'), '');
+    return normalized.isEmpty ? '/' : normalized;
+  }
+
+  return left.scheme.toLowerCase() == right.scheme.toLowerCase() &&
+      left.host.toLowerCase() == right.host.toLowerCase() &&
+      port(left) == port(right) &&
+      path(left) == path(right);
 }
 
 class PairingConfirmation {
@@ -124,7 +158,7 @@ class PairingConfirmation {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'type': 'pairingConfirmed',
-    'version': 1,
+    'version': 2,
     'nonce': nonce,
     'shortCode': shortCode,
     'issuerDeviceId': issuerDeviceId,
@@ -143,7 +177,7 @@ class PairingConfirmation {
       'acceptorDeviceId',
       'proof',
     });
-    if (json['type'] != 'pairingConfirmed' || json['version'] != 1) {
+    if (json['type'] != 'pairingConfirmed' || json['version'] != 2) {
       throw const FormatException('unsupported pairing confirmation');
     }
     return PairingConfirmation(

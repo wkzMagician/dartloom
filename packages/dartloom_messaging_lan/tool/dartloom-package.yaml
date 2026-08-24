@@ -1,0 +1,14 @@
+package: dartloom_messaging_lan
+display_name: LAN Messaging
+description: Pinned TLS and LAN transport for Dartloom messaging.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+exports:
+  - symbol: LanTlsPacketConnection
+    kind: class
+    description: Pinned TLS Packet connection.
+

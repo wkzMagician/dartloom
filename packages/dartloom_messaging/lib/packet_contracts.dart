@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-const messagingCapabilityVersion = 1;
+const messagingCapabilityVersion = 2;
 
 class Packet {
   const Packet({

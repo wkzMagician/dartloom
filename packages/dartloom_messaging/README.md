@@ -1,25 +1,26 @@
 # dartloom_messaging
 
-Generic device-to-device messaging capability for Dartloom. The public entry
-point `dartloom_messaging.dart` exports:
+Generic device-to-device messaging contracts for the
+[Dartloom](https://github.com/wkzMagician/dartloom) project.
 
-- versioned `Packet`, validation, memory connection and deduplication contracts;
-- X25519 + HKDF-SHA-256 + AES-256-GCM packet crypto;
-- length-prefixed TLS/LAN transport and ntfy HTTP/WebSocket adapters;
-- bounded relay retry policy with `Retry-After` support;
-- independently authenticated attachment chunks and 24-hour incomplete
-  transfer cleanup.
-- re-openable attachment sources, persistent sink contracts, missing-range
-  discovery, and resumable chunk send/receive sessions.
+The public entry point `dartloom_messaging.dart` exports:
 
-The packet contract schema is published at `schema/packet.schema.json`.
+- versioned Packet validation, memory connection and deduplication contracts;
+- X25519 + HKDF-SHA-256 + AES-256-GCM Packet crypto;
+- transport-neutral Packet routing and bounded relay retry policy;
+- independently authenticated attachment chunks;
+- re-openable sources, persistent sink contracts and resumable sessions;
+- binary encrypted chunks, Blob/BlobRef contracts and the v2
+  offer/resume/chunkRef/commit protocol.
 
-This package deliberately does not know about Pigeon Work, Inbox, Catalog or
-UI protocols. Those values are carried as encrypted opaque payload bytes by
-the generic Packet transport.
+Concrete transports are separate packages:
 
-Attachment streaming is exposed through `AttachmentSource` and
-`AttachmentSink`. Applications provide storage appropriate to their target;
-the capability only defines the manifest, encrypted chunk, resume, and atomic
-commit contracts.
+- `dartloom_messaging_ntfy` implements ntfy HTTP/WebSocket and native blobs;
+- `dartloom_messaging_lan` implements pinned TLS/LAN Packet delivery.
+
+The Packet JSON Schema is published at `schema/packet.schema.json`.
+
+This package deliberately does not know about Actent Work, Inbox, Catalog or
+UI protocols. Applications carry those values as encrypted opaque payloads and
+provide their own durable storage implementations.
 
