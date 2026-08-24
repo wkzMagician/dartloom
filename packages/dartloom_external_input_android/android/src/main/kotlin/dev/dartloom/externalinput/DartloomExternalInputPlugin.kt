@@ -12,13 +12,13 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.PluginRegistry.NewIntentListener
+import io.flutter.plugin.common.PluginRegistry
 import java.io.File
 import java.util.ArrayDeque
 import java.util.UUID
 
 /** Receives Android share and Open With intents as Dartloom input batches. */
-class DartloomExternalInputPlugin : FlutterPlugin, ActivityAware, OnNewIntentListener,
+class DartloomExternalInputPlugin : FlutterPlugin, ActivityAware, PluginRegistry.NewIntentListener,
     MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     companion object {
         private const val EVENT_CHANNEL = "dev.dartloom.external_input/events"
