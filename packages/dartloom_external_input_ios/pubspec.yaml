@@ -10,7 +10,10 @@ environment:
   flutter: '>=3.24.0'
 dependencies:
   dartloom_external_input:
-    ^0.1.0
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_external_input
   flutter:
     sdk: flutter
 dev_dependencies:
