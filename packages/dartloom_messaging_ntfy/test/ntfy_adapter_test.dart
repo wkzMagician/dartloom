@@ -6,7 +6,9 @@ import 'package:dartloom_messaging/dartloom_messaging.dart';
 import 'package:dartloom_messaging_ntfy/dartloom_messaging_ntfy.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:stream_channel/stream_channel.dart';
 import 'package:test/test.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 void main() {
   test('accepts only a raw ntfy token', () {
@@ -165,4 +167,143 @@ void main() {
       throwsA(isA<BlobStoreException>()),
     );
   });
+
+  test('omits Authorization when publishing without credentials', () async {
+    late http.Request captured;
+    final publisher = NtfyRelayPublisher(
+      server: Uri.parse('https://relay.example'),
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response('{}', 200);
+      }),
+    );
+
+    await publisher.publish('actent-control', '{}');
+
+    expect(captured.headers, isNot(contains('Authorization')));
+  });
+
+  test('omits Authorization when polling without credentials', () async {
+    late http.Request captured;
+    final poller = NtfyPacketPoller(
+      server: Uri.parse('https://relay.example'),
+      channel: 'actent-control',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response('', 200);
+      }),
+    );
+
+    expect(await poller.poll(since: DateTime.utc(2026, 8, 17)), isEmpty);
+    expect(captured.headers, isNot(contains('Authorization')));
+  });
+
+  test('omits Authorization for anonymous blob upload and download', () async {
+    final requests = <http.Request>[];
+    final store = NtfyBlobStore(
+      server: Uri.parse('https://relay.example'),
+      client: MockClient((request) async {
+        requests.add(request);
+        if (request.method == 'POST') {
+          return http.Response(
+            jsonEncode({
+              'attachment': {
+                'url': 'https://relay.example/file/random',
+                'size': 1,
+                'expires': 1788134400,
+              },
+            }),
+            200,
+          );
+        }
+        return http.Response.bytes([1], 200);
+      }),
+    );
+
+    final reference = await store.put(
+      channel: 'actent-blob',
+      objectId: 'random-id',
+      bytes: Uint8List.fromList([1]),
+    );
+    await store.get(reference);
+
+    expect(
+      requests.every(
+        (request) => !request.headers.containsKey('Authorization'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('omits Authorization for anonymous WebSocket subscriptions', () async {
+    final capturedHeaders = <Map<String, String>?>[];
+
+    WebSocketChannel connector(Uri _, {Map<String, String>? headers}) {
+      capturedHeaders.add(headers);
+      return _IdleWebSocketChannel();
+    }
+
+    final packetStream = NtfyPacketSubscription(
+      server: Uri.parse('https://relay.example'),
+      channel: 'actent-control',
+      connect: connector,
+    ).listen();
+    final jsonStream = NtfyJsonSubscription(
+      server: Uri.parse('https://relay.example'),
+      channel: 'actent-control',
+      connect: connector,
+    ).listen();
+
+    await packetStream.drain<void>();
+    await jsonStream.drain<void>();
+    expect(capturedHeaders, hasLength(2));
+    expect(
+      capturedHeaders.every(
+        (headers) => headers == null || !headers.containsKey('Authorization'),
+      ),
+      isTrue,
+    );
+  });
+}
+
+class _IdleWebSocketChannel
+    with StreamChannelMixin<Object?>
+    implements WebSocketChannel {
+  @override
+  int? get closeCode => null;
+
+  @override
+  String? get closeReason => null;
+
+  @override
+  String? get protocol => null;
+
+  @override
+  Future<void> get ready => Future<void>.value();
+
+  @override
+  WebSocketSink get sink => const _IdleWebSocketSink();
+
+  @override
+  Stream<Object?> get stream => const Stream<Object?>.empty();
+}
+
+class _IdleWebSocketSink implements WebSocketSink {
+  const _IdleWebSocketSink();
+
+  @override
+  void add(Object? event) {}
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {}
+
+  @override
+  Future<void> addStream(Stream<Object?> stream) => stream.drain<void>();
+
+  @override
+  Future<void> close([int? closeCode, String? closeReason]) =>
+      Future<void>.value();
+
+  @override
+  Future<void> get done => Future<void>.value();
 }

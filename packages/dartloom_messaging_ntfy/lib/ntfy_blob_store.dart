@@ -10,13 +10,13 @@ import 'ntfy_uri.dart';
 class NtfyBlobStore implements BlobStore {
   NtfyBlobStore({
     required this.server,
-    required this.credentials,
+    this.credentials,
     http.Client? client,
     this.timeout = const Duration(seconds: 30),
   }) : _client = client ?? http.Client();
 
   final Uri server;
-  final NtfyCredentials credentials;
+  final NtfyCredentials? credentials;
   final Duration timeout;
   final http.Client _client;
 
@@ -33,7 +33,8 @@ class NtfyBlobStore implements BlobStore {
         .post(
           ntfyTopicUri(server, channel),
           headers: <String, String>{
-            'Authorization': credentials.authorizationHeader,
+            if (credentials != null)
+              'Authorization': credentials!.authorizationHeader,
             'Content-Type': 'application/octet-stream',
             'Filename': '$objectId.dlmb',
           },
@@ -78,7 +79,8 @@ class NtfyBlobStore implements BlobStore {
         .get(
           reference.uri,
           headers: <String, String>{
-            'Authorization': credentials.authorizationHeader,
+            if (credentials != null)
+              'Authorization': credentials!.authorizationHeader,
           },
         )
         .timeout(timeout);

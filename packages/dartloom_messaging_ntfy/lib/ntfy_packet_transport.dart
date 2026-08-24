@@ -14,7 +14,7 @@ import 'ntfy_websocket_connector_stub.dart'
 class NtfyRelayPublisher implements RelayPublisher {
   NtfyRelayPublisher({
     required this.server,
-    required this.credentials,
+    this.credentials,
     http.Client? client,
     this.timeout = const Duration(seconds: 10),
     this.maxAttempts = 1,
@@ -23,7 +23,7 @@ class NtfyRelayPublisher implements RelayPublisher {
        _client = client ?? http.Client();
 
   final Uri server;
-  final NtfyCredentials credentials;
+  final NtfyCredentials? credentials;
   final Duration timeout;
   final int maxAttempts;
   final Duration retryDelay;
@@ -37,7 +37,8 @@ class NtfyRelayPublisher implements RelayPublisher {
             .post(
               ntfyTopicUri(server, channel),
               headers: <String, String>{
-                'Authorization': credentials.authorizationHeader,
+                if (credentials != null)
+                  'Authorization': credentials!.authorizationHeader,
                 'Content-Type': 'text/plain; charset=utf-8',
               },
               body: body,
@@ -83,14 +84,14 @@ class NtfyPacketPoller {
   NtfyPacketPoller({
     required this.server,
     required this.channel,
-    required this.credentials,
+    this.credentials,
     http.Client? client,
     this.timeout = const Duration(seconds: 30),
   }) : _client = client ?? http.Client();
 
   final Uri server;
   final String channel;
-  final NtfyCredentials credentials;
+  final NtfyCredentials? credentials;
   final Duration timeout;
   final http.Client _client;
 
@@ -103,7 +104,8 @@ class NtfyPacketPoller {
         .get(
           uri,
           headers: <String, String>{
-            'Authorization': credentials.authorizationHeader,
+            if (credentials != null)
+              'Authorization': credentials!.authorizationHeader,
             'Accept': 'application/x-ndjson, application/json',
           },
         )
@@ -139,13 +141,13 @@ class NtfyPacketSubscription {
   NtfyPacketSubscription({
     required this.server,
     required this.channel,
-    required this.credentials,
+    this.credentials,
     WebSocketConnector? connect,
   }) : _connect = connect ?? platform.connectNtfyWebSocket;
 
   final Uri server;
   final String channel;
-  final NtfyCredentials credentials;
+  final NtfyCredentials? credentials;
   final WebSocketConnector _connect;
 
   Stream<Packet> listen() async* {
@@ -157,7 +159,8 @@ class NtfyPacketSubscription {
     final socket = _connect(
       uri,
       headers: <String, String>{
-        'Authorization': credentials.authorizationHeader,
+        if (credentials != null)
+          'Authorization': credentials!.authorizationHeader,
       },
     );
     await for (final value in socket.stream) {
@@ -172,13 +175,13 @@ class NtfyJsonSubscription {
   NtfyJsonSubscription({
     required this.server,
     required this.channel,
-    required this.credentials,
+    this.credentials,
     WebSocketConnector? connect,
   }) : _connect = connect ?? platform.connectNtfyWebSocket;
 
   final Uri server;
   final String channel;
-  final NtfyCredentials credentials;
+  final NtfyCredentials? credentials;
   final WebSocketConnector _connect;
 
   Stream<Map<String, Object?>> listen() async* {
@@ -190,7 +193,8 @@ class NtfyJsonSubscription {
     final socket = _connect(
       uri,
       headers: <String, String>{
-        'Authorization': credentials.authorizationHeader,
+        if (credentials != null)
+          'Authorization': credentials!.authorizationHeader,
       },
     );
     await for (final value in socket.stream) {
