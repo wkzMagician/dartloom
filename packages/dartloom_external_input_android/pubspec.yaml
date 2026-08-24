@@ -1,0 +1,29 @@
+name: dartloom_external_input_android
+description: Android adapter for the Dartloom external input capability.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [android, dartloom, external-input, share]
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_external_input:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_external_input
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.dartloom.externalinput
+        pluginClass: DartloomExternalInputPlugin

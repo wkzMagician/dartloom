@@ -1,0 +1,9 @@
+package: dartloom_external_input_android
+display_name: Android External Input
+description: Android adapter for the Dartloom external input capability.
+platforms:
+  - android
+exports:
+  - symbol: AndroidExternalInputService
+    kind: class
+    description: Android ExternalInputService implementation.

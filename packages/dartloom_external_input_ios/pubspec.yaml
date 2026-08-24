@@ -1,0 +1,28 @@
+name: dartloom_external_input_ios
+description: iOS adapter and App Group inbox for Dartloom external input.
+version: 0.1.0
+repository: https://github.com/wkzMagician/dartloom
+homepage: https://github.com/wkzMagician/dartloom
+issue_tracker: https://github.com/wkzMagician/dartloom/issues
+topics: [ios, dartloom, external-input, share-extension]
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.24.0'
+dependencies:
+  dartloom_external_input:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_external_input
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.1.1
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: DartloomExternalInputIosPlugin

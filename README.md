@@ -131,6 +131,7 @@ The repository contains packages for the following capability areas:
 | Settings | `dartloom_settings`, `dartloom_settings_secure_storage`, `dartloom_settings_shared_preferences` |
 | Logging | `dartloom_logging`, `dartloom_logging_logger` |
 | Application capabilities | `dartloom_autostart`, `dartloom_autostart_launch_at_startup`, `dartloom_localization`, `dartloom_localization_gen_l10n`, `dartloom_messaging`, `dartloom_pairing`, `dartloom_resident`, `dartloom_resident_tray`, `dartloom_singleton`, `dartloom_singleton_socket` |
+| External input | `dartloom_external_input`, `dartloom_external_input_android`, `dartloom_external_input_ios` |
 
 The `dartloom_storage_json_file` and `dartloom_storage_text_file` packages remain in the repository as deprecated compatibility wrappers. New code should use the current object-storage APIs.
 

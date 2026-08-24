@@ -24,6 +24,9 @@ jobs:
           - packages/dartloom_storage_drift
           - packages/dartloom_storage_indexeddb
           - packages/dartloom_sync_storage
+          - packages/dartloom_external_input
+          - packages/dartloom_external_input_android
+          - packages/dartloom_external_input_ios
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -40,6 +43,13 @@ jobs:
           PACKAGE: ${{ matrix.package }}
         run: |
           case "$PACKAGE" in
+            packages/dartloom_external_input_android|packages/dartloom_external_input_ios)
+              cat > pubspec_overrides.yaml <<EOF
+              dependency_overrides:
+                dartloom_external_input:
+                  path: $GITHUB_WORKSPACE/packages/dartloom_external_input
+              EOF
+              ;;
             packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_text_file|packages/dartloom_storage_drift|packages/dartloom_storage_indexeddb)
               cat > pubspec_overrides.yaml <<EOF
           dependency_overrides:

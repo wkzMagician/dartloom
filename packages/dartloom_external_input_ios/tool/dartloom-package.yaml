@@ -1,0 +1,9 @@
+package: dartloom_external_input_ios
+display_name: iOS External Input
+description: iOS App Group inbox adapter for the Dartloom external input capability.
+platforms:
+  - ios
+exports:
+  - symbol: IosExternalInputService
+    kind: class
+    description: iOS ExternalInputService implementation.

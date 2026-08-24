@@ -1,0 +1,17 @@
+package: dartloom_external_input
+display_name: External Input
+description: Platform-neutral external input capability contract.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: ExternalInputService
+    kind: interface
+    description: Receives external input batches.
+  - symbol: ExternalInputBatch
+    kind: class
+    description: A batch of externally supplied inputs.
