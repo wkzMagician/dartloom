@@ -14,10 +14,13 @@ String windowsInstaller({
       '#define MyAppVersion "${_escape(appVersion)}"\n'
       '#endif\n'
       '#define MyAppExeName "${slug}.exe"\n'
+      '#define AppIconFile "..\\windows\\runner\\resources\\app_icon.ico"\n'
       '[Setup]\n'
       'AppName={#MyAppName}\n'
       'AppVersion={#MyAppVersion}\n'
       'AppVerName={#MyAppName} {#MyAppVersion}\n'
+      'SetupIconFile={#AppIconFile}\n'
+      'UninstallDisplayIcon={app}\\{#MyAppExeName}\n'
       'DefaultDirName={autopf}\\{#MyAppName}\n'
       'OutputDir=..\\dist\n'
       'OutputBaseFilename=${slug}-{#MyAppVersion}-windows-x64-setup\n'
@@ -30,14 +33,21 @@ String windowsInstaller({
       'Source: "..\\build\\windows\\x64\\runner\\Release\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs\n'
       '[Icons]\n'
       'Name: "{autoprograms}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"\n'
+      '[Registry]\n'
+      'Root: HKCU; Subkey: "Software\\Classes\\*\\shell\\{#MyAppName}"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Use {#MyAppName} to process"; Flags: uninsdeletekey\n'
+      'Root: HKCU; Subkey: "Software\\Classes\\*\\shell\\{#MyAppName}\\command"; ValueType: string; ValueName: ""; ValueData: """{app}\\{#MyAppExeName}"" ""%1"""\n'
       '[Run]\n'
       'Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent\n';
 }
 
-String cloudBuildWorkflow({String appName = 'dartloom_app'}) =>
-    _cloudBuild(appName);
+String cloudBuildWorkflow(
+  DartloomConfig config, {
+  String appName = 'dartloom_app',
+}) =>
+    _cloudBuild(config, appName);
 
-String _cloudBuild(String appName) => '''name: Dartloom Cloud Build
+String _cloudBuild(DartloomConfig config, String appName) =>
+    '''name: Dartloom Cloud Build
 
 on:
   workflow_dispatch:
@@ -94,6 +104,7 @@ jobs:
             ios) flutter build ios --\${{ inputs.mode }} --no-codesign ;;
             *) flutter build \${{ matrix.platform }} --\${{ inputs.mode }} ;;
           esac
+${_cloudPostBuildHooks(config)}
       - name: Package artifact
         shell: bash
         run: |
@@ -113,13 +124,22 @@ jobs:
               ;;
             macos)
               app_path=\$(find "build/macos/Build/Products" -maxdepth 2 -name '*.app' -type d | head -n 1)
-              ditto -c -k --keepParent "\$app_path" "artifact/\${app}-macos.zip"
+              hdiutil create -volname "\$app" -srcfolder "\$app_path" -ov -format UDZO "artifact/\${app}-macos.dmg"
               ;;
             windows)
               powershell -NoProfile -Command '\$version = (Select-String -Path pubspec.yaml -Pattern "^version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)").Matches.Groups[1].Value; if (-not \$version) { throw "pubspec.yaml version not found" }; & (Get-Command ISCC.exe -ErrorAction Stop).Source "/DMyAppVersion=\$version" installer\\windows.iss; Copy-Item -Path "dist\\*.exe" -Destination artifact -Force'
               ;;
             linux)
               tar -czf "artifact/\${app}-linux-x64.tar.gz" -C "build/linux/x64/\$mode" bundle
+              version=\$(sed -n 's/^version:[[:space:]]*\\([0-9][0-9.]*\\).*/\\1/p' pubspec.yaml | head -n 1)
+              test -n "\$version"
+              package_dir="\$(mktemp -d)"
+              mkdir -p "\$package_dir/DEBIAN" "\$package_dir/opt/\$app" "\$package_dir/usr/share/applications"
+              cp -R "build/linux/x64/\$mode/bundle/." "\$package_dir/opt/\$app/"
+              printf 'Package: %s\\nVersion: %s\\nSection: utils\\nPriority: optional\\nArchitecture: amd64\\nMaintainer: Dartloom project\\nDescription: %s\\n' "\$app" "\$version" "\$app" > "\$package_dir/DEBIAN/control"
+              printf '[Desktop Entry]\\nName=%s\\nExec=/opt/%s/%s %%F\\nType=Application\\nTerminal=false\\nMimeType=application/octet-stream;\\nCategories=Utility;\\n' "\$app" "\$app" "\$app" > "\$package_dir/usr/share/applications/\$app.desktop"
+              dpkg-deb --build "\$package_dir" "artifact/\${app}-linux-x64.deb"
+              rm -rf "\$package_dir"
               ;;
             web)
               (cd build/web && zip -qr "../../artifact/\${app}-web.zip" .)
@@ -154,8 +174,9 @@ jobs:
 
 String releaseWorkflow(DartloomConfig config,
     {String appName = 'dartloom_app'}) {
-  final jobs =
-      config.platforms.map((platform) => _releaseJob(platform, appName));
+  final jobs = config.platforms.map(
+    (platform) => _releaseJob(platform, appName, config.build[platform]),
+  );
   final needs = config.platforms.map((platform) => platform.name).join(', ');
   return '''name: Release
 
@@ -192,7 +213,11 @@ ${jobs.join('\n')}
 ''';
 }
 
-String _releaseJob(TargetPlatform platform, String appName) {
+String _releaseJob(
+  TargetPlatform platform,
+  String appName,
+  BuildPlatformConfig? buildConfig,
+) {
   final slug = _slug(appName);
   final runner = switch (platform) {
     TargetPlatform.android ||
@@ -222,6 +247,7 @@ String _releaseJob(TargetPlatform platform, String appName) {
     TargetPlatform.linux => '      - run: flutter build linux --release',
     TargetPlatform.web => '      - run: flutter build web --release',
   };
+  final postBuild = _releasePostBuildHooks(buildConfig);
   final package = switch (platform) {
     TargetPlatform.android => '''      - name: Package Android
         shell: bash
@@ -237,12 +263,12 @@ String _releaseJob(TargetPlatform platform, String appName) {
           cp -R build/ios/iphoneos/Runner.app Payload/
           zip -qr dist/${slug}-ios.ipa Payload
 ''',
-    TargetPlatform.macos => '''      - name: Package macOS app
+    TargetPlatform.macos => '''      - name: Package macOS DMG
         shell: bash
         run: |
           mkdir -p dist
           app_path=\$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n 1)
-          ditto -c -k --keepParent "\$app_path" dist/${slug}-macos.zip
+          hdiutil create -volname ${slug} -srcfolder "\$app_path" -ov -format UDZO dist/${slug}-macos.dmg
 ''',
     TargetPlatform.windows => '''      - name: Package Windows installer
         shell: pwsh
@@ -252,11 +278,20 @@ String _releaseJob(TargetPlatform platform, String appName) {
           if (-not \$version) { throw "pubspec.yaml version not found" }
           & (Get-Command ISCC.exe -ErrorAction Stop).Source "/DMyAppVersion=\$version" installer\\windows.iss
 ''',
-    TargetPlatform.linux => '''      - name: Package Linux bundle
+    TargetPlatform.linux => '''      - name: Package Linux bundles
         shell: bash
         run: |
           mkdir -p dist
           tar -czf dist/${slug}-linux-x64.tar.gz -C build/linux/x64/release bundle
+          version=\$(sed -n 's/^version:[[:space:]]*\\([0-9][0-9.]*\\).*/\\1/p' pubspec.yaml | head -n 1)
+          test -n "\$version"
+          package_dir="\$(mktemp -d)"
+          mkdir -p "\$package_dir/DEBIAN" "\$package_dir/opt/${slug}" "\$package_dir/usr/share/applications"
+          cp -R build/linux/x64/release/bundle/. "\$package_dir/opt/${slug}/"
+          printf 'Package: %s\\nVersion: %s\\nSection: utils\\nPriority: optional\\nArchitecture: amd64\\nMaintainer: Dartloom project\\nDescription: %s\\n' '${slug}' "\$version" '${slug}' > "\$package_dir/DEBIAN/control"
+          printf '[Desktop Entry]\\nName=%s\\nExec=/opt/%s/%s %%F\\nType=Application\\nTerminal=false\\nMimeType=application/octet-stream;\\nCategories=Utility;\\n' '${slug}' '${slug}' '${slug}' > "\$package_dir/usr/share/applications/${slug}.desktop"
+          dpkg-deb --build "\$package_dir" "dist/${slug}-linux-x64.deb"
+          rm -rf "\$package_dir"
 ''',
     TargetPlatform.web => '''      - name: Package Web
         shell: bash
@@ -275,11 +310,55 @@ ${linuxDependencies}      - uses: subosito/flutter-action@v2
           flutter-version: '3.47.0'
       - run: flutter pub get
 ${windowsInstall}$build
+$postBuild
 $package      - uses: actions/upload-artifact@v4
         with:
           name: ${platform.name}
           path: $artifact
 ''';
+}
+
+String _cloudPostBuildHooks(DartloomConfig config) {
+  if (config.build.values.every((item) => item.postBuild.isEmpty)) return '';
+  final branches = <String>[];
+  for (final platform in TargetPlatform.values) {
+    final item = config.build[platform];
+    if (item == null || item.postBuild.isEmpty) continue;
+    branches.add('''            ${platform.name})
+${_hookCommands(item, r'${{ inputs.mode }}', indent: '              ')}              ;;
+''');
+  }
+  return '''      - name: Run project post-build hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "\${{ matrix.platform }}" in
+${branches.join()}            *) ;;
+          esac
+''';
+}
+
+String _releasePostBuildHooks(BuildPlatformConfig? config) {
+  if (config == null || config.postBuild.isEmpty) return '';
+  return '''      - name: Run project post-build hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+${_hookCommands(config, 'release', indent: '          ')}''';
+}
+
+String _hookCommands(
+  BuildPlatformConfig config,
+  String mode, {
+  required String indent,
+}) {
+  final targets = config.nativeTargets.join(r'\n');
+  return config.postBuild
+      .map(
+        (hook) =>
+            '${indent}DARTLOOM_BUILD_MODE=${_shellQuote(mode)} DARTLOOM_NATIVE_TARGETS=${_shellQuote(targets)} bash ${_shellQuote(hook)} ${_shellQuote(mode)}\n',
+      )
+      .join();
 }
 
 String _slug(String value) {
@@ -298,3 +377,5 @@ String _displayName(String value) => value
     .join(' ');
 
 String _escape(String value) => value.replaceAll('"', '""');
+
+String _shellQuote(String value) => "'${value.replaceAll("'", "'\\\"'\\\"'")}'";

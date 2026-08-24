@@ -10,6 +10,7 @@ class ConfigurationTui {
   Future<DartloomConfig> select(
       {Set<TargetPlatform>? initialPlatforms,
       List<String>? initialPackages,
+      Map<TargetPlatform, BuildPlatformConfig>? initialBuild,
       required List<DartloomPackage> available}) async {
     final platforms = initialPlatforms ?? _platforms(available);
     final packages = initialPackages ?? _packages(available);
@@ -46,11 +47,28 @@ class ConfigurationTui {
                     .map((value) => value.trim())
                     .where((value) => value.isNotEmpty)
                     .toList();
-        return DartloomConfig(platforms: selected, packages: selectedPackages);
+        return DartloomConfig(
+          platforms: selected,
+          packages: selectedPackages,
+          build: _buildFor(selected, initialBuild),
+        );
       }
     }
-    return DartloomConfig(platforms: platforms, packages: packages);
+    return DartloomConfig(
+      platforms: platforms,
+      packages: packages,
+      build: _buildFor(platforms, initialBuild),
+    );
   }
+
+  Map<TargetPlatform, BuildPlatformConfig> _buildFor(
+    Set<TargetPlatform> platforms,
+    Map<TargetPlatform, BuildPlatformConfig>? build,
+  ) =>
+      {
+        for (final entry in (build ?? const {}).entries)
+          if (platforms.contains(entry.key)) entry.key: entry.value,
+      };
 
   Set<TargetPlatform> _platforms(List<DartloomPackage> available) =>
       {TargetPlatform.android, TargetPlatform.windows};

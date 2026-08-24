@@ -54,7 +54,68 @@ class ConfigLoader {
       }
       if (!packages.contains(value)) packages.add(value);
     }
-    return DartloomConfig(platforms: platforms, packages: packages);
+    return DartloomConfig(
+      platforms: platforms,
+      packages: packages,
+      build: _build(document['build'], platforms),
+    );
+  }
+
+  Map<TargetPlatform, BuildPlatformConfig> _build(
+    Object? raw,
+    Set<TargetPlatform> platforms,
+  ) {
+    if (raw == null) return const {};
+    if (raw is! YamlMap) {
+      throw ConfigException('build must be a map when provided.');
+    }
+    final result = <TargetPlatform, BuildPlatformConfig>{};
+    for (final entry in raw.entries) {
+      if (entry.key is! String || entry.value is! YamlMap) {
+        throw ConfigException('build platform entries must be maps.');
+      }
+      final platform = _platform(entry.key as String);
+      if (!platforms.contains(platform)) {
+        throw ConfigException(
+            'build.${platform.name} is not an enabled platform.');
+      }
+      final values = entry.value as YamlMap;
+      final postBuild = _stringList(
+          values['post_build'], 'build.${platform.name}.post_build');
+      final nativeTargets = _stringList(
+        values['native_targets'],
+        'build.${platform.name}.native_targets',
+      );
+      if (postBuild.isEmpty && nativeTargets.isNotEmpty) {
+        throw ConfigException(
+          'build.${platform.name}.native_targets requires post_build.',
+        );
+      }
+      if (postBuild.isNotEmpty || nativeTargets.isNotEmpty) {
+        result[platform] = BuildPlatformConfig(
+          postBuild: postBuild,
+          nativeTargets: nativeTargets,
+        );
+      }
+    }
+    return result;
+  }
+
+  TargetPlatform _platform(String value) {
+    try {
+      return TargetPlatformName.parse(value);
+    } on StateError {
+      throw ConfigException('Unknown Flutter platform: $value.');
+    }
+  }
+
+  List<String> _stringList(Object? value, String field) {
+    if (value == null) return const [];
+    if (value is! YamlList ||
+        value.any((item) => item is! String || item.isEmpty)) {
+      throw ConfigException('$field must be a list of non-empty strings.');
+    }
+    return List<String>.unmodifiable(value.cast<String>());
   }
 
   Future<void> save(Directory project, DartloomConfig config) async {

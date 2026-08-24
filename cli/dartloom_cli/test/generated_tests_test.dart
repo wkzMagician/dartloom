@@ -13,6 +13,12 @@ void main() {
         contains(
             'ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json'));
     expect(source, contains('windows/runner/resources/app_icon.ico'));
+    expect(source,
+        contains("installer/windows.iss', 'SetupIconFile={#AppIconFile}"));
+    expect(
+        source,
+        contains(
+            "installer/windows.iss', 'UninstallDisplayIcon={app}\\\\{#MyAppExeName}"));
     expect(
         source,
         contains(

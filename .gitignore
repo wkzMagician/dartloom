@@ -12,3 +12,4 @@ dartloom_integration/
 **/pubspec.lock
 **/pubspec_overrides.yaml
 /dist/
+.serena/

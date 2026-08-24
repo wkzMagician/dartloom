@@ -24,6 +24,9 @@ Future<String> updateAgents(
     ..writeln('## Dartloom packages')
     ..writeln()
     ..writeln(
+        'Each subproject README.md must link to the Dartloom project at https://github.com/wkzMagician/dartloom and explain which Dartloom library it uses.')
+    ..writeln()
+    ..writeln(
         'Selected platforms: ${config.platforms.map((e) => _title(e.name)).join(', ')}')
     ..writeln();
   if (selected.isEmpty) {

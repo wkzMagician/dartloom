@@ -7,7 +7,9 @@ void main() {
   group('Workflow templates', () {
     test('cloudBuildWorkflow is valid YAML and does not use matrix in job if',
         () {
-      final yamlContent = cloudBuildWorkflow();
+      final yamlContent = cloudBuildWorkflow(
+        DartloomConfig(platforms: TargetPlatform.values.toSet(), packages: []),
+      );
       final parsed = loadYaml(yamlContent) as YamlMap;
       expect(parsed['name'], 'Dartloom Cloud Build');
       expect(parsed['on']['workflow_dispatch'], isNotNull);
@@ -53,8 +55,9 @@ void main() {
       expect(workflow, contains('dist/mind_bubble-android.apk'));
       expect(workflow, contains('dist/mind_bubble-android.aab'));
       expect(workflow, contains('dist/mind_bubble-ios.ipa'));
-      expect(workflow, contains('dist/mind_bubble-macos.zip'));
+      expect(workflow, contains('dist/mind_bubble-macos.dmg'));
       expect(workflow, contains('dist/mind_bubble-linux-x64.tar.gz'));
+      expect(workflow, contains('dist/mind_bubble-linux-x64.deb'));
       expect(workflow, contains('dist/mind_bubble-web.zip'));
       expect(workflow, contains('find downloaded_artifacts'));
       expect(workflow, contains("! -name 'dartloom-build.json'"));
@@ -67,7 +70,37 @@ void main() {
       expect(installer, contains('#define MyAppName "Mind Bubble"'));
       expect(installer, contains('#define MyAppVersion "0.4.5"'));
       expect(installer, contains('#define MyAppExeName "mind_bubble.exe"'));
+      expect(
+          installer,
+          contains(
+              '#define AppIconFile "..\\windows\\runner\\resources\\app_icon.ico"'));
+      expect(installer, contains('SetupIconFile={#AppIconFile}'));
+      expect(
+          installer, contains('UninstallDisplayIcon={app}\\{#MyAppExeName}'));
       expect(installer, contains('OutputBaseFilename=mind_bubble-'));
+    });
+
+    test('passes project build hooks and targets without target conventions',
+        () {
+      final config = DartloomConfig(
+        platforms: {TargetPlatform.ios},
+        packages: [],
+        build: {
+          TargetPlatform.ios: const BuildPlatformConfig(
+            postBuild: ['tool/build_native_targets.sh'],
+            nativeTargets: ['AnArbitraryTarget'],
+          ),
+        },
+      );
+      final cloud = cloudBuildWorkflow(config);
+      final release = releaseWorkflow(config);
+      for (final workflow in [cloud, release]) {
+        expect(workflow, contains('Run project post-build hooks'));
+        expect(workflow, contains('tool/build_native_targets.sh'));
+        expect(workflow, contains('DARTLOOM_NATIVE_TARGETS'));
+        expect(workflow, contains('AnArbitraryTarget'));
+      }
+      expect(cloud, isNot(contains('ShareExtension')));
     });
   });
 }

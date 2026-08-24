@@ -74,7 +74,7 @@ class NewCommand {
     await File('${workflows.path}${Platform.pathSeparator}ci.yml')
         .writeAsString(ciWorkflow());
     await File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml')
-        .writeAsString(cloudBuildWorkflow(appName: appName));
+        .writeAsString(cloudBuildWorkflow(config, appName: appName));
     final installer =
         Directory('${project.path}${Platform.pathSeparator}installer');
     await installer.create(recursive: true);

@@ -26,6 +26,7 @@ class UpdateCommand {
     final next = await tui.select(
         initialPlatforms: oldConfig.platforms,
         initialPackages: oldConfig.packages,
+        initialBuild: oldConfig.build,
         available: packages);
     final removed = oldConfig.platforms.difference(next.platforms);
     if (removed.isNotEmpty && !confirmPlatformRemoval) {
@@ -64,7 +65,7 @@ class UpdateCommand {
     await ci.writeAsString(ciWorkflow());
     final cloudBuild =
         File('${workflows.path}${Platform.pathSeparator}dartloom-build.yml');
-    await cloudBuild.writeAsString(cloudBuildWorkflow(appName: appName));
+    await cloudBuild.writeAsString(cloudBuildWorkflow(next, appName: appName));
     final release =
         File('${workflows.path}${Platform.pathSeparator}release.yml');
     await release.writeAsString(releaseWorkflow(next, appName: appName));
