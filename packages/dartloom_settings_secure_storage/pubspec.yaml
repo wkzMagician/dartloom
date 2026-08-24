@@ -1,6 +1,6 @@
 name: dartloom_settings_secure_storage
 description: Encrypted secure storage adapter for the Dartloom settings contract.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/wkzMagician/dartloom
 homepage: https://github.com/wkzMagician/dartloom
 issue_tracker: https://github.com/wkzMagician/dartloom/issues
@@ -10,6 +10,8 @@ environment:
   flutter: '>=3.24.0'
 dependencies:
   dartloom_settings: ^0.2.0
+  flutter:
+    sdk: flutter
   flutter_secure_storage: ^10.0.0
 dev_dependencies:
   flutter_test:
