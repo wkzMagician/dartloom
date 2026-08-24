@@ -72,7 +72,13 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-warnings
       - name: Restore analyzer configuration before publish validation
-        run: git restore --source=HEAD -- analysis_options.yaml
+        shell: bash
+        run: |
+          if git ls-files --error-unmatch analysis_options.yaml >/dev/null 2>&1; then
+            git restore --source=HEAD -- analysis_options.yaml
+          else
+            rm -f analysis_options.yaml
+          fi
 
       - name: Publish dry-run for publishable packages
         shell: bash
