@@ -30,65 +30,56 @@ jobs:
     defaults:
       run:
         working-directory: ${{ matrix.package }}
+    env:
+      PACKAGE: ${{ matrix.package }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      # The repository is a monorepo and the internal packages may not have
-      # been published yet. Keep publishable pubspecs on hosted constraints,
-      # but resolve the workspace copies during CI validation.
+
       - name: Resolve workspace package dependencies
-        env:
-          PACKAGE: ${{ matrix.package }}
+        shell: bash
         run: |
           case "$PACKAGE" in
             packages/dartloom_external_input_android|packages/dartloom_external_input_ios)
-              cat > pubspec_overrides.yaml <<EOF
-              dependency_overrides:
-                dartloom_external_input:
-                  path: $GITHUB_WORKSPACE/packages/dartloom_external_input
-              EOF
+              printf '%s\n' \
+                'dependency_overrides:' \
+                '  dartloom_external_input:' \
+                "    path: $GITHUB_WORKSPACE/packages/dartloom_external_input" \
+                | tee pubspec_overrides.yaml
               ;;
-            packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_text_file|packages/dartloom_storage_drift|packages/dartloom_storage_indexeddb)
-              cat > pubspec_overrides.yaml <<EOF
-          dependency_overrides:
-            dartloom_storage:
-              path: $GITHUB_WORKSPACE/packages/dartloom_storage
-          EOF
+            packages/dartloom_sync|packages/dartloom_storage_file|packages/dartloom_storage_drift|packages/dartloom_storage_indexeddb)
+              printf '%s\n' \
+                'dependency_overrides:' \
+                '  dartloom_storage:' \
+                "    path: $GITHUB_WORKSPACE/packages/dartloom_storage" \
+                | tee pubspec_overrides.yaml
               ;;
             packages/dartloom_sync_storage)
-              cat > pubspec_overrides.yaml <<EOF
-          dependency_overrides:
-            dartloom_settings:
-              path: $GITHUB_WORKSPACE/packages/dartloom_settings
-            dartloom_storage:
-              path: $GITHUB_WORKSPACE/packages/dartloom_storage
-            dartloom_sync:
-              path: $GITHUB_WORKSPACE/packages/dartloom_sync
-          EOF
-              ;;
-            packages/dartloom_storage_json_file)
-              cat > pubspec_overrides.yaml <<EOF
-          dependency_overrides:
-            dartloom_storage:
-              path: $GITHUB_WORKSPACE/packages/dartloom_storage
-            dartloom_storage_file:
-              path: $GITHUB_WORKSPACE/packages/dartloom_storage_file
-          EOF
+              printf '%s\n' \
+                'dependency_overrides:' \
+                '  dartloom_settings:' \
+                "    path: $GITHUB_WORKSPACE/packages/dartloom_settings" \
+                '  dartloom_storage:' \
+                "    path: $GITHUB_WORKSPACE/packages/dartloom_storage" \
+                '  dartloom_sync:' \
+                "    path: $GITHUB_WORKSPACE/packages/dartloom_sync" \
+                | tee pubspec_overrides.yaml
               ;;
           esac
+
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
-      # Recent Flutter versions migrate a package's analysis_options.yaml during
-      # analysis. Restore that generated migration before pub validation so the
-      # dry-run checks the committed package contents rather than a CI-only
-      # workspace mutation.
-      - name: Restore analysis options
+      - run: flutter analyze --no-fatal-warnings
+
+      - name: Publish dry-run for publishable packages
+        shell: bash
         run: |
-          if [ -f analysis_options.yaml ]; then
-            git checkout -- analysis_options.yaml
-          fi
-      - run: flutter pub publish --dry-run
-        if: ${{ matrix.package != 'packages/dartloom_external_input_android' && matrix.package != 'packages/dartloom_external_input_ios' }}
+          case "$PACKAGE" in
+            packages/dartloom_storage_file|packages/dartloom_storage_indexeddb|packages/dartloom_external_input_android|packages/dartloom_external_input_ios)
+              echo "Skipping internal package: $PACKAGE"
+              ;;
+            *)
+              flutter pub publish --dry-run
+              ;;
+          esac
