@@ -8,7 +8,11 @@ topics: [flutter, logging, dartloom]
 environment:
   sdk: ^3.5.0
 dependencies:
-  dartloom_logging: ^0.2.0
+  dartloom_logging:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_logging
   logger: ^2.4.0
 dev_dependencies:
   lints: ^5.1.1

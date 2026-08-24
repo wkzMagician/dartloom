@@ -9,7 +9,11 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_localization: ^0.2.0
+  dartloom_localization:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_localization
   flutter:
     sdk: flutter
   flutter_localizations:

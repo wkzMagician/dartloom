@@ -6,7 +6,11 @@ environment:
   sdk: ^3.5.0
 dependencies:
   crypto: ^3.0.3
-  dartloom_storage: ^0.3.0
+  dartloom_storage:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_storage
   web: ^1.1.1
 dev_dependencies:
   test: ^1.25.8

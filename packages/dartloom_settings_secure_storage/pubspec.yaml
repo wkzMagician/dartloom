@@ -9,7 +9,11 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_settings: ^0.2.0
+  dartloom_settings:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_settings
   flutter_secure_storage: ^10.0.0
 dev_dependencies:
   flutter_test:

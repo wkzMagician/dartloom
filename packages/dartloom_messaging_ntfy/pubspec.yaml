@@ -5,7 +5,11 @@ repository: https://github.com/wkzMagician/dartloom
 environment:
   sdk: ^3.13.0
 dependencies:
-  dartloom_messaging: ^0.3.0
+  dartloom_messaging:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_messaging
   http: ^1.6.0
   web_socket_channel: ^3.0.3
 dev_dependencies:

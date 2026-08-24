@@ -9,8 +9,16 @@ environment:
   sdk: ^3.5.0
   flutter: '>=3.24.0'
 dependencies:
-  dartloom_resident: ^0.3.0
-  dartloom_singleton: ^0.1.0
+  dartloom_resident:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_resident
+  dartloom_singleton:
+    git:
+      url: https://github.com/wkzMagician/dartloom.git
+      ref: main
+      path: packages/dartloom_singleton
   flutter:
     sdk: flutter
   path_provider: ^2.1.0
