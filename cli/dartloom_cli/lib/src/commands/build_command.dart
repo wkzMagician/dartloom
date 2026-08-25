@@ -48,7 +48,14 @@ class BuildCommand {
         '${Directory.current.path}${Platform.pathSeparator}dist${Platform.pathSeparator}${result.platform}',
       );
       for (final artifact in result.artifacts) {
-        await backend.download(artifact, target);
+        try {
+          await backend.download(artifact, target);
+        } catch (error) {
+          stderr.writeln(
+            '! ${artifact.name} was built but could not be downloaded: $error',
+          );
+          continue;
+        }
         final zipPath =
             '${target.path}${Platform.pathSeparator}${artifact.name}.zip';
         final zipFile = File(zipPath);

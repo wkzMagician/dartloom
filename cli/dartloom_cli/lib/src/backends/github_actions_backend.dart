@@ -128,12 +128,21 @@ class GitHubActionsBackend implements CloudBuildBackend {
     }
 
     final response = await _request('GET', artifact.downloadUrl);
-    await response.pipe(archive.openWrite());
+    try {
+      await response.pipe(archive.openWrite()).timeout(
+            const Duration(minutes: 2),
+          );
+    } catch (_) {
+      if (archive.existsSync()) {
+        await archive.delete();
+      }
+      rethrow;
+    }
   }
 
   Future<bool> _downloadWithGh(Artifact artifact, Directory target) async {
     try {
-      final result = await Process.run('gh', [
+      final process = await Process.start('gh', [
         'run',
         'download',
         artifact.runId!,
@@ -144,7 +153,17 @@ class GitHubActionsBackend implements CloudBuildBackend {
         '--dir',
         target.path,
       ]);
-      if (result.exitCode == 0) {
+      final stdoutDone = process.stdout.drain<void>();
+      final stderrDone = process.stderr.drain<void>();
+      final exitCode = await process.exitCode.timeout(
+        const Duration(minutes: 2),
+        onTimeout: () {
+          process.kill();
+          return -1;
+        },
+      );
+      await Future.wait([stdoutDone, stderrDone]);
+      if (exitCode == 0) {
         return true;
       }
       stderr.writeln(
