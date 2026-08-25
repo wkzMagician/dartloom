@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6
+
+- Install the Linux Ayatana AppIndicator development dependency required by
+  the tray manager plugin.
+
 ## 0.2.5
 
 - Install the Linux `libsecret-1-dev` dependency required by secure storage
