@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+
+- Install the Linux `libsecret-1-dev` dependency required by secure storage
+  during generated CI and release builds.
+
 ## 0.2.4
 
 - Keep Windows installer `MyAppVersion` synchronized during releases.

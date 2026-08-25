@@ -88,7 +88,7 @@ jobs:
         if: \${{ matrix.platform == 'linux' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev zip
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev liblzma-dev zip
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.0'
@@ -231,7 +231,7 @@ String _releaseJob(
       ? '''      - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev zip
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev liblzma-dev zip
 '''
       : '';
   final windowsInstall = platform == TargetPlatform.windows
