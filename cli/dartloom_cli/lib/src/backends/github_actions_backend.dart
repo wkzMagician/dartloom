@@ -145,7 +145,7 @@ class GitHubActionsBackend implements CloudBuildBackend {
     }
   }
 
-  Future<bool?> _downloadWithGh(Artifact artifact, Directory target) async {
+  Future<bool> _downloadWithGh(Artifact artifact, Directory target) async {
     try {
       final process = await Process.start('gh', [
         'run',
@@ -180,8 +180,9 @@ class GitHubActionsBackend implements CloudBuildBackend {
       );
     } on ProcessException {
       // GitHub CLI is optional when GITHUB_TOKEN is supplied.
-      return null;
+      return false;
     }
+    return false;
   }
 
   @override
