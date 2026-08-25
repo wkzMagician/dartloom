@@ -38,8 +38,8 @@ class GitHubActionsBackend implements CloudBuildBackend {
   @override
   Future<String> trigger(BuildRequest request) async {
     final beforeTrigger = DateTime.now().toUtc().subtract(
-      const Duration(seconds: 5),
-    );
+          const Duration(seconds: 5),
+        );
     await _request('POST', '$_base/actions/workflows/$workflow/dispatches', {
       'ref': request.workflowRef ?? request.gitRef,
       'inputs': {
@@ -62,9 +62,8 @@ class GitHubActionsBackend implements CloudBuildBackend {
       if (runs != null && runs.isNotEmpty) {
         final latestRun = runs.first as Map<String, dynamic>;
         final createdAtStr = latestRun['created_at'] as String?;
-        final createdAt = createdAtStr != null
-            ? DateTime.tryParse(createdAtStr)
-            : null;
+        final createdAt =
+            createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
         if (createdAt == null || createdAt.isAfter(beforeTrigger)) {
           return latestRun['id'].toString();
         }
@@ -123,8 +122,16 @@ class GitHubActionsBackend implements CloudBuildBackend {
     if (archive.existsSync()) {
       await archive.delete();
     }
-    if (artifact.runId != null && await _downloadWithGh(artifact, target)) {
-      return;
+    if (artifact.runId != null) {
+      final ghDownloaded = await _downloadWithGh(artifact, target);
+      if (ghDownloaded == true) {
+        return;
+      }
+      if (ghDownloaded == false) {
+        throw StateError(
+          'GitHub CLI could not download ${artifact.name} within 30 seconds.',
+        );
+      }
     }
 
     final response = await _request('GET', artifact.downloadUrl);
@@ -140,7 +147,7 @@ class GitHubActionsBackend implements CloudBuildBackend {
     }
   }
 
-  Future<bool> _downloadWithGh(Artifact artifact, Directory target) async {
+  Future<bool?> _downloadWithGh(Artifact artifact, Directory target) async {
     try {
       final process = await Process.start('gh', [
         'run',
@@ -156,7 +163,7 @@ class GitHubActionsBackend implements CloudBuildBackend {
       final stdoutDone = process.stdout.drain<void>();
       final stderrDone = process.stderr.drain<void>();
       final exitCode = await process.exitCode.timeout(
-        const Duration(minutes: 2),
+        const Duration(seconds: 30),
         onTimeout: () {
           process.kill();
           return -1;
@@ -171,8 +178,8 @@ class GitHubActionsBackend implements CloudBuildBackend {
       );
     } on ProcessException {
       // GitHub CLI is optional when GITHUB_TOKEN is supplied.
+      return null;
     }
-    return false;
   }
 
   @override
