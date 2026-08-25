@@ -8,8 +8,8 @@ import '../build/git_repository.dart';
 
 class BuildCommand {
   BuildCommand({CloudBuildBackend? backend, GitRepository? repository})
-    : _backend = backend,
-      _repository = repository;
+      : _backend = backend,
+        _repository = repository;
   final CloudBuildBackend? _backend;
   final GitRepository? _repository;
 
@@ -31,9 +31,8 @@ class BuildCommand {
     final ref = await repo.head();
     final workflowRef = await repo.branch();
     final backend = _backend ?? await _defaultBackend();
-    final platforms = all
-        ? BuildPlatform.values
-        : [BuildPlatform.parse(platform)];
+    final platforms =
+        all ? BuildPlatform.values : [BuildPlatform.parse(platform)];
     for (final platform in platforms) {
       final result = await _build(
         backend,
@@ -124,11 +123,9 @@ class BuildCommand {
   }
 
   Future<CloudBuildBackend> _defaultBackend() async {
-    final token =
-        await _tryGhValue(['auth', 'token']) ??
+    final token = await _tryGhValue(['auth', 'token']) ??
         Platform.environment['GITHUB_TOKEN'];
-    final repository =
-        await _tryGhValue([
+    final repository = await _tryGhValue([
           'repo',
           'view',
           '--json',

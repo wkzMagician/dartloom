@@ -6,9 +6,9 @@ enum BuildStatus { queued, running, succeeded, failed, cancelled }
 
 extension BuildModeName on BuildMode {
   static BuildMode parse(String value) => BuildMode.values.firstWhere(
-    (mode) => mode.name == value.toLowerCase(),
-    orElse: () => throw FormatException('Unknown build mode: $value'),
-  );
+        (mode) => mode.name == value.toLowerCase(),
+        orElse: () => throw FormatException('Unknown build mode: $value'),
+      );
 }
 
 class BuildPlatform {
