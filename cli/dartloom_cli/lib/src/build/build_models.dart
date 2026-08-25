@@ -6,9 +6,9 @@ enum BuildStatus { queued, running, succeeded, failed, cancelled }
 
 extension BuildModeName on BuildMode {
   static BuildMode parse(String value) => BuildMode.values.firstWhere(
-        (mode) => mode.name == value.toLowerCase(),
-        orElse: () => throw FormatException('Unknown build mode: $value'),
-      );
+    (mode) => mode.name == value.toLowerCase(),
+    orElse: () => throw FormatException('Unknown build mode: $value'),
+  );
 }
 
 class BuildPlatform {
@@ -23,12 +23,13 @@ class BuildPlatform {
 }
 
 class BuildRequest {
-  const BuildRequest(
-      {required this.platform,
-      required this.gitRef,
-      this.workflowRef,
-      this.mode = BuildMode.release,
-      this.release = false});
+  const BuildRequest({
+    required this.platform,
+    required this.gitRef,
+    this.workflowRef,
+    this.mode = BuildMode.release,
+    this.release = false,
+  });
   final String platform;
   final String gitRef;
   final String? workflowRef;
@@ -37,16 +38,26 @@ class BuildRequest {
 }
 
 class Artifact {
-  const Artifact(
-      {required this.id, required this.name, required this.downloadUrl});
+  const Artifact({
+    required this.id,
+    required this.name,
+    required this.downloadUrl,
+    this.runId,
+  });
   final int id;
   final String name;
   final String downloadUrl;
+
+  /// The workflow run that produced this artifact, when known.
+  final String? runId;
 }
 
 class BuildResult {
-  const BuildResult(
-      {required this.runId, required this.platform, required this.artifacts});
+  const BuildResult({
+    required this.runId,
+    required this.platform,
+    required this.artifacts,
+  });
   final String runId;
   final String platform;
   final List<Artifact> artifacts;
