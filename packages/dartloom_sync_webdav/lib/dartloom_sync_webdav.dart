@@ -399,7 +399,8 @@ final class WebDavRemoteReplica implements RemoteReplica {
         null => const {},
       };
 
-  Future<http.Response> _send(http.Request request, [int redirectCount = 0]) async {
+  Future<http.Response> _send(http.Request request,
+      [int redirectCount = 0]) async {
     if (_closed) throw StateError('WebDAV replica is closed.');
     if (redirectCount > 5) {
       throw const SyncOperationException(SyncFailure(

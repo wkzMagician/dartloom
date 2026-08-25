@@ -138,9 +138,8 @@ void main() {
       'state': 'applied',
       'sequence': 1,
     };
-    event1['checksum'] = sha256
-        .convert(utf8.encode(jsonEncode(event1)))
-        .toString();
+    event1['checksum'] =
+        sha256.convert(utf8.encode(jsonEncode(event1))).toString();
 
     final event2 = <String, Object?>{
       'id': 'op-2',
@@ -153,16 +152,17 @@ void main() {
       'state': 'applied',
       'sequence': 1, // Same sequence!
     };
-    event2['checksum'] = sha256
-        .convert(utf8.encode(jsonEncode(event2)))
-        .toString();
+    event2['checksum'] =
+        sha256.convert(utf8.encode(jsonEncode(event2))).toString();
 
-    await metadata.write('__dartloom_journal/v1/events/00000000000000000001-op-1-applied.json',
+    await metadata.write(
+        '__dartloom_journal/v1/events/00000000000000000001-op-1-applied.json',
         Uint8List.fromList(utf8.encode(jsonEncode(event1))));
-    await metadata.write('__dartloom_journal/v1/events/00000000000000000001-op-2-applied.json',
+    await metadata.write(
+        '__dartloom_journal/v1/events/00000000000000000001-op-2-applied.json',
         Uint8List.fromList(utf8.encode(jsonEncode(event2))));
-    await metadata.write('__dartloom_journal/v1/sequence',
-        Uint8List.fromList(utf8.encode('1')));
+    await metadata.write(
+        '__dartloom_journal/v1/sequence', Uint8List.fromList(utf8.encode('1')));
 
     final journal = await JournaledObjectStore.open(
       objects: objects,

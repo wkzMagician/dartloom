@@ -43,7 +43,31 @@ class ReleaseCommand {
       throw CommandFailure('No version field found in pubspec.yaml.');
     }
     await file.writeAsString(updated);
-    await _git(project, ['add', 'pubspec.yaml']);
+
+    final filesToStage = <String>['pubspec.yaml'];
+    final installer = File(
+      '${project.path}${Platform.pathSeparator}installer'
+      '${Platform.pathSeparator}windows.iss',
+    );
+    if (await installer.exists()) {
+      final installerSource = await installer.readAsString();
+      final updatedInstaller = installerSource.replaceFirst(
+        RegExp(
+          r'^#define MyAppVersion\s+"[^"\r\n]+"',
+          multiLine: true,
+        ),
+        '#define MyAppVersion "$next"',
+      );
+      if (updatedInstaller == installerSource) {
+        throw CommandFailure(
+          'installer/windows.iss exists but has no MyAppVersion definition.',
+        );
+      }
+      await installer.writeAsString(updatedInstaller);
+      filesToStage.add('installer/windows.iss');
+    }
+
+    await _git(project, ['add', ...filesToStage]);
     await _git(project, ['commit', '-m', 'chore: release $next']);
     await _git(project, ['tag', '-a', tag, '-m', 'Release $next']);
     await _git(project, ['push', 'origin', 'HEAD']);

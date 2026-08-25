@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- Keep Windows installer `MyAppVersion` synchronized during releases.
+
 ## 0.2.3
 
 - Added cloud build and tagged release commands to the CLI.
