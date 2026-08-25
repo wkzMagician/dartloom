@@ -127,11 +127,9 @@ class GitHubActionsBackend implements CloudBuildBackend {
       if (ghDownloaded == true) {
         return;
       }
-      if (ghDownloaded == false) {
-        throw StateError(
-          'GitHub CLI could not download ${artifact.name} within 30 seconds.',
-        );
-      }
+      throw StateError(
+        'GitHub CLI could not download ${artifact.name} within 30 seconds.',
+      );
     }
 
     final response = await _request('GET', artifact.downloadUrl);
@@ -162,19 +160,23 @@ class GitHubActionsBackend implements CloudBuildBackend {
       ]);
       final stdoutDone = process.stdout.drain<void>();
       final stderrDone = process.stderr.drain<void>();
+      var timedOut = false;
       final exitCode = await process.exitCode.timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          process.kill();
+          timedOut = true;
+          process.kill(ProcessSignal.sigkill);
           return -1;
         },
       );
-      await Future.wait([stdoutDone, stderrDone]);
+      if (!timedOut) {
+        await Future.wait([stdoutDone, stderrDone]);
+      }
       if (exitCode == 0) {
         return true;
       }
       stderr.writeln(
-        'gh run download failed; falling back to GitHub API download.',
+        'gh run download failed.',
       );
     } on ProcessException {
       // GitHub CLI is optional when GITHUB_TOKEN is supplied.
