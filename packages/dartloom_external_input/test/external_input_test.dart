@@ -25,4 +25,22 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('parses clipboard content with an opaque change token', () {
+    final result = ClipboardReadResult.fromJson({
+      'kind': 'content',
+      'changeToken': 'platform-token',
+      'batch': {
+        'source': 'clipboard',
+        'items': [
+          {'type': 'url', 'url': 'https://example.com'},
+        ],
+      },
+    });
+
+    expect(result, isA<ClipboardContent>());
+    final content = result as ClipboardContent;
+    expect(content.changeToken, 'platform-token');
+    expect(content.batch.source, ExternalInputSource.clipboard);
+  });
 }

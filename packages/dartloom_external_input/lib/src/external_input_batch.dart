@@ -1,6 +1,6 @@
 import 'external_input.dart';
 
-enum ExternalInputSource { share, openWith, intent, deepLink }
+enum ExternalInputSource { share, openWith, intent, deepLink, clipboard }
 
 final class ExternalInputBatch {
   const ExternalInputBatch({required this.items, required this.source});
@@ -32,6 +32,7 @@ final class ExternalInputBatch {
       'openWith' => ExternalInputSource.openWith,
       'intent' => ExternalInputSource.intent,
       'deepLink' => ExternalInputSource.deepLink,
+      'clipboard' => ExternalInputSource.clipboard,
       _ => throw FormatException('Unknown external input source: $sourceName'),
     };
     return ExternalInputBatch(

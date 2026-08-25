@@ -26,3 +26,24 @@ final class AndroidExternalInputService implements ExternalInputService {
     ];
   }
 }
+
+/// Explicit reader for the foreground Android system clipboard.
+///
+/// The application owns lifecycle policy and calls [read] only when clipboard
+/// access is appropriate for its user experience.
+final class AndroidClipboardExternalInputReader
+    implements ClipboardExternalInputReader {
+  AndroidClipboardExternalInputReader({MethodChannel? methods})
+      : _methods = methods ??
+            const MethodChannel('dev.dartloom.external_input/methods');
+
+  final MethodChannel _methods;
+
+  @override
+  Future<ClipboardReadResult> read({String? afterChangeToken}) async {
+    final value = await _methods.invokeMethod<Object?>('readClipboard', {
+      if (afterChangeToken != null) 'afterChangeToken': afterChangeToken,
+    });
+    return ClipboardReadResult.fromJson(value);
+  }
+}

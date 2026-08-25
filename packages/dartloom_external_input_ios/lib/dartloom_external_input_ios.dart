@@ -33,3 +33,24 @@ final class IosExternalInputService implements ExternalInputService {
     ];
   }
 }
+
+/// Explicit reader for the foreground iOS system pasteboard.
+///
+/// Calling [read] may cause iOS to ask the user to allow pasting. Applications
+/// decide when that prompt is appropriate.
+final class IosClipboardExternalInputReader
+    implements ClipboardExternalInputReader {
+  IosClipboardExternalInputReader({MethodChannel? methods})
+      : _methods = methods ??
+            const MethodChannel('dev.dartloom.external_input/ios/methods');
+
+  final MethodChannel _methods;
+
+  @override
+  Future<ClipboardReadResult> read({String? afterChangeToken}) async {
+    final value = await _methods.invokeMethod<Object?>('readClipboard', {
+      if (afterChangeToken != null) 'afterChangeToken': afterChangeToken,
+    });
+    return ClipboardReadResult.fromJson(value);
+  }
+}

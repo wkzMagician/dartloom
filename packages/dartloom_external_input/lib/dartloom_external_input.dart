@@ -4,5 +4,6 @@ library;
 
 export 'src/external_input.dart';
 export 'src/external_input_batch.dart';
+export 'src/clipboard_external_input.dart';
 export 'src/external_input_destination.dart';
 export 'src/external_input_service.dart';
