@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v1.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require dev as release source
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          test "${HEAD_BRANCH}" = "dev" || (echo "main releases must come from dev" && exit 1)
+
+  build:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build boundary
+        run: |
+          echo "Configure project build and artifact commands here."
+          true
+
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create tag and release
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "${VERSION}" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "version must look like v1.3.0"; exit 1 ;; esac
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+          gh release create "${VERSION}" --generate-notes

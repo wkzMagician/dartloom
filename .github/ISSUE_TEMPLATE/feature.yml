@@ -1,0 +1,12 @@
+name: Feature request
+description: Propose a feature for human implementation
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the user problem and desired outcome.
+    validations:
+      required: true

@@ -1,0 +1,33 @@
+repository:
+  visibility: public
+
+branches:
+  main:
+    approvals: 0
+  dev:
+    approvals: 0
+
+developers: []
+
+ci:
+  enabled: true
+
+ai:
+  enabled: true
+  provider:
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    model: xxx
+    api_key: secret:REPOFLOW_AI_API_KEY
+  analysis:
+    issues: true
+    rate_limit:
+      max_per_user: 5
+      window_minutes: 60
+  policy:
+    auto_fix_bugs: true
+    min_confidence: 0.85
+  ci_debug: true
+
+release:
+  enabled: true
