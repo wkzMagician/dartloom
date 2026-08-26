@@ -1,7 +1,8 @@
 # dartloom_cli
 
 The Dartloom CLI configures Flutter projects, manages their cloud-build
-workflows, and selects normal Dart package dependencies. It provides
+workflows, selects normal Dart package dependencies, and initializes GitHub
+governance through the `gh-repoflow` extension. It provides
 `dartloom new`, `dartloom update`, `dartloom check`, `dartloom build`, and
 `dartloom release`.
 

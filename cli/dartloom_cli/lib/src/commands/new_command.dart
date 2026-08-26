@@ -4,6 +4,7 @@ import '../config/config_loader.dart';
 import '../config/dartloom_config.dart';
 import '../packages/package_catalog.dart';
 import '../process/process_runner.dart';
+import '../process/repo_flow_runner.dart';
 import 'command_support.dart';
 import 'configuration_tui.dart';
 import 'documentation.dart';
@@ -12,20 +13,26 @@ import 'workflow_templates.dart';
 
 class NewCommand {
   NewCommand(this.runner,
-      {ConfigLoader? loader, PackageCatalog? catalog, ConfigurationTui? tui})
+      {ConfigLoader? loader,
+      PackageCatalog? catalog,
+      ConfigurationTui? tui,
+      RepoFlowRunner? repoFlow})
       : loader = loader ?? const ConfigLoader(),
         catalog = catalog ?? const PackageCatalog(),
-        tui = tui ?? const ConfigurationTui();
+        tui = tui ?? const ConfigurationTui(),
+        repoFlow = repoFlow ?? RepoFlowRunner(runner);
   final ProcessRunner runner;
   final ConfigLoader loader;
   final PackageCatalog catalog;
   final ConfigurationTui tui;
+  final RepoFlowRunner repoFlow;
 
   Future<void> run(
       {required Directory parent,
       required String name,
       Set<TargetPlatform>? platforms,
-      List<String>? packages}) async {
+      List<String>? packages,
+      String visibility = 'public'}) async {
     if (!RegExp(r'^[a-z][a-z0-9_-]*$').hasMatch(name)) {
       throw CommandFailure('Invalid project name "$name".');
     }
@@ -50,6 +57,7 @@ class NewCommand {
     await _write(project, selection);
     await runRequired(
         runner, executableFor('flutter'), ['pub', 'get'], project);
+    await repoFlow.init(project, name: name, visibility: visibility);
   }
 
   Future<void> _write(Directory project, DartloomConfig config) async {

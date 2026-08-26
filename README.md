@@ -98,13 +98,13 @@ dartloom new my_app --platforms=android,windows
 dartloom new my_app --packages=dartloom_storage,dartloom_storage_file
 ```
 
-The command runs `flutter create`, writes `.dartloom/project.yaml`, adds selected packages as direct dependencies, runs `flutter pub get`, updates the managed section of `AGENTS.md`, and adds the project workflow templates.
+The command runs `flutter create`, writes `.dartloom/project.yaml`, adds selected packages as direct dependencies, runs `flutter pub get`, updates the managed section of `AGENTS.md`, adds the project workflow templates, and initializes GitHub governance with `gh repoflow init`. The `gh` CLI must be authenticated and the `gh-repoflow` extension must be installed first. Use `--visibility=private` for a private repository.
 
 ## CLI commands
 
 | Command | What it does |
 | --- | --- |
-| `dartloom new <project-name>` | Creates a configured Flutter project. |
+| `dartloom new <project-name>` | Creates a configured Flutter project and initializes its GitHub repository with RepoFlow. |
 | `dartloom update` | Reopens configuration for the current project and synchronizes managed files. Removing a platform asks for confirmation before deleting its directory. |
 | `dartloom check` | Performs a read-only validation of project configuration, selected packages, metadata, platform support, and generated documentation. |
 | `dartloom build <platform\|all>` | Triggers `.github/workflows/dartloom-build.yml` for the current commit and downloads artifacts into `dist/<platform>/`. |

@@ -18,6 +18,7 @@ Future<void> main(List<String> arguments) async {
   }
   parser.commands['new']!.addOption('platforms');
   parser.commands['new']!.addOption('packages');
+  parser.commands['new']!.addOption('visibility', defaultsTo: 'public');
   parser.commands['build']!.addOption('mode', defaultsTo: 'release');
   try {
     final results = parser.parse(arguments);
@@ -37,7 +38,8 @@ Future<void> main(List<String> arguments) async {
             parent: Directory.current,
             name: command.rest.single,
             platforms: _platforms(command['platforms'] as String?),
-            packages: _packages(command['packages'] as String?));
+            packages: _packages(command['packages'] as String?),
+            visibility: command['visibility'] as String);
       case 'update':
         if (command.rest.isNotEmpty) {
           throw CommandFailure('Usage: dartloom update');
