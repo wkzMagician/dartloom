@@ -52,7 +52,9 @@ void main() {
         ),
         appName: 'mind_bubble',
       );
-      expect(workflow, contains('dist/mind_bubble-android.apk'));
+      expect(workflow, contains('--split-per-abi'));
+      expect(workflow, contains('dist/mind_bubble-android-\${abi}.apk'));
+      expect(workflow, isNot(contains('dist/mind_bubble-android.apk')));
       expect(workflow, contains('dist/mind_bubble-android.aab'));
       expect(workflow, contains('dist/mind_bubble-ios.ipa'));
       expect(workflow, contains('dist/mind_bubble-macos.dmg'));
