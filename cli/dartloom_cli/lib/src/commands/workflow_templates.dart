@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           case "\${{ matrix.platform }}" in
-            android) flutter build apk --\${{ inputs.mode }} && flutter build appbundle --\${{ inputs.mode }} ;;
+            android) flutter build apk --\${{ inputs.mode }} --split-per-abi && flutter build appbundle --\${{ inputs.mode }} ;;
             ios) flutter build ios --\${{ inputs.mode }} --no-codesign ;;
             *) flutter build \${{ matrix.platform }} --\${{ inputs.mode }} ;;
           esac
@@ -114,7 +114,12 @@ ${_cloudPostBuildHooks(config)}
           mode='\${{ inputs.mode }}'
           case "\${{ matrix.platform }}" in
             android)
-              cp "build/app/outputs/flutter-apk/app-\$mode.apk" "artifact/\${app}-android.apk"
+              for apk in build/app/outputs/flutter-apk/app-*-\$mode.apk; do
+                test -f "\$apk"
+                abi="\${apk##*/app-}"
+                abi="\${abi%-release.apk}"
+                cp "\$apk" "artifact/\${app}-android-\${abi}.apk"
+              done
               cp "build/app/outputs/bundle/\$mode/app-\$mode.aab" "artifact/\${app}-android.aab"
               ;;
             ios)
@@ -239,7 +244,7 @@ String _releaseJob(
       : '';
   final build = switch (platform) {
     TargetPlatform.android =>
-      '      - run: flutter build apk --release\n      - run: flutter build appbundle --release',
+      '      - run: flutter build apk --release --split-per-abi\n      - run: flutter build appbundle --release',
     TargetPlatform.ios =>
       '      - run: flutter build ios --release --no-codesign',
     TargetPlatform.macos => '      - run: flutter build macos --release',
@@ -253,7 +258,12 @@ String _releaseJob(
         shell: bash
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/${slug}-android.apk
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            test -f "\$apk"
+            abi="\${apk##*/app-}"
+            abi="\${abi%-release.apk}"
+            cp "\$apk" "dist/${slug}-android-\${abi}.apk"
+          done
           cp build/app/outputs/bundle/release/app-release.aab dist/${slug}-android.aab
 ''',
     TargetPlatform.ios => '''      - name: Package iOS IPA
