@@ -10,9 +10,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
       - run: flutter pub get
-    # Build ABI-specific APKs so a sideloaded download does not contain
-    # native libraries for every Android architecture.
-    - run: flutter build apk --release --split-per-abi
+      # Build a Universal APK for the public GitHub Release. Keep the AAB
+      # as an internal CI artifact for app-store submission.
+      - run: flutter build apk --release
       - run: flutter build appbundle --release
       - uses: actions/upload-artifact@v4
         with:
@@ -34,7 +34,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
+      - name: Collect release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release_files
+          find . -type f ! -name '*.aab' -exec cp {} release_files/ \;
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: '**/*'
+          files: release_files/*

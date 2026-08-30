@@ -57,11 +57,19 @@ class NewCommand {
     await _write(project, selection);
     await runRequired(
         runner, executableFor('flutter'), ['pub', 'get'], project);
-    await repoFlow.init(project, name: name, visibility: visibility);
+    await repoFlow.init(
+      project,
+      name: name,
+      visibility: visibility,
+      topic: 'dartloom',
+    );
   }
 
   Future<void> _write(Directory project, DartloomConfig config) async {
     await loader.save(project, config);
+    await addDartloomReadmeAttribution(
+      File('${project.path}${Platform.pathSeparator}README.md'),
+    );
     for (final path in ['lib/app', 'lib/features', 'lib/shared', 'test']) {
       await Directory('${project.path}${Platform.pathSeparator}$path')
           .create(recursive: true);
