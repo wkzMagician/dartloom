@@ -52,9 +52,9 @@ void main() {
         ),
         appName: 'mind_bubble',
       );
-      expect(workflow, contains('--split-per-abi'));
-      expect(workflow, contains('dist/mind_bubble-android-\${abi}.apk'));
-      expect(workflow, isNot(contains('dist/mind_bubble-android.apk')));
+      expect(workflow, contains('flutter build apk --release'));
+      expect(workflow, isNot(contains('--split-per-abi')));
+      expect(workflow, contains('dist/mind_bubble-android.apk'));
       expect(workflow, contains('dist/mind_bubble-android.aab'));
       expect(workflow, contains('dist/mind_bubble-ios.ipa'));
       expect(workflow, contains('dist/mind_bubble-macos.dmg'));
@@ -63,6 +63,7 @@ void main() {
       expect(workflow, contains('dist/mind_bubble-web.zip'));
       expect(workflow, contains('find downloaded_artifacts'));
       expect(workflow, contains("! -name 'dartloom-build.json'"));
+      expect(workflow, contains("! -name '*.aab'"));
       expect(workflow, isNot(contains('build/app/outputs/**')));
     });
 
