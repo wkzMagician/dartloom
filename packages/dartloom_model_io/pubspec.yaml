@@ -1,0 +1,13 @@
+name: dartloom_model_io
+description: Native HTTP, Ollama, account OAuth, and desktop CLI model adapters.
+version: 0.1.0
+environment:
+  sdk: ^3.8.0
+dependencies:
+  crypto: ^3.0.6
+  dartloom_model: ^0.1.0
+dependency_overrides:
+  dartloom_model:
+    path: ../dartloom_model
+dev_dependencies:
+  test: ^1.25.0
