@@ -1,0 +1,20 @@
+package: dartloom_model
+display_name: Model Contracts
+description: Provider-independent generation and embedding contracts.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+  - web
+exports:
+  - symbol: GenerationModel
+    kind: class
+    description: Text generation contract with application-owned prompts.
+  - symbol: EmbeddingModel
+    kind: class
+    description: Batched semantic embedding contract.
+  - symbol: ModelConnection
+    kind: class
+    description: Serializable model selection without credentials.

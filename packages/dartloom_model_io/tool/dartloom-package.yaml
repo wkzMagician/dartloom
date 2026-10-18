@@ -1,0 +1,22 @@
+package: dartloom_model_io
+display_name: Native Model Adapters
+description: Native API, subscription CLI, and local Ollama adapters.
+platforms:
+  - android
+  - ios
+  - windows
+  - macos
+  - linux
+exports:
+  - symbol: ApiGenerationModel
+    kind: class
+    description: Configurable OpenAI-compatible generation adapter.
+  - symbol: CodexSubscriptionModel
+    kind: class
+    description: Desktop subscription generation through an authenticated Codex CLI.
+  - symbol: OllamaGenerationModel
+    kind: class
+    description: Local Ollama generation adapter.
+  - symbol: OllamaEmbeddingModel
+    kind: class
+    description: Local Ollama batch embedding adapter.
