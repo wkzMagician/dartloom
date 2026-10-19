@@ -6,6 +6,18 @@ import '../packages/package_catalog.dart';
 
 const _begin = '<!-- dartloom:begin -->';
 const _end = '<!-- dartloom:end -->';
+const dartloomReadmeBadge =
+    '[![Built with Dartloom](https://img.shields.io/badge/Built%20with-Dartloom-02569B)](https://github.com/wkzMagician/dartloom)';
+
+Future<void> addDartloomReadmeAttribution(File file) async {
+  if (!await file.exists()) return;
+  final existing = await file.readAsString();
+  if (existing.contains(dartloomReadmeBadge)) return;
+  final updated = existing.isEmpty
+      ? '$dartloomReadmeBadge\n'
+      : '$dartloomReadmeBadge\n\n$existing';
+  await file.writeAsString(updated);
+}
 
 Future<String> updateAgents(
     File file, DartloomConfig config, PackageCatalog catalog) async {

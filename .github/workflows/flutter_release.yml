@@ -75,7 +75,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
+      - name: Collect release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release_files
+          find . -type f ! -name '*.aab' -exec cp {} release_files/ \;
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: '**/*'
+          files: release_files/*

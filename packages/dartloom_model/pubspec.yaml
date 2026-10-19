@@ -1,0 +1,7 @@
+name: dartloom_model
+description: Provider-independent generation and embedding contracts for Dartloom.
+version: 0.1.0
+environment:
+  sdk: ^3.8.0
+dev_dependencies:
+  test: ^1.25.0

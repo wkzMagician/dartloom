@@ -204,7 +204,7 @@ ${jobs.join('\n')}
         run: |
           set -euo pipefail
           mkdir -p release_files
-          find downloaded_artifacts -type f ! -name 'dartloom-build.json' -exec cp {} release_files/ \\;
+          find downloaded_artifacts -type f ! -name 'dartloom-build.json' ! -name '*.aab' -exec cp {} release_files/ \\;
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
